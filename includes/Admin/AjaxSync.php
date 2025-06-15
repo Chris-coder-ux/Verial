@@ -1044,18 +1044,95 @@ class AjaxSync {
     	          $filters = $_REQUEST['filters'];
     	          $logger->info('Filtros de sincronización recibidos', ['filters' => $filters]);
     	      }
+    	      
+    	      // Capturar el tamaño de lote seleccionado por el usuario
+    	      $batch_size = isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : null;
+    	      
+    	      if ($batch_size) {
+    	          // Asegurar que el tamaño de lote esté en un rango razonable
+    	          $batch_size = max(5, min($batch_size, 100));
+    	          $logger->info('Tamaño de lote recibido: ' . $batch_size, ['raw' => $_REQUEST['batch_size']]);
+    	          
+    	          // Actualizar la configuración para usar este tamaño de lote
+    	          update_option('mi_integracion_api_optimal_batch_size', $batch_size);
+    	      }
   
     		// Decidir si iniciar una nueva sincronización o procesar el siguiente lote
-    		if (!$status['current_sync']['in_progress']) {
-    			// Es una nueva sincronización
-    			$logger->info('Iniciando nueva sincronización de productos');
-    			$result = $sync_manager->start_sync('products', 'verial_to_wc', $filters);
-    		} else {
-    			// Ya hay una sincronización en progreso
-    			$logger->info('Continuando sincronización en progreso, procesando siguiente lote');
-    			// Verificar si estamos en modo de recuperación
-    			$recovery_mode = !empty($_REQUEST['recovery_mode']);
-    			$result = $sync_manager->process_next_batch($recovery_mode);
+    		try {
+    			if (!$status['current_sync']['in_progress']) {
+    				// Es una nueva sincronización
+    				$logger->info('Iniciando nueva sincronización de productos');
+    				$result = $sync_manager->start_sync('products', 'verial_to_wc', $filters);
+    			} else {
+    				// Ya hay una sincronización en progreso
+    				$logger->info('Continuando sincronización en progreso, procesando siguiente lote');
+    				// Verificar si estamos en modo de recuperación
+    				$recovery_mode = !empty($_REQUEST['recovery_mode']);
+    				
+    				// SOLUCIÓN RADICAL: Interceptar posibles errores de WP_Error como array
+    				try {
+    					// Añadimos información detallada antes de procesar
+    					$logger->info('Procesando siguiente lote con tamaño: ' . $batch_size, [
+    						'memory_before' => memory_get_usage(true),
+    						'time_before' => microtime(true),
+    						'recovery_mode' => $recovery_mode,
+    						'batch_size' => $batch_size
+    					]);
+    					
+    					$result = $sync_manager->process_next_batch($recovery_mode);
+    					
+    					// Verificar explícitamente si el resultado es un WP_Error
+    					if (is_wp_error($result)) {
+    						$logger->warning('process_next_batch devolvió WP_Error', [
+    							'error_code' => $result->get_error_code(),
+    							'error_message' => $result->get_error_message(),
+    							'error_data' => $result->get_error_data()
+    						]);
+    					} else {
+    						$logger->info('Lote procesado correctamente', [
+    							'memory_after' => memory_get_usage(true),
+    							'time_after' => microtime(true),
+    							'result_type' => gettype($result)
+    						]);
+    					}
+    				} catch (\Error $e) {
+    					// Si el error es "Cannot use object of type WP_Error as array"
+    					if (strpos($e->getMessage(), 'Cannot use object of type WP_Error as array') !== false) {
+    						$logger->error('Interceptado error crítico de WP_Error', [
+    							'error' => $e->getMessage(),
+    							'line' => $e->getLine(),
+    							'file' => $e->getFile()
+    						]);
+    						
+    						// Crear un WP_Error para manejar correctamente el error
+    						$result = new \WP_Error(
+    							'api_error_intercepted',
+    							__('Se ha interceptado un error en la comunicación con Verial. Intente de nuevo con un tamaño de lote menor.', 'mi-integracion-api'),
+    							[
+    								'original_error' => $e->getMessage(),
+    								'line' => $e->getLine(),
+    								'file' => $e->getFile()
+    							]
+    						);
+    					} else {
+    						// Si es otro tipo de error, relanzarlo
+    						throw $e;
+    					}
+    				}
+    			}
+    		} catch (\Exception $e) {
+    			$logger->error('Excepción en proceso de sincronización', [
+    				'message' => $e->getMessage(),
+    				'line' => $e->getLine(),
+    				'file' => $e->getFile(),
+    				'trace' => $e->getTraceAsString()
+    			]);
+    			
+    			// Convertir la excepción en un WP_Error para un manejo uniforme
+    			$result = new \WP_Error(
+    				'sync_exception',
+    				__('Error en el proceso de sincronización: ', 'mi-integracion-api') . $e->getMessage()
+    			);
     		}
     		
     		$logger->info('Resultado de la operación de sincronización', [
@@ -1069,10 +1146,15 @@ class AjaxSync {
     			$error_code = $result->get_error_code();
     			$error_data = $result->get_error_data();
     			
+    			// Registrar información detallada del error
     			$logger->error('Error durante la sincronización', [
     				'error_code' => $error_code,
     				'error_message' => $error_message,
-    				'error_data' => $error_data
+    				'error_data' => $error_data,
+    				'memory_usage' => memory_get_usage(true),
+    				'peak_memory' => memory_get_peak_usage(true),
+    				'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'],
+    				'backtrace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3)
     			]);
     			
     			// Generar mensaje de error más descriptivo para el usuario
@@ -1085,6 +1167,20 @@ class AjaxSync {
     				$user_message = __('El servidor de Verial reportó un error: ', 'mi-integracion-api') . $error_message;
     			} elseif ($error_code === 'http_request_failed') {
     				$user_message = __('Error de conexión con el servidor de Verial. Verifique su conexión a internet y los ajustes del API.', 'mi-integracion-api');
+    			} elseif ($error_code === 'empty_response') {
+    				$user_message = __('El servidor de Verial no devolvió respuesta (posible timeout). Intente reducir el tamaño del lote a 10 productos.', 'mi-integracion-api');
+    			} elseif ($error_code === 'batch_too_large') {
+    				$user_message = __('El tamaño del lote es demasiado grande para ser procesado. Reduzca el tamaño del lote a 10 productos e intente de nuevo.', 'mi-integracion-api');
+    			} elseif ($error_code === 'api_error_intercepted') {
+    				$user_message = __('Se ha detectado un error en la comunicación con Verial. Se recomienda reducir el tamaño del lote a 10 productos y reintentar.', 'mi-integracion-api');
+    				
+    				// Incluir información de diagnóstico para el administrador
+    				if (current_user_can('manage_options')) {
+    					$user_message .= '<br><br><small>' . __('Información de diagnóstico (solo visible para administradores):', 'mi-integracion-api') . '<br>';
+    					$user_message .= __('Error original:', 'mi-integracion-api') . ' ' . ($error_data['original_error'] ?? 'Desconocido') . '<br>';
+    					$user_message .= __('Archivo:', 'mi-integracion-api') . ' ' . ($error_data['file'] ?? 'Desconocido') . '<br>';
+    					$user_message .= __('Línea:', 'mi-integracion-api') . ' ' . ($error_data['line'] ?? 'Desconocida') . '</small>';
+    				}
     			}
     			
     			wp_send_json_error([

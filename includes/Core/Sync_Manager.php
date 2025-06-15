@@ -247,13 +247,12 @@ class Sync_Manager {
 		
 		// Limitar el tamaño de lote para GetArticulosWS
 		if ($entity === 'products' && $direction === 'verial_to_wc') {
-			// Obtener tamaño óptimo de lote desde opciones si está disponible
-			$optimal_batch_size = get_option('mi_integracion_api_optimal_batch_size', 40);
+			// Obtener tamaño óptimo de lote desde opciones (actualizado por AjaxSync cuando el usuario lo selecciona)
+			$optimal_batch_size = get_option('mi_integracion_api_optimal_batch_size', 20); // Cambiado de 40 a 20 como valor por defecto
 			
-			// Usar un batch size optimizado para la sincronización desde Verial
-			// Usar el mínimo entre el configurado, el guardado como óptimo, y el máximo seguro
+			// Usar el valor óptimo seleccionado por el usuario o calculado automáticamente
 			$original_batch_size = $batch_size;
-			$batch_size = min($batch_size, $optimal_batch_size);
+			$batch_size = $optimal_batch_size; // Usar directamente el tamaño óptimo
 			
 			// Registrar ajuste automático del tamaño de lote
 			if ($batch_size != $original_batch_size && class_exists('\MiIntegracionApi\Helpers\Logger')) {
@@ -313,6 +312,51 @@ class Sync_Manager {
 	 * @return array|WP_Error Resultado de la operación
 	 */
 	public function process_next_batch($recovery_mode = false) {
+		// Protección contra errores fatales para prevenir el error "Cannot use object of type WP_Error as array"
+		try {
+			return $this->_process_next_batch_internal($recovery_mode);
+		} catch (\Throwable $e) {
+			// Capturar cualquier error o excepción que pueda ocurrir
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-critical-error');
+				$logger->error('Excepción crítica en process_next_batch: ' . $e->getMessage(), [
+					'exception_class' => get_class($e),
+					'file' => $e->getFile(),
+					'line' => $e->getLine(),
+					'trace' => $e->getTraceAsString(),
+					'memory_usage' => memory_get_usage(true),
+					'peak_memory' => memory_get_peak_usage(true)
+				]);
+			}
+			
+			// Crear un mensaje de error apropiado
+			if (strpos($e->getMessage(), 'Cannot use object of type WP_Error as array') !== false) {
+				$error_message = __('Error al procesar respuesta de la API. Puede ser debido a un timeout o respuesta vacía. Intente reducir el tamaño del lote.', 'mi-integracion-api');
+			} else {
+				$error_message = __('Error inesperado durante la sincronización: ', 'mi-integracion-api') . $e->getMessage();
+			}
+			
+			// Devolver un WP_Error con información detallada
+			return new \WP_Error(
+				'sync_fatal_error',
+				$error_message,
+				[
+					'exception' => $e->getMessage(),
+					'file' => basename($e->getFile()),
+					'line' => $e->getLine(),
+					'recovery_suggested' => true
+				]
+			);
+		}
+	}
+	
+	/**
+	 * Implementación interna del procesamiento de lotes
+	 * 
+	 * @param bool $recovery_mode
+	 * @return array|WP_Error
+	 */
+	private function _process_next_batch_internal($recovery_mode = false) {
 		$this->load_sync_status();
 
 		// Verificar si hay una sincronización en progreso
@@ -321,6 +365,17 @@ class Sync_Manager {
 				'no_sync_in_progress',
 				__('No hay una sincronización en progreso.', 'mi-integracion-api')
 			);
+		}
+		
+		// Registrar inicio del procesamiento con información de diagnóstico
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-process');
+			$logger->info('Iniciando procesamiento de un nuevo lote', [
+				'memory_usage_start' => memory_get_usage(true),
+				'peak_memory_start' => memory_get_peak_usage(true),
+				'recovery_mode' => $recovery_mode,
+				'sync_status' => $this->sync_status['current_sync']
+			]);
 		}
 
 		// Obtener los datos de la sincronización actual
@@ -444,12 +499,39 @@ class Sync_Manager {
 					$batch_size = 50;
 				}
 				
-				$result = $this->sync_products_from_verial($offset, $batch_size, $filters);
+				// Ejecutar la sincronización de productos
+				$sync_result = $this->sync_products_from_verial($offset, $batch_size, $filters);
 				
-				// Añadir información sobre el ajuste de lote
-				if ($original_batch_size != $batch_size) {
-					$result['adjusted_batch_size'] = $batch_size;
-					$result['original_batch_size'] = $original_batch_size;
+				// Comprobar tipo de resultado
+				if (is_wp_error($sync_result)) {
+					// Es un error, asignar directamente
+					$result = $sync_result;
+					
+					// Registrar el error para diagnóstico detallado
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-wp-error');
+						$logger->error(
+							'Error en sincronización de productos: ' . $result->get_error_message(),
+							[
+								'error_code' => $result->get_error_code(),
+								'error_data' => $result->get_error_data(),
+								'offset' => $offset,
+								'batch_size' => $batch_size,
+								'memory_usage' => memory_get_usage(true),
+								'peak_memory' => memory_get_peak_usage(true),
+								'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
+							]
+						);
+					}
+				} else {
+					// Es un resultado exitoso, asignar como array y añadir info de ajuste
+					$result = is_array($sync_result) ? $sync_result : ['count' => 0, 'errors' => 0, 'batch' => [$offset, $offset]];
+					
+					// Añadir información sobre el ajuste de lote
+					if ($original_batch_size != $batch_size) {
+						$result['adjusted_batch_size'] = $batch_size;
+						$result['original_batch_size'] = $original_batch_size;
+					}
 				}
 				
 				// Primero verificar si el resultado es un error
@@ -574,6 +656,11 @@ class Sync_Manager {
 			}
 			
 			return $result;
+		}
+
+		// Asegurarnos de que result es un array antes de acceder a sus índices
+		if (!is_array($result)) {
+			$result = ['count' => 0, 'errors' => 0, 'batch' => [$offset, $offset]];
 		}
 
 		// Actualizar el estado de la sincronización
@@ -1027,24 +1114,27 @@ class Sync_Manager {
 	 * @return array|WP_Error Resultado de la operación
 	 */
 	private function sync_products_from_verial( $offset, $limit, $filters ) {
-		// IMPORTANTE: Verificar y ajustar límite para prevenir timeouts
-		$max_safe_batch_size = 40; // Reducido a 40 para evitar timeouts incluso en servidores con recursos limitados
+		// Usar el tamaño de lote seleccionado por el usuario, almacenado en las opciones
+		$optimal_batch_size = (int) get_option('mi_integracion_api_optimal_batch_size', 40);
+		$max_safe_batch_size = $optimal_batch_size; // Usar el valor seleccionado por el usuario
 		$original_limit = $limit;
 		
-		if ($limit > $max_safe_batch_size) {
-			// Ajustar el límite para esta ejecución
-			$limit = $max_safe_batch_size;
+		// Verificar si el tamaño solicitado es mucho mayor que el óptimo (más del doble)
+		if ($limit > ($optimal_batch_size * 2) && $limit > 80) {
+			// Ajustar el límite para esta ejecución, pero respetando un tamaño razonable
+			$limit = min($limit, max($optimal_batch_size, 80)); 
 			
 			// Registrar ajuste automático
 			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
 				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
 				$logger->warning(
-					sprintf('Limitando tamaño de lote de %d a %d para prevenir timeouts',
+					sprintf('Tamaño de lote excesivamente alto (%d). Ajustando a %d',
 						$original_limit, $limit),
 					[
 						'offset' => $offset,
 						'original_limit' => $original_limit,
-						'adjusted_limit' => $limit
+						'adjusted_limit' => $limit,
+						'optimal_batch_size' => $optimal_batch_size
 					]
 				);
 			}
@@ -1170,6 +1260,17 @@ class Sync_Manager {
 		
 		// Si después de todos los reintentos sigue habiendo error, devolverlo
 		if (is_wp_error($response)) {
+			// Asegurarse de que el error tenga un código y mensaje específicos
+			if (!$response->get_error_code()) {
+				return new \WP_Error(
+					'api_connection_error',
+					__('Error de conexión con la API de Verial', 'mi-integracion-api'),
+					[
+						'original_error' => $response->get_error_message(),
+						'params' => $params
+					]
+				);
+			}
 			return $response;
 		}
 
@@ -1376,8 +1477,7 @@ class Sync_Manager {
 						'params' => $params,
 						'response_length' => strlen($body),
 						'response_keys' => is_array($data) ? array_keys($data) : 'no_data',
-						'response_status' => $status_code,
-						'api_url' => $api_url,
+						'response_status' => $api_url,
 						'retry_count' => $retry_count,
 						'batch_size' => $fin - $inicio + 1,
 						'inicio' => $inicio,
@@ -2580,7 +2680,8 @@ class Sync_Manager {
 			$memory_limit = ini_get('memory_limit');
 			$memory_limit_bytes = wp_convert_hr_to_bytes($memory_limit);
 			
-			if ($memory_limit_bytes < 256 * 1024 * 1024) { // 256 MB
+			if ($memory_limit_bytes < 256 * 1024 * 1024) // 256 MB
+			{
 				$issues[] = sprintf(
 					__('Límite de memoria PHP bajo (%s). Puede causar fallos con catálogos grandes.', 'mi-integracion-api'),
 					$memory_limit
