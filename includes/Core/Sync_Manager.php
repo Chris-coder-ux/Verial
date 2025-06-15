@@ -499,7 +499,7 @@ class Sync_Manager {
 				}
 				
 				// Verificar si el lote fue reducido durante el procesamiento
-				if (is_array($result) && isset($result['adjusted_batch_size']) && $result['adjusted_batch_size'] < $original_batch_size) {
+				if (!is_wp_error($result) && is_array($result) && isset($result['adjusted_batch_size']) && $result['adjusted_batch_size'] < $original_batch_size) {
 					// Actualizar el progreso basado en el lote realmente procesado, no el previsto
 					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
 						$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-adjust');
