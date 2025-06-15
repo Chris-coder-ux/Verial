@@ -921,6 +921,9 @@ class Sync_Manager {
 				$params['hora'] = date('H:i:s', $filters['modified_after']);
 			}
 		}
+		
+		// Añadir parámetro de sesión según requisito del manual v1.8 (debe ser 'x')
+		$params['x'] = $this->api_connector->get_session_number();
 
 		// Registrar llamada para diagnóstico
 		if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
@@ -1166,11 +1169,12 @@ class Sync_Manager {
 		}
 		
 		// Asegurarnos de que los parámetros estén correctamente formateados y sean consistentes
+		// IMPORTANTE: Para GET, el parámetro de sesión debe ser 'x' para V1.8, NO 'sesionwcf' según documentación v1.8
 		$params = array(
 			'inicio' => (int)$inicio,
 			'fin'    => (int)$fin,
-			// Incluir explícitamente la sesión para evitar problemas con parámetros
-			'sesionwcf' => $this->api_connector->get_session_number(),
+			// El número de sesión se añade como 'x' para GET según manual v1.8
+			'x' => $this->api_connector->get_session_number(),
 		);
 
 		// Soporte para filtro de fecha y hora
@@ -2280,7 +2284,12 @@ class Sync_Manager {
 				
 				// 4. Probar obtención de muestra de datos
 				// Intentar obtener un pequeño lote de prueba
-				$params = ['inicio' => 1, 'fin' => 3];
+				$params = [
+					'inicio' => 1, 
+					'fin' => 3,
+					// Parámetro de sesión según requisito del manual v1.8 (debe ser 'x')
+					'x' => $this->api_connector->get_session_number()
+				];
 				
 				// Añadir filtros de fecha/hora si existen
 				if (!empty($filters['modified_after'])) {
