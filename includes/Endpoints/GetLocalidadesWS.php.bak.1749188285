@@ -1,0 +1,197 @@
+<?php
+
+
+namespace MiIntegracionApi\Endpoints;
+/**
+ * Clase para el endpoint GetLocalidadesWS de la API de Verial ERP.
+ * Obtiene el listado de localidades, según el manual v1.7.5.
+ *
+ * @package mi-integracion-api
+ * @since 1.0.0
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Salir si se accede directamente.
+}
+
+use MiIntegracionApi\Traits\EndpointLogger;
+use MiIntegracionApi\Helpers\AuthHelper;
+
+class GetLocalidadesWS extends \MiIntegracionApi\Endpoints\Base {
+
+	use EndpointLogger;
+
+	const ENDPOINT_NAME        = 'GetLocalidadesWS';
+	const CACHE_KEY_PREFIX     = 'mi_api_localidades_';
+	const CACHE_EXPIRATION     = 12 * HOUR_IN_SECONDS;
+	const VERIAL_ERROR_SUCCESS = 0;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param ApiConnector $connector Instancia del conector de la API.
+	 */
+	public function __construct( ApiConnector $connector ) {
+		$this->connector = $connector;
+		$this->init_logger(); // Logger base, no específico de productos
+	}
+
+	/**
+	 * Método estático para instanciar la clase.
+	 */
+	public static function make( ApiConnector $connector ): static {
+		return new static( $connector );
+	}
+
+	/**
+	 * Comprueba los permisos para acceder al endpoint.
+	 * Requiere manage_woocommerce y autenticación adicional (API key/JWT).
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return bool|\WP_Error
+	 */
+	public function permissions_check( \WP_REST_Request $request ): bool|\WP_Error {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				esc_html__( 'No tienes permiso para ver esta información.', 'mi-integracion-api' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+		$auth_result = AuthHelper::validate_rest_auth( $request );
+		if ( $auth_result !== true ) {
+			return $auth_result;
+		}
+		return true;
+	}
+
+	/**
+	 * Define los argumentos esperados por el endpoint (parámetros query).
+	 *
+	 * @return array
+	 */
+	public function get_endpoint_args( bool $is_update = false ): array {
+		return array(
+			'sesionwcf'     => array(
+				'description'       => __( 'Número de sesión de Verial.', 'mi-integracion-api' ),
+				'type'              => 'integer',
+				'required'          => true,
+				'sanitize_callback' => 'absint',
+			),
+			'force_refresh' => array(
+				'description'       => __( 'Forzar la actualización de la caché.', 'mi-integracion-api' ),
+				'type'              => 'boolean',
+				'required'          => false,
+				'default'           => false,
+				'sanitize_callback' => 'rest_sanitize_boolean',
+			),
+			'id_pais'       => array(
+				'description'       => __( 'ID del país para filtrar las localidades (opcional).', 'mi-integracion-api' ),
+				'type'              => 'integer',
+				'required'          => false,
+				'sanitize_callback' => 'absint',
+			),
+			'id_provincia'  => array(
+				'description'       => __( 'ID de la provincia para filtrar las localidades (opcional).', 'mi-integracion-api' ),
+				'type'              => 'integer',
+				'required'          => false,
+				'sanitize_callback' => 'absint',
+			),
+			'context'       => array(
+				'description' => __( 'El contexto de la petición (view, embed, edit).', 'mi-integracion-api' ),
+				'type'        => 'string',
+				'enum'        => array( 'view', 'embed', 'edit' ),
+				'default'     => 'view',
+			),
+		);
+	}
+
+	/**
+	 * Formatea la respuesta de la API de Verial.
+	 *
+	 * @param array $verial_response La respuesta decodificada de Verial.
+	 * @return array|WP_Error Los datos formateados o un WP_Error.
+	 */
+	protected function format_verial_response( array $verial_response ) {
+		if ( ! isset( $verial_response['Localidades'] ) || ! is_array( $verial_response['Localidades'] ) ) {
+			$this->logger->errorProducto(
+				'[MI Integracion API] Respuesta malformada de Verial para GetLocalidadesWS: ' . wp_json_encode( $verial_response ),
+				array()
+			);
+			return new \WP_Error(
+				'verial_api_malformed_localidades_data',
+				__( 'Los datos de localidades recibidos de Verial no tienen el formato esperado.', 'mi-integracion-api' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		$localidades = array();
+		foreach ( $verial_response['Localidades'] as $localidad_verial ) {
+			$localidades[] = array(
+				'id'                   => isset( $localidad_verial['Id'] ) ? intval( $localidad_verial['Id'] ) : null,
+				'nombre'               => isset( $localidad_verial['Nombre'] ) ? sanitize_text_field( $localidad_verial['Nombre'] ) : null,
+				'id_provincia'         => isset( $localidad_verial['ID_Provincia'] ) ? intval( $localidad_verial['ID_Provincia'] ) : null,
+				'id_pais'              => isset( $localidad_verial['ID_Pais'] ) ? intval( $localidad_verial['ID_Pais'] ) : null,
+				'codigo_nuts'          => isset( $localidad_verial['CodigoNUTS'] ) ? sanitize_text_field( $localidad_verial['CodigoNUTS'] ) : null,
+				'codigo_municipio_ine' => isset( $localidad_verial['CodigoMunicipioINE'] ) ? sanitize_text_field( $localidad_verial['CodigoMunicipioINE'] ) : null,
+			);
+		}
+		return $localidades;
+	}
+
+	/**
+	 * Ejecuta la lógica del endpoint.
+	 *
+	 * @param WP_REST_Request $request Datos de la solicitud.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function execute_restful( \WP_REST_Request $request ): \WP_REST_Response {
+		// Rate limiting por IP/API key
+		$api_key    = $request->get_header( 'X-Api-Key' ) ?: null;
+		$rate_limit = \MiIntegracionApi\Helpers\AuthHelper::check_rate_limit( 'get_localidades', $api_key );
+		if ( $rate_limit instanceof \WP_Error ) {
+			return $rate_limit;
+		}
+
+		$params              = $request->get_params();
+		$sesionwcf           = $params['sesionwcf'];
+		$force_refresh       = $params['force_refresh'] ?? false;
+		$id_pais_filter      = $params['id_pais'] ?? null;
+		$id_provincia_filter = $params['id_provincia'] ?? null;
+
+		$cache_params_for_key = array(
+			'sesionwcf'    => $sesionwcf,
+			'id_pais'      => $id_pais_filter,
+			'id_provincia' => $id_provincia_filter,
+		);
+
+		if ( ! $force_refresh ) {
+			$cached_data = $this->get_cached_data( $cache_params_for_key );
+			if ( false !== $cached_data ) {
+				return new \WP_REST_Response( $cached_data, 200 );
+			}
+		}
+
+		$verial_api_params = array( 'x' => $sesionwcf );
+
+		$response_verial = $this->connector->get( self::ENDPOINT_NAME, $verial_api_params );
+		if ( is_wp_error( $response_verial ) ) {
+			return rest_ensure_response( $response_verial );
+		}
+		$formatted_response = $this->format_verial_response( $response_verial );
+		if ( is_wp_error( $formatted_response ) ) {
+			return rest_ensure_response( $formatted_response );
+		}
+		$this->set_cached_data( $cache_params_for_key, $formatted_response );
+		return rest_ensure_response( $formatted_response );
+	}
+}
+
+/**
+ * Función para registrar las rutas (ejemplo).
+ */
+// add_action('rest_api_init', function () {
+// $api_connector = new ApiConnector();
+// $localidades_endpoint = new MI_Endpoint_GetLocalidadesWS($api_connector);
+// $localidades_endpoint->register_route();
+// });

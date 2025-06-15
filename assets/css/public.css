@@ -1,0 +1,63 @@
+/* Archivo CSS para Mi Integración API */
+
+.mi-integracion-api-public {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 24px 18px;
+  margin: 24px auto;
+  max-width: 600px;
+}
+
+.mi-integracion-api-public h2 {
+  color: #0073aa;
+  margin-bottom: 16px;
+}
+
+.mi-integracion-api-public input[type="text"],
+.mi-integracion-api-public input[type="email"],
+.mi-integracion-api-public input[type="password"],
+.mi-integracion-api-public select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  margin-bottom: 14px;
+}
+
+.mi-integracion-api-public .button-primary {
+  background: #0073aa;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 8px 18px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.mi-integracion-api-public .button-primary:hover {
+  background: #005177;
+}
+
+.mi-integracion-api-public .notice {
+  padding: 10px 16px;
+  border-radius: 3px;
+  margin-bottom: 14px;
+  font-size: 15px;
+}
+.mi-integracion-api-public .notice-success {
+  background: #e6f9e6;
+  color: #217a00;
+  border: 1px solid #b6e2b6;
+}
+.mi-integracion-api-public .notice-error {
+  background: #fbeaea;
+  color: #b30000;
+  border: 1px solid #f5b6b6;
+}
+
+@media (max-width: 600px) {
+  .mi-integracion-api-public {
+    padding: 12px 4px;
+  }
+}

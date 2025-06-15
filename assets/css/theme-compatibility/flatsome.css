@@ -1,0 +1,44 @@
+/**
+ * Estilos de compatibilidad para Flatsome
+ * 
+ * Estos estilos corrigen problemas específicos de compatibilidad entre 
+ * Mi Integración API y el tema Flatsome.
+ */
+
+/* Corregir problemas con los iconos UX Builder */
+.mi-integration-api-admin-panel .ux-icon {
+    display: inline-block !important;
+    width: auto !important;
+    height: auto !important;
+}
+
+/* Evitar conflictos con los estilos de grid de Flatsome */
+.mi-integration-products-grid .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Compatibilidad con los formularios y controles de Flatsome */
+.mi-integration-api-form .form-flat input:not([type="submit"]) {
+    background-color: #fff !important;
+    box-shadow: none !important;
+    border-radius: 3px !important;
+}
+
+/* Corregir problemas con tipografía y estilos de texto */
+.mi-integration-api-admin-panel h3,
+.mi-integration-api-admin-panel h4 {
+    line-height: 1.3 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0.5em !important;
+}
+
+/* Asegurar que nuestros botones mantengan su estilo */
+.mi-integration-api-admin-panel .button,
+.mi-integration-api-admin-panel .button.button-primary {
+    border-radius: 3px !important;
+    margin: 0 !important;
+    text-transform: none !important;
+}

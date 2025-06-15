@@ -1,0 +1,39 @@
+/**
+ * Estilos de compatibilidad para Divi
+ * 
+ * Estos estilos corrigen problemas específicos de compatibilidad entre 
+ * Mi Integración API y el tema Divi.
+ */
+
+/* Corregir problemas con paneles de administración */
+.mi-integration-api-admin-panel .et-core-modal-overlay {
+    z-index: 9999 !important;
+}
+
+/* Compatibilidad con el builder de Divi */
+.mi-integration-settings-wrapper .et-fb-form__group {
+    display: block;
+    width: 100%;
+}
+
+/* Mejoras visuales para botones en Divi */
+.mi-integration-settings-wrapper .button.button-primary {
+    background-color: #2ea2cc !important;
+    border-color: #0074a2 !important;
+    box-shadow: 0 1px 0 #0074a2 !important;
+    color: #fff !important;
+}
+
+/* Evitar conflictos con estilos de administración de Divi */
+.mi-integration-products-table .et-db #et-boc .et-l .et_pb_section,
+.mi-integration-products-table .et-db #et-boc .et-l .et_pb_row {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Corregir problemas con modales de Divi */
+.mi-integration-modal-overlay {
+    z-index: 10000 !important; /* Asegurar que nuestro modal esté por encima de los modales de Divi */
+}

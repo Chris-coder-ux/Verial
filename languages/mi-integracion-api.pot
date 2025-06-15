@@ -1,0 +1,2365 @@
+# Copyright (C) 2025 Christian
+# This file is distributed under the GPL-2.0+.
+msgid ""
+msgstr ""
+"Project-Id-Version: Integración WooCommerce con Verial ERP 1.2.1\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/mi-integracion-api\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2025-05-23T02:32:44+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: mi-integracion-api\n"
+
+#. Plugin Name of the plugin
+#: mi-integracion-api.php
+msgid "Integración WooCommerce con Verial ERP"
+msgstr ""
+
+#. Description of the plugin
+#: mi-integracion-api.php
+msgid "Conexión avanzada entre WooCommerce y la API de Verial ERP."
+msgstr ""
+
+#. Author of the plugin
+#: mi-integracion-api.php
+msgid "Christian"
+msgstr ""
+
+#. Author URI of the plugin
+#: mi-integracion-api.php
+msgid "https://tu-sitio.com"
+msgstr ""
+
+#: includes/admin/ajax-endpoints-page.php:8
+#: includes/admin/ajax-sync.php:262
+msgid "No tienes permisos suficientes."
+msgstr ""
+
+#: includes/admin/ajax-endpoints-page.php:15
+msgid "Endpoint o conector no válido."
+msgstr ""
+
+#: includes/admin/ajax-endpoints-page.php:41
+msgid "Endpoint no soportado."
+msgstr ""
+
+#: includes/admin/ajax-export.php:23
+msgid "No tienes permisos para realizar esta acción."
+msgstr ""
+
+#: includes/admin/ajax-export.php:31
+msgid "ID de sincronización no válido."
+msgstr ""
+
+#: includes/admin/ajax-export.php:42
+msgid "Registro de sincronización no encontrado."
+msgstr ""
+
+#: includes/admin/ajax-sync.php:85
+msgid "Sincronización cancelada correctamente"
+msgstr ""
+
+#: includes/admin/ajax-sync.php:181
+msgid "El precio mínimo no puede ser mayor que el precio máximo."
+msgstr ""
+
+#: includes/admin/ajax-sync.php:184
+msgid "El precio mínimo no puede ser negativo."
+msgstr ""
+
+#: includes/admin/ajax-sync.php:187
+msgid "El precio máximo no puede ser negativo."
+msgstr ""
+
+#: includes/admin/ajax-sync.php:192
+msgid "Filtros validados correctamente."
+msgstr ""
+
+#: includes/admin/ajax-sync.php:233
+msgid "Error en la sincronización."
+msgstr ""
+
+#: includes/admin/class-admin-menu.php:55
+msgid "Seleccionar opciones"
+msgstr ""
+
+#: includes/admin/class-admin-menu.php:63
+#: includes/admin/class-admin-menu.php:64
+msgid "Verial ERP"
+msgstr ""
+
+#: includes/admin/class-admin-menu.php:76
+#: includes/admin/class-admin-menu.php:77
+#: includes/admin/logs-page.php:24
+msgid "Logs de auditoría"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:42
+#: includes/admin/settings-page.php:33
+msgid "Conectado a Verial"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:44
+#: includes/admin/settings-page.php:35
+msgid "Desconectado"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:46
+#: includes/admin/settings-page.php:37
+#: includes/Endpoints/EstadoPedidosWS.php:130
+msgid "Estado desconocido"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:53
+#: includes/admin/settings-page.php:44
+msgid "Configuración"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:54
+#: includes/admin/connection-test-block.php:5
+#: includes/admin/settings-page.php:45
+msgid "Prueba de conexión"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:55
+#: includes/admin/settings-page.php:46
+msgid "Sincronización"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:62
+#: includes/admin/settings-form-block.php:19
+msgid "Guardar configuración"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:69
+msgid "Prueba de conexión Verial API"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:70
+msgid "Haz clic en el botón para verificar la conexión con la API de Verial."
+msgstr ""
+
+#: includes/admin/connection-check-page.php:72
+msgid "Probar conexión"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:77
+msgid "Prueba de conexión WooCommerce API"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:78
+msgid "Haz clic en el botón para verificar la conexión con la API de WooCommerce."
+msgstr ""
+
+#: includes/admin/connection-check-page.php:80
+#: includes/admin/connection-test-block.php:13
+msgid "Probar conexión WooCommerce"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:85
+msgid "Diagnóstico de conectividad"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:86
+msgid "Realiza un diagnóstico detallado de la conexión con Verial."
+msgstr ""
+
+#: includes/admin/connection-check-page.php:88
+msgid "Ejecutar diagnóstico"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:96
+msgid "Sincronización de productos"
+msgstr ""
+
+#: includes/admin/connection-check-page.php:97
+msgid "Accede a la página de sincronización para gestionar la importación de productos."
+msgstr ""
+
+#: includes/admin/connection-check-page.php:99
+msgid "Ir a Sincronización de Productos"
+msgstr ""
+
+#: includes/admin/connection-test-block.php:6
+msgid "Comprueba la conexión con la API de Verial y WooCommerce. Haz clic en los botones para probar cada conexión."
+msgstr ""
+
+#: includes/admin/connection-test-block.php:8
+msgid "Probar conexión Verial"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:6
+msgid "Dashboard Integración Verial ERP"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:13
+msgid "Productos sincronizados"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:16
+msgid "Total sincronizados"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:21
+msgid "Errores recientes"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:24
+msgid "Errores en la última sync"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:29
+msgid "Última sincronización"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:36
+msgid "Nunca"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:39
+msgid "Fecha y hora"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:44
+msgid "Accesos rápidos"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:46
+msgid "Sincronizar un producto"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:47
+msgid "Probar endpoints"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:48
+msgid "Ver logs"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:52
+msgid "Últimos logs"
+msgstr ""
+
+#: includes/admin/dashboard-page.php:64
+msgid "No hay logs disponibles."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:13
+msgid "Cargando datos del endpoint..."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:14
+msgid "Error al consultar el endpoint."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:22
+#: includes/admin/endpoints-test-page.php:15
+msgid "Pruebas de Endpoints Verial"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:26
+msgid "Llamadas a Endpoints"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:27
+msgid "Documentación"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:31
+msgid "Endpoint"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:39
+msgid "Parámetro (opcional)"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:40
+msgid "Probar"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:49
+msgid "Descripción rápida de endpoints"
+msgstr ""
+
+#: includes/admin/endpoints-page.php:51
+msgid "Devuelve la lista de artículos/productos."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:52
+msgid "Devuelve la lista de clientes."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:53
+msgid "Devuelve la lista de pedidos."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:54
+msgid "Consulta el stock de un artículo."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:55
+msgid "Consulta condiciones de tarifa/precio."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:57
+msgid "Consulta la documentación técnica para detalles de parámetros y estructura."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:71
+msgid "Consultando endpoint..."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:80
+msgid "Consulta exitosa."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:88
+#: includes/admin/endpoints-page.php:89
+msgid "Error desconocido."
+msgstr ""
+
+#: includes/admin/endpoints-page.php:93
+#: includes/admin/endpoints-page.php:94
+msgid "Error de red o servidor."
+msgstr ""
+
+#: includes/admin/endpoints-test-page.php:11
+#: includes/admin/logs-page.php:10
+msgid "No tienes permisos suficientes para ver esta página."
+msgstr ""
+
+#: includes/admin/endpoints-test-page.php:16
+msgid "Lanza pruebas a los endpoints principales de Verial y revisa la respuesta."
+msgstr ""
+
+#: includes/admin/endpoints-test-page.php:17
+msgid "Probar conexión y endpoints"
+msgstr ""
+
+#: includes/admin/endpoints-test-page.php:23
+msgid "Probando..."
+msgstr ""
+
+#: includes/admin/endpoints-test-page.php:32
+#: includes/admin/endpoints-test-page.php:35
+msgid "Error en la prueba."
+msgstr ""
+
+#: includes/admin/logs-page.php:11
+msgid "Acceso restringido"
+msgstr ""
+
+#: includes/admin/logs-page.php:26
+msgid "Aviso: Los logs de auditoría no contienen datos sensibles ni credenciales. Solo se registra información relevante para trazabilidad y seguridad."
+msgstr ""
+
+#: includes/admin/logs-page.php:31
+msgid "Selecciona la fecha:"
+msgstr ""
+
+#: includes/admin/logs-page.php:35
+msgid "Tipo:"
+msgstr ""
+
+#: includes/admin/logs-page.php:46
+msgid "Entidad/Usuario/Endpoint:"
+msgstr ""
+
+#: includes/admin/logs-page.php:50
+msgid "Buscar:"
+msgstr ""
+
+#: includes/admin/logs-page.php:207
+msgid "No hay registros para los filtros seleccionados."
+msgstr ""
+
+#: includes/admin/logs-page.php:210
+msgid "No hay logs de auditoría disponibles para la fecha seleccionada."
+msgstr ""
+
+#: includes/admin/logs-page.php:232
+#: includes/admin/logs-page.php:243
+msgid "Logs de Verial API"
+msgstr ""
+
+#: includes/admin/logs-page.php:233
+msgid "Logs"
+msgstr ""
+
+#: includes/admin/settings-form-block.php:12
+#: mi-integracion-api.php:441
+msgid "Intervalo de sincronización automática (minutos)"
+msgstr ""
+
+#: includes/admin/settings-form-block.php:16
+msgid "API Key de Verial"
+msgstr ""
+
+#: includes/admin/settings-page.php:55
+msgid "La sincronización se gestiona desde la nueva página de sincronización."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:47
+msgid "Historial de Sincronizaciones"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:51
+msgid "No hay registros de sincronización disponibles."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:57
+msgid "ID"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:58
+#: includes/admin/sync-history-page.php:209
+msgid "Tipo"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:59
+#: includes/admin/sync-history-page.php:217
+msgid "Usuario"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:60
+msgid "Fecha"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:61
+#: includes/admin/sync-history-page.php:225
+msgid "Duración"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:62
+#: includes/admin/sync-history-page.php:221
+msgid "Estado"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:63
+#: includes/admin/sync-history-page.php:316
+msgid "Acciones"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:69
+#: includes/admin/sync-history-page.php:153
+msgid "Usuario desconocido"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:74
+#: includes/admin/sync-history-page.php:163
+msgid "Éxito"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:78
+#: includes/admin/sync-history-page.php:167
+msgid "Error"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:82
+#: includes/admin/sync-history-page.php:171
+msgid "Cancelado"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:86
+#: includes/admin/sync-history-page.php:175
+msgid "Pendiente"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:94
+#: includes/admin/sync-history-page.php:226
+msgid "segundos"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:98
+msgid "Ver detalles"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:111
+#, php-format
+msgid "%s elemento"
+msgid_plural "%s elementos"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/admin/sync-history-page.php:147
+msgid "El registro de sincronización solicitado no existe."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:179
+#, php-format
+msgid "Detalles de Sincronización #%d"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:183
+msgid "Volver al historial"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:193
+msgid "La sincronización se completó correctamente."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:195
+msgid "La sincronización encontró errores. Revise los detalles a continuación."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:202
+msgid "Información General"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:205
+msgid "ID de Sincronización"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:213
+msgid "Fecha y Hora"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:232
+msgid "Datos de Entrada"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:234
+msgid "No hay datos de entrada disponibles."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:258
+msgid "Resultados de la Sincronización"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:260
+msgid "No hay resultados disponibles."
+msgstr ""
+
+#: includes/admin/sync-history-page.php:266
+msgid "Total elementos"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:267
+msgid "Elementos exitosos"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:268
+msgid "Elementos con error"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:269
+msgid "Detalle de errores"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:319
+msgid "Ir a Sincronización"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:322
+msgid "Exportar como JSON"
+msgstr ""
+
+#: includes/admin/sync-history-page.php:326
+msgid "Reintentar esta sincronización"
+msgstr ""
+
+#: includes/Core/ApiConnector.php:166
+#: includes/Core/ApiConnector.php:261
+msgid "El número de sesión de Verial no está configurado."
+msgstr ""
+
+#: includes/Core/ApiConnector.php:169
+#: includes/Core/ApiConnector.php:264
+msgid "La URL base de la API de Verial no está configurada o no es válida."
+msgstr ""
+
+#: includes/Core/ApiConnector.php:217
+#: includes/Core/ApiConnector.php:319
+#, php-format
+msgid "Error HTTP %s al contactar con la API de Verial."
+msgstr ""
+
+#: includes/Core/ApiConnector.php:230
+#: includes/Core/ApiConnector.php:332
+msgid "Error al decodificar la respuesta JSON de la API de Verial."
+msgstr ""
+
+#: includes/Core/ApiConnector.php:238
+#: includes/Core/ApiConnector.php:340
+msgid "La respuesta de la API de Verial no es un array válido."
+msgstr ""
+
+#: includes/Endpoints/Base.php:85
+#: includes/Endpoints/NuevoClienteWS.php:64
+msgid "No tienes permiso para realizar esta acción."
+msgstr ""
+
+#: includes/Endpoints/Base.php:116
+#: includes/Endpoints/NuevoClienteWS.php:384
+msgid "Respuesta inesperada de la API de Verial."
+msgstr ""
+
+#: includes/Endpoints/Base.php:126
+#: includes/Endpoints/NuevoClienteWS.php:392
+msgid "Error desconocido de Verial."
+msgstr ""
+
+#: includes/Endpoints/Base.php:205
+#: includes/Endpoints/GetCondicionesTarifaWS.php:113
+#: includes/Endpoints/GetHistorialPedidosWS.php:110
+#: includes/Endpoints/GetImagenesArticulosWS.php:119
+#: includes/Endpoints/GetMascotasWS.php:133
+#: includes/Endpoints/NuevaMascotaWS.php:156
+#: includes/Endpoints/NuevoPagoWS.php:92
+#, php-format
+msgid "%s debe ser una fecha válida en formato YYYY-MM-DD."
+msgstr ""
+
+#: includes/Endpoints/Base.php:217
+#: includes/Endpoints/GetImagenesArticulosWS.php:124
+#, php-format
+msgid "%s debe ser una hora válida en formato HH:MM."
+msgstr ""
+
+#: includes/Endpoints/Base.php:238
+#: includes/Endpoints/NuevoPagoWS.php:104
+#, php-format
+msgid "%s debe ser un valor numérico estrictamente positivo."
+msgstr ""
+
+#: includes/Endpoints/Base.php:250
+#, php-format
+msgid "%s debe ser un correo electrónico válido."
+msgstr ""
+
+#: includes/Endpoints/Base.php:265
+#, php-format
+msgid "%s debe ser un número de teléfono válido."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:44
+msgid "No tienes permiso para borrar mascotas."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:59
+#: includes/Endpoints/GetClientesWS.php:78
+#: includes/Endpoints/GetMascotasWS.php:108
+msgid "ID del cliente en Verial."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:64
+msgid "ID de la mascota a borrar."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:69
+msgid "Número de sesión de Verial (en el cuerpo JSON)."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:99
+msgid "Los IDs del cliente y de la mascota son requeridos en la URL."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:114
+msgid "El parámetro sesionwcf es requerido en el cuerpo de la solicitud."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:148
+msgid "Error de comunicación con la API de Verial (borrar mascota)."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:172
+msgid "Respuesta inesperada de la API de Verial (borrar mascota)."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:180
+msgid "Error desconocido de Verial al borrar mascota."
+msgstr ""
+
+#: includes/Endpoints/BorrarMascotaWS.php:227
+msgid "Mascota borrada en Verial con éxito."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:54
+msgid "No tienes permiso para consultar el estado de los pedidos."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:64
+#: includes/Endpoints/GetAgentesWS.php:61
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:67
+#: includes/Endpoints/GetAsignaturasWS.php:62
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:62
+#: includes/Endpoints/GetCategoriasWebWS.php:61
+#: includes/Endpoints/GetCategoriasWS.php:62
+#: includes/Endpoints/GetClientesWS.php:63
+#: includes/Endpoints/GetColeccionesWS.php:62
+#: includes/Endpoints/GetCondicionesTarifaWS.php:61
+#: includes/Endpoints/GetCursosWS.php:57
+#: includes/Endpoints/GetFabricantesWS.php:89
+#: includes/Endpoints/GetFormasEnvioWS.php:61
+#: includes/Endpoints/GetHistorialPedidosWS.php:60
+#: includes/Endpoints/GetImagenesArticulosWS.php:65
+#: includes/Endpoints/GetLocalidadesWS.php:82
+#: includes/Endpoints/GetMascotasWS.php:84
+#: includes/Endpoints/GetMetodosPagoWS.php:55
+#: includes/Endpoints/GetNextNumDocsWS.php:61
+#: includes/Endpoints/GetPaisesWS.php:71
+#: includes/Endpoints/GetProvinciasWS.php:62
+#: includes/Endpoints/GetStockArticulosWS.php:97
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:61
+#: includes/Endpoints/GetVersionWS.php:60
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:96
+#: includes/Endpoints/NuevaLocalidadWS.php:56
+#: includes/Endpoints/NuevaMascotaWS.php:57
+#: includes/Endpoints/NuevaProvinciaWS.php:50
+#: includes/Endpoints/NuevoClienteWS.php:74
+#: includes/Endpoints/NuevoPagoWS.php:48
+#: includes/Endpoints/PedidoModificableWS.php:85
+#: includes/Endpoints/UpdateDocClienteWS.php:95
+msgid "Número de sesión de Verial."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:70
+msgid "Lista de pedidos para consultar su estado."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:78
+#: includes/Endpoints/PedidoModificableWS.php:76
+msgid "ID del pedido en Verial."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:84
+msgid "Referencia del pedido generada por la web."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:99
+#, php-format
+msgid "El campo %s debe ser un array no vacío de pedidos."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:109
+msgid "Cada pedido debe tener un \"Id\" numérico o una \"Referencia\" no vacía."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:112
+msgid "Si el \"Id\" del pedido es 0, se requiere una \"Referencia\"."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:120
+msgid "El pedido no existe en Verial"
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:122
+msgid "Recibido"
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:124
+msgid "En preparación"
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:126
+msgid "Preparado"
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:128
+msgid "Enviado"
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:170
+msgid "Error de comunicación con la API de Verial (estado pedidos)."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:182
+msgid "Respuesta inesperada de la API de Verial (estado pedidos)."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:193
+msgid "Error desconocido de Verial al consultar estados."
+msgstr ""
+
+#: includes/Endpoints/EstadoPedidosWS.php:223
+msgid "Estados de pedidos consultados con éxito."
+msgstr ""
+
+#: includes/Endpoints/GetAgentesWS.php:47
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:53
+#: includes/Endpoints/GetArticulosWS.php:141
+#: includes/Endpoints/GetAsignaturasWS.php:48
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:48
+#: includes/Endpoints/GetCategoriasWebWS.php:47
+#: includes/Endpoints/GetCategoriasWS.php:48
+#: includes/Endpoints/GetColeccionesWS.php:48
+#: includes/Endpoints/GetCondicionesTarifaWS.php:47
+#: includes/Endpoints/GetCursosWS.php:43
+#: includes/Endpoints/GetFabricantesWS.php:69
+#: includes/Endpoints/GetFormasEnvioWS.php:47
+#: includes/Endpoints/GetLocalidadesWS.php:64
+#: includes/Endpoints/GetMascotasWS.php:54
+#: includes/Endpoints/GetMetodosPagoWS.php:41
+#: includes/Endpoints/GetNextNumDocsWS.php:51
+#: includes/Endpoints/GetPaisesWS.php:51
+#: includes/Endpoints/GetProvinciasWS.php:44
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:47
+#: includes/Endpoints/GetVersionWS.php:46
+msgid "No tienes permiso para ver esta información."
+msgstr ""
+
+#: includes/Endpoints/GetAgentesWS.php:67
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:87
+#: includes/Endpoints/GetAsignaturasWS.php:68
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:82
+#: includes/Endpoints/GetCategoriasWebWS.php:67
+#: includes/Endpoints/GetCategoriasWS.php:68
+#: includes/Endpoints/GetClientesWS.php:69
+#: includes/Endpoints/GetColeccionesWS.php:68
+#: includes/Endpoints/GetCondicionesTarifaWS.php:67
+#: includes/Endpoints/GetCursosWS.php:63
+#: includes/Endpoints/GetFabricantesWS.php:95
+#: includes/Endpoints/GetFormasEnvioWS.php:67
+#: includes/Endpoints/GetHistorialPedidosWS.php:66
+#: includes/Endpoints/GetImagenesArticulosWS.php:71
+#: includes/Endpoints/GetLocalidadesWS.php:88
+#: includes/Endpoints/GetMascotasWS.php:90
+#: includes/Endpoints/GetMetodosPagoWS.php:61
+#: includes/Endpoints/GetNextNumDocsWS.php:67
+#: includes/Endpoints/GetPaisesWS.php:77
+#: includes/Endpoints/GetProvinciasWS.php:68
+#: includes/Endpoints/GetStockArticulosWS.php:103
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:81
+#: includes/Endpoints/GetVersionWS.php:66
+msgid "Forzar la actualización de la caché."
+msgstr ""
+
+#: includes/Endpoints/GetAgentesWS.php:84
+msgid "Los datos de agentes recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetAgentesWS.php:132
+msgid "Error de comunicación con Verial (agentes)."
+msgstr ""
+
+#: includes/Endpoints/GetAgentesWS.php:144
+msgid "Respuesta inesperada de Verial (agentes)."
+msgstr ""
+
+#: includes/Endpoints/GetAgentesWS.php:152
+msgid "Error desconocido de Verial al obtener agentes."
+msgstr ""
+
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:73
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:68
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:67
+msgid "ID del campo configurable."
+msgstr ""
+
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:80
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:75
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:74
+msgid "ID de la familia de campos configurables (0 si es un campo compartido)."
+msgstr ""
+
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:113
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:104
+msgid "Los datos del árbol de campo configurable recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:165
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:163
+msgid "Error de comunicación con Verial (árbol campo configurable)."
+msgstr ""
+
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:177
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:175
+msgid "Respuesta inesperada de Verial (árbol campo configurable)."
+msgstr ""
+
+#: includes/Endpoints/GetArbolCamposConfigurablesArticulosWS.php:185
+#: includes/Endpoints/GetCamposConfigurablesArticulosWS.php:183
+msgid "Error desconocido de Verial al obtener árbol de campo configurable."
+msgstr ""
+
+#: includes/Endpoints/GetArticulosWS.php:70
+#: includes/Endpoints/GetClientesWS.php:172
+#: includes/Endpoints/GetStockArticulosWS.php:186
+msgid "Los parámetros de la petición no son válidos."
+msgstr ""
+
+#: includes/Endpoints/GetArticulosWS.php:122
+msgid "La respuesta de Verial no contiene los datos esperados de artículos."
+msgstr ""
+
+#: includes/Endpoints/GetAsignaturasWS.php:94
+msgid "Los datos de asignaturas recibidos de Verial no tienen el formato esperado (se esperaba la clave \"Valores\")."
+msgstr ""
+
+#: includes/Endpoints/GetAsignaturasWS.php:142
+msgid "Error de comunicación con Verial (asignaturas)."
+msgstr ""
+
+#: includes/Endpoints/GetAsignaturasWS.php:154
+msgid "Respuesta inesperada de Verial (asignaturas)."
+msgstr ""
+
+#: includes/Endpoints/GetAsignaturasWS.php:162
+msgid "Error desconocido de Verial al obtener asignaturas."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWebWS.php:97
+msgid "Los datos de categorías web recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWebWS.php:147
+msgid "Error de comunicación con Verial (categorías web)."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWebWS.php:159
+msgid "Respuesta inesperada de Verial (categorías web)."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWebWS.php:167
+msgid "Error desconocido de Verial al obtener categorías web."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWS.php:81
+msgid "Los datos de categorías recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWS.php:132
+msgid "Error de comunicación con Verial (categorías)."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWS.php:144
+msgid "Respuesta inesperada de Verial (categorías)."
+msgstr ""
+
+#: includes/Endpoints/GetCategoriasWS.php:152
+msgid "Error desconocido de Verial al obtener categorías."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:47
+msgid "No tienes permiso para ver la información de los clientes."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:88
+msgid "ID del cliente en Verial para filtrar (0 para todos)."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:94
+msgid "NIF/CIF del cliente para filtrar."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:103
+msgid "Filtrar clientes creados/modificados desde esta fecha (YYYY-MM-DD)."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:109
+msgid "Filtrar clientes desde una hora específica (HH:MM:SS)."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:125
+msgid "Los datos de clientes recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetClientesWS.php:246
+msgid "Respuesta inesperada de la API de Verial (clientes)."
+msgstr ""
+
+#: includes/Endpoints/GetColeccionesWS.php:90
+msgid "Los datos de colecciones recibidos de Verial no tienen el formato esperado (se esperaba la clave \"Valores\")."
+msgstr ""
+
+#: includes/Endpoints/GetColeccionesWS.php:138
+msgid "Error de comunicación con Verial (colecciones)."
+msgstr ""
+
+#: includes/Endpoints/GetColeccionesWS.php:150
+msgid "Respuesta inesperada de Verial (colecciones)."
+msgstr ""
+
+#: includes/Endpoints/GetColeccionesWS.php:158
+msgid "Error desconocido de Verial al obtener colecciones."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:74
+msgid "ID del artículo (0 para todos los artículos)."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:82
+msgid "ID del cliente (0 para tarifa general web)."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:90
+msgid "ID de la tarifa (si no se especifica, usa general web o del cliente)."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:97
+msgid "Fecha para calcular precios (si es distinta a la actual)."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:124
+msgid "Los datos de condiciones de tarifa recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:185
+msgid "Error de comunicación con Verial (condiciones tarifa)."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:197
+msgid "Respuesta inesperada de Verial (condiciones tarifa)."
+msgstr ""
+
+#: includes/Endpoints/GetCondicionesTarifaWS.php:205
+msgid "Error desconocido de Verial al obtener condiciones de tarifa."
+msgstr ""
+
+#: includes/Endpoints/GetCursosWS.php:89
+msgid "Los datos de cursos recibidos de Verial no tienen el formato esperado (se esperaba la clave \"Valores\")."
+msgstr ""
+
+#: includes/Endpoints/GetCursosWS.php:132
+msgid "Error de comunicación con Verial (cursos)."
+msgstr ""
+
+#: includes/Endpoints/GetCursosWS.php:145
+msgid "Respuesta inesperada de Verial (cursos)."
+msgstr ""
+
+#: includes/Endpoints/GetCursosWS.php:153
+msgid "Error desconocido de Verial al obtener cursos."
+msgstr ""
+
+#: includes/Endpoints/GetFabricantesWS.php:131
+msgid "Genérico"
+msgstr ""
+
+#: includes/Endpoints/GetFabricantesWS.php:133
+msgid "Editor de libros"
+msgstr ""
+
+#: includes/Endpoints/GetFabricantesWS.php:135
+msgid "Tipo desconocido"
+msgstr ""
+
+#: includes/Endpoints/GetFabricantesWS.php:152
+msgid "Los datos de fabricantes recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetFabricantesWS.php:216
+msgid "Respuesta inesperada de Verial (fabricantes)."
+msgstr ""
+
+#: includes/Endpoints/GetFabricantesWS.php:224
+msgid "Error desconocido de Verial al obtener fabricantes."
+msgstr ""
+
+#: includes/Endpoints/GetFormasEnvioWS.php:94
+msgid "Los datos de formas de envío recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:46
+msgid "No tienes permiso para ver el historial de pedidos."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:73
+msgid "ID del cliente para filtrar el historial (opcional)."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:80
+msgid "Fecha desde (YYYY-MM-DD) para filtrar el historial (opcional)."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:88
+msgid "Fecha hasta (YYYY-MM-DD) para filtrar el historial (opcional)."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:96
+msgid "Incluir pedidos de todas las áreas de venta (true/false, opcional)."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:196
+msgid "Los datos de historial de pedidos recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:250
+msgid "Error de comunicación con Verial (historial pedidos)."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:258
+msgid "Respuesta inesperada de Verial (historial pedidos)."
+msgstr ""
+
+#: includes/Endpoints/GetHistorialPedidosWS.php:264
+msgid "Error desconocido de Verial al obtener historial de pedidos."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:49
+msgid "No tienes permiso para ver las imágenes de los artículos."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:78
+msgid "Si es > 0, las imágenes se reducen manteniendo proporciones y el lado menor tendrá estos píxeles."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:86
+msgid "Fecha (YYYY-MM-DD) para filtrar imágenes de artículos creados/modificados desde esta fecha."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:94
+msgid "Hora (HH:MM) para el filtro de fecha_desde."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:103
+#: includes/Endpoints/GetStockArticulosWS.php:112
+msgid "ID del artículo en Verial."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:140
+msgid "Los datos de imágenes recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:196
+msgid "Error de comunicación con Verial (imágenes)."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:204
+msgid "Respuesta inesperada de Verial (imágenes)."
+msgstr ""
+
+#: includes/Endpoints/GetImagenesArticulosWS.php:210
+msgid "Error desconocido de Verial al obtener imágenes."
+msgstr ""
+
+#: includes/Endpoints/GetLocalidadesWS.php:95
+msgid "ID del país para filtrar las localidades (opcional)."
+msgstr ""
+
+#: includes/Endpoints/GetLocalidadesWS.php:101
+msgid "ID de la provincia para filtrar las localidades (opcional)."
+msgstr ""
+
+#: includes/Endpoints/GetLocalidadesWS.php:122
+msgid "Los datos de localidades recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:70
+msgid "No tienes permiso para ver las mascotas de este cliente."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:97
+msgid "Fecha (YYYY-MM-DD) para filtrar mascotas creadas/modificadas desde esta fecha."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:116
+msgid "ID del cliente en Verial para filtrar (0 para todas las mascotas de todos los clientes)."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:144
+msgid "Los datos de mascotas recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:219
+msgid "Error de comunicación con Verial (mascotas)."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:227
+msgid "Respuesta inesperada de Verial (mascotas)."
+msgstr ""
+
+#: includes/Endpoints/GetMascotasWS.php:233
+msgid "Error desconocido de Verial al obtener mascotas."
+msgstr ""
+
+#: includes/Endpoints/GetMetodosPagoWS.php:78
+msgid "Los datos de métodos de pago recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetMetodosPagoWS.php:126
+msgid "Error de comunicación con Verial (métodos de pago)."
+msgstr ""
+
+#: includes/Endpoints/GetMetodosPagoWS.php:138
+msgid "Respuesta inesperada de Verial (métodos de pago)."
+msgstr ""
+
+#: includes/Endpoints/GetMetodosPagoWS.php:146
+msgid "Error desconocido de Verial al obtener métodos de pago."
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:80
+msgid "Factura"
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:82
+msgid "Albarán de venta"
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:84
+msgid "Factura simplificada"
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:86
+msgid "Pedido"
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:88
+msgid "Presupuesto"
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:90
+msgid "Tipo de documento desconocido"
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:102
+msgid "Los datos de siguientes números de documento recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:150
+msgid "Error de comunicación con Verial (siguiente número doc)."
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:158
+msgid "Respuesta inesperada de Verial (siguiente número doc)."
+msgstr ""
+
+#: includes/Endpoints/GetNextNumDocsWS.php:164
+msgid "Error desconocido de Verial al obtener siguientes números de documento."
+msgstr ""
+
+#: includes/Endpoints/GetPaisesWS.php:107
+msgid "Los datos de países recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetPaisesWS.php:170
+msgid "Respuesta inesperada de la API de Verial (países)."
+msgstr ""
+
+#: includes/Endpoints/GetPaisesWS.php:177
+msgid "Error desconocido de Verial al obtener países."
+msgstr ""
+
+#: includes/Endpoints/GetProvinciasWS.php:103
+msgid "Los datos de provincias recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetProvinciasWS.php:167
+msgid "Respuesta inesperada de la API de Verial (provincias)."
+msgstr ""
+
+#: includes/Endpoints/GetProvinciasWS.php:174
+msgid "Error desconocido de Verial al obtener provincias."
+msgstr ""
+
+#: includes/Endpoints/GetStockArticulosWS.php:77
+msgid "No tienes permiso para ver esta información de stock."
+msgstr ""
+
+#: includes/Endpoints/GetStockArticulosWS.php:143
+msgid "Los datos de stock recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetStockArticulosWS.php:193
+msgid "El parámetro sesionwcf es obligatorio y debe ser numérico."
+msgstr ""
+
+#: includes/Endpoints/GetStockArticulosWS.php:233
+msgid "Error de comunicación con Verial (stock)."
+msgstr ""
+
+#: includes/Endpoints/GetStockArticulosWS.php:273
+msgid "Respuesta inesperada de Verial (stock)."
+msgstr ""
+
+#: includes/Endpoints/GetStockArticulosWS.php:283
+msgid "Error desconocido de Verial al obtener stock."
+msgstr ""
+
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:103
+msgid "Los datos de valores validados recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:157
+msgid "Error de comunicación con Verial (valores validados)."
+msgstr ""
+
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:165
+msgid "Respuesta inesperada de Verial (valores validados)."
+msgstr ""
+
+#: includes/Endpoints/GetValoresValidadosCampoConfigurableArticulosWS.php:171
+msgid "Error desconocido de Verial al obtener valores validados."
+msgstr ""
+
+#: includes/Endpoints/GetVersionWS.php:83
+msgid "Los datos de versión recibidos de Verial no tienen el formato esperado."
+msgstr ""
+
+#: includes/Endpoints/GetVersionWS.php:122
+msgid "Error de comunicación con Verial (versión)."
+msgstr ""
+
+#: includes/Endpoints/GetVersionWS.php:130
+msgid "Respuesta inesperada de Verial (versión)."
+msgstr ""
+
+#: includes/Endpoints/GetVersionWS.php:136
+msgid "Error desconocido de Verial al obtener la versión."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:78
+msgid "No tienes permiso para gestionar direcciones de envío."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:102
+msgid "ID de la dirección de envío en Verial. Para creación, enviar 0 o no enviar si Verial lo autogenera."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:111
+msgid "Nombre de contacto para la dirección de envío."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:118
+msgid "Primer apellido."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:125
+msgid "Segundo apellido."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:132
+#: includes/Endpoints/NuevoClienteWS.php:135
+msgid "ID del país (numérico, de Verial)."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:138
+#: includes/Endpoints/NuevoClienteWS.php:141
+msgid "ID de la provincia (numérico, de Verial). Opcional si se envía Provincia."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:144
+#: includes/Endpoints/NuevoClienteWS.php:147
+msgid "Nombre de la provincia (si no se usa ID_Provincia)."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:151
+#: includes/Endpoints/NuevoClienteWS.php:154
+msgid "ID de la localidad (numérico, de Verial). Opcional si se envía Localidad."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:157
+#: includes/Endpoints/NuevoClienteWS.php:160
+msgid "Nombre de la localidad (si no se usa ID_Localidad)."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:164
+msgid "Información adicional de la localidad (ej: polígono, urbanización)."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:171
+#: includes/Endpoints/NuevoClienteWS.php:174
+msgid "Código postal."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:182
+#: includes/Endpoints/NuevoClienteWS.php:181
+msgid "Dirección completa."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:189
+msgid "Número de teléfono."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:196
+msgid "Segundo número de teléfono."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:203
+msgid "Dirección de correo electrónico."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:211
+msgid "Cargo en la empresa."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:218
+msgid "Comentario adicional para la dirección."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:225
+#: includes/Endpoints/NuevaLocalidadWS.php:101
+msgid "Código de municipio INE."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:270
+#: includes/Endpoints/NuevaMascotaWS.php:190
+msgid "El ID del cliente es requerido en la URL."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:297
+msgid "El cliente no existe en WooCommerce."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:319
+msgid "No tienes permiso para modificar la dirección de este cliente."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:404
+msgid "Dirección de envío actualizada en Verial con éxito."
+msgstr ""
+
+#: includes/Endpoints/NuevaDireccionEnvioWS.php:405
+msgid "Dirección de envío creada en Verial con éxito."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:46
+msgid "No tienes permiso para crear localidades."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:62
+msgid "Nombre de la localidad."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:69
+msgid "ID del país al que pertenece la localidad (numérico, de Verial)."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:75
+msgid "ID de la provincia a la que pertenece la localidad (numérico, de Verial)."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:81
+msgid "Código postal de la localidad."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:91
+msgid "Código NUTS."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:161
+msgid "Error de comunicación con la API de Verial (localidad)."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:183
+msgid "Respuesta inesperada de la API de Verial (localidad)."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:191
+msgid "Error desconocido de Verial al crear localidad."
+msgstr ""
+
+#: includes/Endpoints/NuevaLocalidadWS.php:221
+msgid "Localidad creada en Verial con éxito."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:47
+msgid "No tienes permiso para gestionar mascotas."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:63
+msgid "ID de la mascota en Verial para modificaciones."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:70
+msgid "Nombre de la mascota."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:77
+msgid "Tipo de animal (ej: Perro, Gato)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:84
+msgid "Raza de la mascota."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:91
+msgid "Fecha de nacimiento (YYYY-MM-DD)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:99
+msgid "Peso de la mascota en kg (ej: 2.55)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:106
+msgid "Situación del peso: 0 (No especificada), 1 (Por debajo), 2 (En peso), 3 (Por encima)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:113
+msgid "Actividad de la mascota: 0 (No especificada), 1 (Activo), 2 (Normal), 3 (Poco activo)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:120
+msgid "Indica si la mascota tiene patologías (true/false)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:126
+msgid "Descripción de las patologías y/o alergias."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:133
+msgid "Alimentación: 0 (No especificada), 1 (Barf), 2 (Pienso), 3 (Otros)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:140
+msgid "Descripción de la alimentación si \"Alimentacion\" es \"Otros\"."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:166
+#, php-format
+msgid "%s debe ser un valor numérico positivo."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:255
+msgid "Error de comunicación con la API de Verial (mascota)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:277
+msgid "Respuesta inesperada de la API de Verial (mascota)."
+msgstr ""
+
+#: includes/Endpoints/NuevaMascotaWS.php:285
+msgid "Error desconocido de Verial al guardar mascota."
+msgstr ""
+
+#: includes/Endpoints/NuevaProvinciaWS.php:40
+msgid "No tienes permiso para crear provincias."
+msgstr ""
+
+#: includes/Endpoints/NuevaProvinciaWS.php:64
+msgid "ID del país al que pertenece la provincia (numérico, de Verial)."
+msgstr ""
+
+#: includes/Endpoints/NuevaProvinciaWS.php:73
+msgid "Código NUTS (Nomenclatura de las Unidades Territoriales Estadísticas)."
+msgstr ""
+
+#: includes/Endpoints/NuevaProvinciaWS.php:121
+msgid "Respuesta inesperada de la API de Verial (provincia)."
+msgstr ""
+
+#: includes/Endpoints/NuevaProvinciaWS.php:129
+msgid "Error desconocido de Verial al crear provincia."
+msgstr ""
+
+#: includes/Endpoints/NuevaProvinciaWS.php:148
+msgid "Provincia creada en Verial con éxito."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:80
+msgid "ID del cliente en Verial para modificaciones."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:86
+msgid "Tipo de cliente: 1 (Particular) o 2 (Empresa)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:93
+msgid "NIF/CIF del cliente."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:100
+msgid "Nombre del cliente o razón social si es empresa y no se proporciona RazonSocial."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:107
+msgid "Primer apellido (para particulares)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:114
+msgid "Segundo apellido (para particulares)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:121
+msgid "Razón social (para empresas)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:128
+msgid "Régimen fiscal (1-8 según manual)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:167
+msgid "Información adicional de la localidad."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:188
+msgid "Número de teléfono principal."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:195
+msgid "Número de teléfono 1."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:202
+msgid "Número de teléfono 2."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:209
+msgid "Número de teléfono móvil."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:216
+msgid "Dirección de correo electrónico principal."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:224
+msgid "Sexo: 0 (No aplicable), 1 (Masculino), 2 (Femenino)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:235
+msgid "Nombre de usuario web antiguo (si se cambia)."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:242
+msgid "Nombre de usuario para la web."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:249
+msgid "Contraseña para la web."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:255
+msgid "Indica si el cliente acepta recibir anuncios."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:261
+msgid "Array de direcciones de envío."
+msgstr ""
+
+#: includes/Endpoints/NuevoClienteWS.php:363
+msgid "Error de comunicación con la API de Verial."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:71
+msgid "No tienes permiso para gestionar documentos."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:86
+msgid "Nombre del cliente"
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:104
+msgid "Tipo de documento (1:Factura, 3:Albarán, 4:Factura Simpl., 5:Pedido, 6:Presupuesto)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:111
+msgid "Número de documento (si la web lleva numeración propia)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:117
+msgid "Fecha del documento (YYYY-MM-DD)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:123
+msgid "ID del cliente en Verial (si ya existe y no se modifica)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:129
+msgid "Datos del cliente para crear o modificar (estructura de NuevoClienteWS)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:136
+msgid "Nombre y dirección del cliente en modo etiqueta (para presupuestos sin crear cliente)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:164
+msgid "Líneas de contenido del documento."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:206
+msgid "El ID del documento es requerido en la URL para actualizaciones."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:253
+msgid "Se debe proporcionar ID_Cliente, datos de Cliente o EtiquetaCliente."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:303
+msgid "Error de comunicación con Verial (documento)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:311
+msgid "Respuesta inesperada de Verial (documento)."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:317
+msgid "Error desconocido de Verial al procesar documento."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:370
+msgid "Documento actualizado en Verial."
+msgstr ""
+
+#: includes/Endpoints/NuevoDocClienteWS.php:370
+msgid "Documento creado en Verial."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:38
+msgid "No tienes permiso para registrar pagos."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:54
+msgid "ID del método de pago (numérico, de Verial)."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:60
+msgid "Fecha del pago (YYYY-MM-DD)."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:68
+msgid "Importe del pago (decimal, ej: 10.50)."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:75
+msgid "Observaciones adicionales para el pago."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:121
+#: includes/Endpoints/UpdateDocClienteWS.php:193
+msgid "El ID del documento es requerido en la URL."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:157
+msgid "Error de comunicación con la API de Verial (nuevo pago)."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:179
+msgid "Respuesta inesperada de la API de Verial (nuevo pago)."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:187
+msgid "Error desconocido de Verial al crear el pago."
+msgstr ""
+
+#: includes/Endpoints/NuevoPagoWS.php:236
+msgid "Pago creado en Verial con éxito."
+msgstr ""
+
+#: includes/Endpoints/PedidoModificableWS.php:62
+msgid "No tienes permiso para consultar esta información del pedido."
+msgstr ""
+
+#: includes/Endpoints/PedidoModificableWS.php:121
+msgid "Error de comunicación con la API de Verial (pedido modificable)."
+msgstr ""
+
+#: includes/Endpoints/PedidoModificableWS.php:134
+msgid "Respuesta inesperada de la API de Verial (pedido modificable)."
+msgstr ""
+
+#: includes/Endpoints/PedidoModificableWS.php:142
+msgid "Error desconocido de Verial al consultar si el pedido es modificable."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:81
+msgid "No tienes permiso para modificar documentos de cliente."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:101
+msgid "Referencia del pedido (si se desea modificar por referencia en lugar de ID y es un pedido)."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:110
+msgid "Campo auxiliar 1."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:119
+msgid "Campo auxiliar 2."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:128
+msgid "Campo auxiliar 3."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:137
+msgid "Campo auxiliar 4."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:146
+msgid "Campo auxiliar 5."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:155
+msgid "Campo auxiliar 6."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:204
+msgid "El documento (pedido) no existe en WooCommerce."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:212
+msgid "No tienes permiso para modificar este documento."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:239
+msgid "Error de comunicación con la API de Verial (actualizar documento)."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:251
+msgid "Respuesta inesperada de la API de Verial (actualizar documento)."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:259
+msgid "Error desconocido de Verial al actualizar documento."
+msgstr ""
+
+#: includes/Endpoints/UpdateDocClienteWS.php:304
+msgid "Documento de cliente actualizado en Verial con éxito."
+msgstr ""
+
+#: includes/helpers/AuthHelper.php:33
+msgid "Autenticación adicional requerida (API key o JWT no válida)."
+msgstr ""
+
+#: includes/helpers/AuthHelper.php:189
+#: includes/helpers/AuthHelper.php:201
+msgid "Demasiadas peticiones. Intenta de nuevo más tarde."
+msgstr ""
+
+#: includes/helpers/Logger.php:73
+msgid "Filtros aplicados"
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:94
+msgid "Formato de respuesta de Verial incorrecto al obtener artículos."
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:94
+msgid "Formato de respuesta de Verial incorrecto."
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:139
+msgid "Sincronización batch iniciada. Total a procesar: "
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:139
+msgid "Filtros: "
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:176
+msgid "Sin filtros aplicados"
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:180
+#, php-format
+msgid "%s: %s"
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:182
+msgid "Filtros aplicados (ver log para detalles)"
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:285
+#: includes/sync/sync-single-product.php:73
+msgid "Nuevo Producto Variable"
+msgstr ""
+
+#: includes/sync/BatchProcessor.php:366
+#: includes/sync/sync-single-product.php:195
+msgid "Nuevo Bundle"
+msgstr ""
+
+#: includes/sync/sync-single-product.php:32
+#: includes/sync/SyncClientes.php:321
+#: includes/sync/SyncPedidos.php:295
+msgid "Ya hay una sincronización en curso."
+msgstr ""
+
+#: includes/sync/sync-single-product.php:46
+#: includes/sync/SyncProductos.php:131
+msgid "No se obtuvieron productos de Verial."
+msgstr ""
+
+#: includes/sync/sync-single-product.php:63
+msgid "No se encontró el producto solicitado."
+msgstr ""
+
+#: includes/sync/sync-single-product.php:78
+msgid "No se pudo crear producto variable: clase WC_Product_Variable no encontrada."
+msgstr ""
+
+#: includes/sync/sync-single-product.php:141
+#, php-format
+msgid "Producto variable sincronizado: %s"
+msgstr ""
+
+#: includes/sync/sync-single-product.php:161
+#, php-format
+msgid "Producto actualizado: %s"
+msgstr ""
+
+#: includes/sync/sync-single-product.php:163
+#, php-format
+msgid "Error al cargar producto WooCommerce: %s"
+msgstr ""
+
+#: includes/sync/sync-single-product.php:176
+#, php-format
+msgid "Producto creado: %s"
+msgstr ""
+
+#: includes/sync/sync-single-product.php:178
+#, php-format
+msgid "No se pudo crear producto WooCommerce: %s"
+msgstr ""
+
+#: includes/sync/sync-single-product.php:200
+msgid "No se puede crear bundle: WooCommerce no soporta grouped."
+msgstr ""
+
+#: includes/sync/sync-single-product.php:245
+msgid "Bundle sincronizado correctamente"
+msgstr ""
+
+#. translators: %1$s: email del cliente, %2$d: número de reintentos, %3$s: mensaje de error
+#: includes/sync/SyncClientes.php:61
+#, php-format
+msgid "Cliente %1$s falló tras %2$d reintentos: %3$s"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:64
+msgid "Cliente no sincronizado tras reintentos"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:85
+#, php-format
+msgid "Cliente %s sincronizado tras reintento."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:89
+#: includes/sync/SyncClientes.php:267
+#: includes/sync/SyncClientes.php:395
+#: includes/sync/SyncPedidos.php:96
+#: includes/sync/SyncPedidos.php:240
+#: includes/sync/SyncPedidos.php:362
+#: includes/sync/SyncPedidos.php:448
+#: includes/WooCommerce/WooCommerceHooks.php:142
+#: includes/WooCommerce/WooCommerceHooks.php:379
+msgid "Error desconocido de Verial"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:109
+#: includes/sync/SyncPedidos.php:113
+#: includes/sync/SyncProductos.php:98
+msgid "Ya hay una sincronización en curso o falta MI_Sync_Lock."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:114
+msgid "Clase Map_Customer no disponible."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:122
+#: includes/sync/SyncPedidos.php:126
+msgid "ApiConnector no válido."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:154
+#: includes/sync/SyncClientes.php:157
+msgid "No se encontraron clientes en WooCommerce para sincronizar."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:167
+#: includes/sync/SyncClientes.php:374
+#, php-format
+msgid "Cliente ID %s omitido: Email inválido o faltante."
+msgstr ""
+
+#. translators: %1$s: NIF/DNI, %2$d: ID del cliente
+#: includes/sync/SyncClientes.php:198
+#, php-format
+msgid "Cliente duplicado detectado por NIF/DNI en WooCommerce (NIF: %1$s, ID: %2$d). Se omite la creación/actualización."
+msgstr ""
+
+#. translators: %1$s: email, %2$s: ID externo Verial
+#: includes/sync/SyncClientes.php:209
+#, php-format
+msgid "Cliente duplicado detectado en WooCommerce (Email: %1$s, ID externo Verial: %2$s). Se omite la creación/actualización."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:230
+#, php-format
+msgid "Cliente %s omitido (hash sin cambios)."
+msgstr ""
+
+#. translators: %1$s: email, %2$d: ID del cliente, %3$s: mensaje de error
+#: includes/sync/SyncClientes.php:250
+#, php-format
+msgid "Error al sincronizar cliente %1$s (ID: %2$d): %3$s"
+msgstr ""
+
+#. translators: %1$s: email, %2$s: acción, %3$d: ID WC, %4$s: ID Verial
+#: includes/sync/SyncClientes.php:258
+#, php-format
+msgid "Cliente %1$s %2$s correctamente (ID WC: %3$d, ID Verial: %4$s)"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:268
+#: includes/sync/SyncClientes.php:396
+#, php-format
+msgid "Error al sincronizar cliente %s (ID: %d) con Verial: %s"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:274
+#, php-format
+msgid "Sincronización de clientes completada. Procesados: %d, Errores: %d."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:289
+#, php-format
+msgid "Excepción durante la sincronización de clientes: %s"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:335
+msgid "No se encontraron clientes con los filtros aplicados."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:350
+msgid "No hay más clientes para procesar en este lote."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:387
+#, php-format
+msgid "Cliente sincronizado: %s (ID WC: %d, ID Verial: %s)"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:401
+#, php-format
+msgid "Excepción durante la sincronización de cliente (ID: %d): %s"
+msgstr ""
+
+#: includes/sync/SyncClientes.php:411
+#, php-format
+msgid "Sincronización de clientes (batch) completada. Procesados: %d, Errores: %d."
+msgstr ""
+
+#: includes/sync/SyncClientes.php:426
+#, php-format
+msgid "Excepción durante la sincronización de clientes (batch): %s"
+msgstr ""
+
+#. translators: %1$d: ID del pedido, %2$d: número de reintentos, %3$s: mensaje de error
+#: includes/sync/SyncPedidos.php:62
+#, php-format
+msgid "Pedido ID %1$d falló tras %2$d reintentos: %3$s"
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:65
+msgid "Pedido no sincronizado tras reintentos"
+msgstr ""
+
+#. translators: %1$d: ID del pedido
+#: includes/sync/SyncPedidos.php:92
+#, php-format
+msgid "Pedido ID %1$d sincronizado tras reintento."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:110
+#: includes/sync/SyncPedidos.php:292
+#: includes/sync/SyncProductos.php:95
+msgid "WooCommerce no está activo."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:118
+msgid "Clase Map_Order no disponible."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:150
+#: includes/sync/SyncPedidos.php:153
+msgid "No se encontraron pedidos en WooCommerce para sincronizar."
+msgstr ""
+
+#. translators: %1$d: ID del pedido
+#: includes/sync/SyncPedidos.php:164
+#, php-format
+msgid "Pedido ID %1$d no encontrado o inválido."
+msgstr ""
+
+#. translators: %1$s: número Verial, %2$d: ID del pedido
+#: includes/sync/SyncPedidos.php:182
+#, php-format
+msgid "Posible duplicado: pedido con número Verial \"%1$s\" ya existe (ID: %2$d)."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:205
+#: includes/sync/SyncPedidos.php:424
+#, php-format
+msgid "Pedido ID %d omitido (hash sin cambios)."
+msgstr ""
+
+#. translators: %1$d: ID del pedido, %2$s: mensaje de error
+#: includes/sync/SyncPedidos.php:218
+#: includes/sync/SyncPedidos.php:242
+#, php-format
+msgid "Error al sincronizar pedido ID %1$d con Verial: %2$s"
+msgstr ""
+
+#. translators: %1$d: ID del pedido, %2$s: ID documento Verial, %3$s: número Verial
+#: includes/sync/SyncPedidos.php:227
+#, php-format
+msgid "Pedido ID %1$d sincronizado. ID Documento Verial: %2$s, Número Verial: %3$s"
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:249
+#, php-format
+msgid "Sincronización de pedidos completada. Procesados: %d, Errores: %d."
+msgstr ""
+
+#. translators: %s: mensaje de excepción
+#: includes/sync/SyncPedidos.php:265
+#, php-format
+msgid "Excepción durante la sincronización de pedidos: %s"
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:311
+msgid "No se encontraron pedidos con los filtros aplicados."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:328
+#, php-format
+msgid "Pedido ID %d no encontrado o inválido (batch)."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:350
+#: includes/sync/SyncPedidos.php:363
+#, php-format
+msgid "Error al actualizar pedido ID %d en Verial: %s"
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:356
+#, php-format
+msgid "Pedido ID %d actualizado en Verial (ID: %s)."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:369
+#, php-format
+msgid "Pedido ID %d omitido (batch): ya sincronizado y no modificable en Verial (ID: %s)."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:379
+#, php-format
+msgid "Pedido ID %d omitido (batch): ya sincronizado con Verial (ID: %s)."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:388
+#, php-format
+msgid "Pedido ID %d omitido (batch): no modificado desde %s."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:402
+#, php-format
+msgid "Pedido ID %d omitido (batch): Información del cliente insuficiente para Verial."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:409
+#, php-format
+msgid "Pedido ID %d omitido (batch): No se generaron líneas de contenido válidas para Verial."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:435
+#, php-format
+msgid "Pedido ID %d sincronizado (batch). ID Documento Verial: %s, Número Verial: %s"
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:449
+#, php-format
+msgid "Error al sincronizar pedido ID %d (batch) con Verial: %s"
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:456
+#, php-format
+msgid "Sincronización batch de pedidos completada. Procesados: %d, Errores: %d."
+msgstr ""
+
+#: includes/sync/SyncPedidos.php:472
+#, php-format
+msgid "Excepción durante la sincronización batch de pedidos: %s"
+msgstr ""
+
+#. translators: %1$s: SKU del producto, %2$d: número de reintentos, %3$s: mensaje de error
+#: includes/sync/SyncProductos.php:48
+#, php-format
+msgid "Producto SKU %1$s falló tras %2$d reintentos: %3$s"
+msgstr ""
+
+#: includes/sync/SyncProductos.php:51
+msgid "Producto no sincronizado tras reintentos"
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:81
+#, php-format
+msgid "Producto SKU %1$s sincronizado tras reintento."
+msgstr ""
+
+#: includes/sync/SyncProductos.php:103
+msgid "Clase Map_Product no disponible."
+msgstr ""
+
+#: includes/sync/SyncProductos.php:140
+msgid "Producto sin SKU, omitido."
+msgstr ""
+
+#. translators: %1$s: nombre del producto, %2$s: IDs existentes
+#: includes/sync/SyncProductos.php:163
+#, php-format
+msgid "Posible duplicado: producto con nombre \"%1$s\" pero distinto SKU ya existe (ID: %2$s)."
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:191
+#, php-format
+msgid "Producto %1$s omitido (sin cambios desde última sync)."
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:196
+#, php-format
+msgid "Producto %1$s omitido (hash sin cambios)."
+msgstr ""
+
+#. translators: %1$s: SKU del producto, %2$s: mensaje de error
+#: includes/sync/SyncProductos.php:213
+#, php-format
+msgid "Error al guardar producto SKU %1$s: %2$s"
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:218
+#, php-format
+msgid "Producto actualizado: %1$s"
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:222
+#, php-format
+msgid "Error al cargar producto WooCommerce: %1$s"
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:231
+#, php-format
+msgid "Producto %1$s ya existe en Verial. Se omite creación y se recomienda actualizar."
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:238
+#, php-format
+msgid "Clase WC_Product_Simple no encontrada para SKU: %1$s"
+msgstr ""
+
+#. translators: %1$s: SKU del producto, %2$s: mensaje de error
+#: includes/sync/SyncProductos.php:256
+#, php-format
+msgid "Error al crear producto SKU %1$s: %2$s"
+msgstr ""
+
+#. translators: %1$s: SKU del producto
+#: includes/sync/SyncProductos.php:261
+#, php-format
+msgid "Producto creado: %1$s"
+msgstr ""
+
+#: includes/sync/SyncProductos.php:269
+msgid "Sincronización de productos completada."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:169
+msgid "Error: No se pudo sincronizar el pedido con Verial (error de sesión)."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:174
+msgid "Error: No se pudo sincronizar el pedido con Verial (sesión no configurada)."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:177
+#: includes/WooCommerce/WooCommerceHooks.php:360
+#: includes/WooCommerce/WooCommerceHooks.php:384
+msgid "Error de sincronización con Verial"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:178
+#, php-format
+msgid "El pedido #%d no se pudo sincronizar con Verial porque la sesión no está configurada."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:191
+msgid "[Alerta] Fallback de mapeo manual en sincronización de pedido"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:193
+#, php-format
+msgid "Se ha utilizado el mapeo manual para el pedido #%d porque la clase Map_Order o su método no están disponibles. Revisa la instalación del plugin o el autoloader."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:213
+msgid "[Alerta] Fallback de mapeo manual en mapeo de cliente"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:215
+#, php-format
+msgid "Se ha utilizado el mapeo manual para el cliente invitado en el pedido #%d porque la clase Map_Customer o su método no están disponibles. Revisa la instalación del plugin o el autoloader."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:300
+msgid "Líneas de producto omitidas en pedido WooCommerce"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:301
+#, php-format
+msgid "Pedido #%d: %s"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:317
+#, php-format
+msgid "Advertencia: Método de pago \"%s\" no mapeado a Verial. El pago no se registrará automáticamente en Verial."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:345
+msgid "Error: Pedido sin líneas válidas para sincronizar con Verial (después del mapeo)."
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:357
+#, php-format
+msgid "Error al sincronizar pedido con Verial: %s"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:361
+#: includes/WooCommerce/WooCommerceHooks.php:385
+#, php-format
+msgid "El pedido #%d no se pudo sincronizar con Verial. Mensaje: %s"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:373
+#, php-format
+msgid "Pedido sincronizado con Verial. ID Documento Verial: %s, Número Verial: %s"
+msgstr ""
+
+#: includes/WooCommerce/WooCommerceHooks.php:381
+#, php-format
+msgid "Fallo al sincronizar pedido con Verial: %s"
+msgstr ""
+
+#: mi-integracion-api.php:236
+msgid "El plugin \"Integración Verial ERP\" no se pudo activar. Requiere PHP 7.4+ y WordPress 5.6+."
+msgstr ""
+
+#: mi-integracion-api.php:237
+msgid "Error de Activación del Plugin"
+msgstr ""
+
+#: mi-integracion-api.php:343
+#: mi-integracion-api.php:357
+msgid "Integración con Verial ERP:"
+msgstr ""
+
+#: mi-integracion-api.php:344
+msgid "Este plugin requiere WooCommerce para funcionar. Por favor, instala y activa WooCommerce."
+msgstr ""
+
+#: mi-integracion-api.php:358
+msgid "La extensión cURL de PHP no está instalada o habilitada en tu servidor. Este plugin requiere cURL para comunicarse con la API de Verial."
+msgstr ""
+
+#: mi-integracion-api.php:438
+msgid "Ajustes principales"
+msgstr ""
+
+#: mi-integracion-api.php:464
+#, php-format
+msgid "Cada %d minutos (Verial Sync)"
+msgstr ""

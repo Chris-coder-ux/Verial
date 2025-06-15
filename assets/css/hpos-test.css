@@ -1,0 +1,135 @@
+/**
+ * Estilos para la página de prueba de compatibilidad HPOS
+ *
+ * @package Mi_Integracion_API
+ * @since 1.0.0
+ */
+
+/* Estilos generales */
+.mi-results {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.mi-result-item {
+    margin-bottom: 10px;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.mi-result-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.mi-result-heading {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.mi-result-title {
+    flex: 1;
+    font-weight: bold;
+    margin: 0;
+}
+
+.mi-result-status {
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.mi-status-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.mi-status-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.mi-status-warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.mi-result-content {
+    margin-top: 5px;
+    font-size: 13px;
+}
+
+.mi-issues-list {
+    margin-top: 10px;
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.mi-issue-item {
+    background: #f5f5f5;
+    padding: 8px 12px;
+    margin-bottom: 5px;
+    border-left: 3px solid #ddd;
+    font-size: 12px;
+}
+
+.mi-issue-item.mi-issue-error {
+    border-left-color: #dc3545;
+    background-color: #fbeaec;
+}
+
+.mi-issue-item.mi-issue-warning {
+    border-left-color: #ffc107;
+    background-color: #fff9e6;
+}
+
+.mi-issue-solution {
+    margin-top: 5px;
+    font-style: italic;
+}
+
+.mi-button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+/* Indicadores de estado HPOS */
+.mi-hpos-active {
+    color: #0b8457;
+    font-weight: bold;
+    padding: 5px 10px;
+    background: #d1e7dd;
+    border-radius: 4px;
+}
+
+.mi-hpos-inactive {
+    color: #856404;
+    font-weight: bold;
+    padding: 5px 10px;
+    background: #fff3cd;
+    border-radius: 4px;
+}
+
+/* Tarjetas */
+.card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.card h2 {
+    margin-top: 0;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    font-size: 18px;
+}

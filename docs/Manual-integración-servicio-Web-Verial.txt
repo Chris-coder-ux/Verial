@@ -1,0 +1,2068 @@
+1
+                       Control de versiones
+Versión     Fecha                                    Cambios
+                       Nuevo método que devuelve la lista de agentes comisionistas y se
+  1.1     14/02/2022   han añadido los identificadores de agentes a clientes y a
+                       documentos de cliente.
+                       Se puede indicar el método de pago al crear un cliente y al crear un
+  1.2     15/02/2022
+                       nuevo documento de cliente.
+  1.3     25/02/2022   Métodos para dar de alta nuevas provincias y localidades.
+ 1.3.1    13/04/2022   Dato descripción al crear nuevos documentos.
+ 1.3.2    19/04/2022   Dato concepto en las líneas del contenido de los documentos.
+                       Nuevos datos al crear direcciones de envio:
+                            Cargo
+ 1.3.3    16/06/2022        Telefono2
+                            Email
+                            Comentario
+                       Nuevo parámetro opcional en el método GetCondicionesTarifaWS:
+ 1.3.4    16/01/2023
+                            id_tarifa
+                       Nuevo parámetro opcional en el método GetClientesWS:
+ 1.3.5    17/01/2023
+                            nif
+                       Se quita la obligatoriedad de enviar Content-Type: text/plain en los
+ 1.3.6    06/02/2023
+                       header request de los POST.
+  1.4     12/09/2023   Nuevo método para consultar el estado de los pedidos.
+                       Gestión de las formas de envío:
+                            Un GET para obtenerlas
+  1.5     29/11/2023
+                            Identificadores de formas de envío y destino al crear un
+                               nuevo documento de cliente
+                       Gestión de mascotas:
+                            Un GET para obtenerlas
+  1.6     28/12/2023
+                            Un POST para dar de alta y modificar
+                            Un POST para eliminar
+                       Nuevo parámetro opcional en el método GetMascotasWS:
+ 1.6.1    02/01/2024
+                            fecha
+                       Nuevo parámetro opcional en los métodos GetClientesWS,
+ 1.6.2    10/01/2024   GetArticulosWS y GetImagenesArticulosWS:
+                            fecha
+                       En los métodos GetClientesWS y NuevoClienteWS se han añadido
+ 1.6.3    15/02/2024
+                       los datos Aux1, Aux2, Aux3, Aux4, Aux5, Aux6 e ID_Grupo.
+                       En el método NuevoClienteWS se ha añadido el dato
+                       EnviarAnuncios.
+  1.7     25/03/2024   En el método NuevoDocClienteWS se han añadido los datos Aux1,
+                       Aux2, Aux3, Aux4, Aux5 y Aux6.
+                       Nuevo método UpdateDocClienteWS
+                       Nuevo parámetro opcional en los métodos GetClientesWS,
+ 1.7.1    16/04/2024   GetArticulosWS y GetImagenesArticulosWS:
+                            hora
+ 1.7.2    18/04/2024   Nuevo dato en el método GetArticulosWS: FechaInactivo
+ 1.7.3    13/06/2024   Nuevo método GetHistorialPedidosWS.
+ 1.7.4    28/11/2024   En el método NuevoClienteWS se han añadido los datos Telefono1,
+
+                                             2
+                   Telefono2 y Movil.
+                   En los métodos GetLocalidadesWS y NuevaLocalidadWS se ha
+1.7.5   19/03/2025
+                   añadido el dato CodigoMunicipioINE.
+                   Nuevo método GetNumArticulosWS.
+                   En el método GetArticulosWS se han añadido estos parámetros:
+1.8     21/05/2025
+                        inicio
+                        fin
+
+
+
+
+                                        3
+                                 Índice
+                                                                       Nº pág.
+1.    Introducción ……………………………………………………………………………………………….                 5
+2.    Errores ……………………………………………………………………………………………………….                   5
+3.    Tipos de datos …………………………………………………………………………………………….                6
+4.    GetPaisesWS ………………………………………………………………………………………………                   6
+5.    GetProvinciasWS ………………………………………………………………………………………..                7
+6.    NuevaProvinciaWS ……………………………………………………………………………………..                7
+7.    GetLocalidadesWS ………………………………………………………………………………………                 8
+8.    NuevaLocalidadWS .……………………………………………………………………………………                 8
+9.    GetClientesWS ……………………………………………………………………………………………                  9
+10.   NuevoClienteWS …………………………………………………………………………………………                  11
+11.   NuevaDireccionEnvioWS …………………………………………………………………………….               14
+12.   GetArticulosWS ………………………………………………………………………………………….                 15
+13.   GetNumArticulosWS .………………………………………………………………………………….                18
+14.   GetCursosWS ……………………………………………………………………………………………..                  19
+15.   GetAsignaturasWS ………………………………………………………………………………………                 19
+16.   GetColeccionesWS ……………………………………………………………………………………..                19
+17.   GetFabricantesWS ……………………………………………………………………………………..                20
+18.   GetCategoriasWS ……………………………………………………………………………………....               20
+19.   GetCategoriasWebWS ………………………………………………………………………………..                21
+20.   GetCamposConfigurablesArticulosWS ………………………………………………………..          22
+21.   GetArbolCamposConfigurablesArticulosWS ……………………………………………….         23
+22.   GetValoresValidadosCampoConfigurableArticulosWS ………………………………..     24
+23.   GetStockArticulosWS ………………………………………………………………………………….               24
+24.   GetImagenesArticulosWS ……………………………………………………………………………               25
+25.   GetCondicionesTarifaWS …………………………………………………………………………….              25
+26.   NuevoDocClienteWS …………………………………………………………………………………..                26
+27.   PedidoModificableWS ………………………………………………………………………………..               29
+28.   UpdateDocClienteWS ………………………………………………………………………………...               30
+29.   GetNextNumDocsWS ………………………………………………………………………………...                 30
+30.   GetMetodosPagoWS ………………………………………………………………………………....                31
+31.   NuevoPagoWS ………………………………………………………………………………..............           32
+32.   GetAgentesWS ………………………………………………………………………………..............          32
+33.   EstadoPedidosWS ……………………………………………………………………………….........            32
+34.   GetFormasEnvioWS ………………………………………………………………………………......              33
+35.   GetMascotasWS ………………………………………………………………………………...........            34
+36.   NuevaMascotaWS ………………………………………………………………………………........              35
+37.   BorrarMascotaWS ………………………………………………………………………………........             37
+38.   GetHistorialPedidosWS ……….……………………………………………………………………..             37
+39.   GetVersionWS ……….……………………………………………………………………………........             38
+
+
+
+
+                                       4
+1. Introducción
+Este manual detalla la integración del servicio web de la aplicación Verial mediante peticiones
+GET y métodos POST.
+
+Tanto los GET como los POST devolverán la información en formato JSON.
+
+La información que se enviará a través de los métodos POST también será en formato JSON.
+
+A continuación, se detallan todos los métodos detallando los parámetros y las estructuras
+JSON tanto de entrada como de salida. No es necesario desarrollarlos todos, solo los que se
+necesiten en cada integración.
+
+Todas las peticiones GET tienen que llevar el parámetro x que será el número de sesión para el
+servicio en la aplicación Verial. Este número es fijo y no cambia y debe ser suministrado por
+Verial.
+
+En el caso de los métodos POST el número de sesión se indicará en una propiedad que
+contendrán todos los JSON de entrada que se llama sesionwcf.
+
+
+
+2. Errores
+Todos los JSON que se devuelven incluyen la propiedad InfoError que a su vez contiene estas
+propiedades:
+
+          Codigo: Código de error, si es un 0 es que no hay error y todo ha sido correcto.
+          Descripcion: Texto descriptivo del error.
+
+Ejemplo:
+
+"InfoError": {
+        "Codigo": 0,
+        "Descripcion": null
+      }
+
+
+Códigos de error:
+
+  0       Todo correcto, no hay error
+  1       Error iniciando la sesión
+  2       Error realizando consultas SQL
+  3       Formato del JSon de entrada incorrecto
+  4       Error componiendo el JSon de salida
+  5       Configuración incorrecta en el programa de Verial
+  6       Hay más de un cliente con el mismo WebUser
+  7       Cliente no encontrado
+  8       Cliente inactivo en la web
+  9       Error creando el nuevo cliente
+ 10       Falta un dato requerido
+ 11       Dato incorrecto
+ 12       Error creando un nuevo documento de cliente
+ 13       Modificación no permitida
+
+                                                  5
+ 14       Error al comprobar si el pedido es modificable
+ 15       El documento que se quiere modificar no se ha encontrado
+ 16       El importe total del documento no es correcto
+ 17       Error guardando el documento de cliente en la base de datos
+ 18       Ya existe un documento con el mismo número en el mismo ejercicio
+ 19       Se está intentando crear un documento con número y falta el documento con el
+          número anterior.
+ 20       Módulo no contratado. No tiene permiso por parte de Verial Soft para usar el Servicio
+          Web.
+ 21       Error creando un pago.
+ 22       Formato de fecha incorrecto.
+ 23       Alta de nuevo registro no permitida.
+
+
+
+
+3. Tipos de datos
+Tipos de datos que pueden aparecer en las estructuras JSon:
+
+          N: Numérico entero
+          A: Alfanumérico
+          D: Decimal
+          F: Fecha (formato YYYY-MM-DD)
+          J: JSon
+          A-J: Array de JSon
+          L: Lógico (True – False)
+
+En la columna Info se mostrará información adicional de estos tipos
+
+          Alfanumérico: Nº máximo de caracteres si hay límite, si no hay límite aparecerá vacío
+          Decimal: Nº de enteros y de decimales con este formato (NumEnteros,NumDecimales)
+
+
+
+4. GetPaisesWS
+Devuelve la lista de países definidos en la base de datos de Verial.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetPaisesWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetPaisesWS?x=18
+
+Parámetros:
+
+          x: Número de sesión
+
+Respuesta:
+
+          InfoError
+          Paises - Lista de países, cada uno con estas propiedades:
+
+Propiedad Descripción                                                             Tipo     Info
+
+                                                  6
+    Id        Identificador del registro en Verial.                            N
+ Nombre       Nombre del país.                                                 A     50
+  ISO2        Código ISO 2.                                                    A      2
+  ISO3        Código ISO 3.                                                    A      3
+
+
+5. GetProvinciasWS
+Devuelve la lista de provincias definidas en la base de datos de Verial.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetProvinciasWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetProvinciasWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+
+Respuesta:
+
+       InfoError
+       Provincias - Lista de provincias, cada una con estas propiedades:
+
+Propiedad  Descripción                                                        Tipo   Info
+    Id     Identificador del registro en Verial.                               N
+ Nombre    Nombre de la provincia.                                             A     30
+ ID_Pais   Identificador del país al que pertenece la provincia.               N
+           Código NUTS (Nomenclatura de las Unidades Territoriales
+CodigoNUTS                                                                     A      5
+           Estadísticas).
+
+
+
+
+6. NuevaProvinciaWS
+Da de alta una nueva provincia.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevaProvinciaWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevaProvinciaWS
+
+Estructura del JSon de entrada:
+
+  Propiedad       Descripción                                                 Tipo   Info   Oblig.
+  sesionwcf       Nº de sesión en Verial. (18 para los test)                   N              X
+   Nombre         Nombre.                                                      A     30       X
+   ID_Pais        Identificador del país al que pertenece la provincia.        N              X
+                  Código NUTS (Nomenclatura de las Unidades Territoriales
+ CodigoNUTS                                                                    A      5
+                  Estadísticas).
+
+
+Estructura del JSon de salida:
+
+                                                  7
+  Propiedad       Descripción                                                   Tipo   Info
+                  Identificador del registro en Verial de la provincia recién
+        Id                                                                       N
+                  creada.
+   Nombre         Nombre.                                                        A     30
+   ID_Pais        Identificador del país al que pertenece la provincia.          N
+                  Código NUTS (Nomenclatura de las Unidades Territoriales
+ CodigoNUTS                                                                      A      5
+                  Estadísticas).
+
+
+
+
+7. GetLocalidadesWS
+Devuelve la lista de localidades definidas en la base de datos de Verial.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetLocalidadesWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetLocalidadesWS?x=18
+
+Parámetros:
+
+        x: Número de sesión
+
+Respuesta:
+
+        InfoError
+        Localidades - Lista de localidades, cada una con estas propiedades:
+
+     Propiedad     Descripción                                                  Tipo   Info
+         Id        Identificador del registro en Verial.                         N
+      Nombre       Nombre de la localidad.                                       A     50
+                   Identificador de la provincia a la que pertenece la
+   ID_Provincia                                                                  N
+                   localidad.
+      ID_Pais      Identificador del país al que pertenece la localidad.         N
+                   Código NUTS (Nomenclatura de las Unidades
+   CodigoNUTS      Territoriales Estadísticas). Si este código está vacío se     A      5
+                   usa el de la provincia.
+CodigoMunicipioINE Código de municipio INE.                                      A      5
+
+
+
+8. NuevaLocalidadWS
+Da de alta una nueva localidad.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevaLocalidadWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevaLocalidadWS
+
+Estructura del JSon de entrada:
+
+     Propiedad         Descripción                                              Tipo   Info   Oblig.
+
+                                                8
+        sesionwcf  Nº de sesión en Verial. (18 para los test)                         N                X
+         Nombre    Nombre.                                                            A       50       X
+         ID_Pais   Identificador del país al que pertenece la localidad.              N                X
+                   Identificador de la provincia a la que pertenece la
+   ID_Provincia                                                                       N
+                   localidad.
+                   Código NUTS (Nomenclatura de las Unidades
+   CodigoNUTS                                                                         A       5
+                   Territoriales Estadísticas).
+CodigoMunicipioINE Código de municipio INE.                                           A       5
+
+
+Estructura del JSon de salida:
+
+    Propiedad      Descripción                                                      Tipo     Info
+                   Identificador del registro en Verial de la localidad
+        Id                                                                            N
+                   recién creada.
+     Nombre        Nombre.                                                            A       50
+      ID_Pais      Identificador del país al que pertenece la localidad.              N
+                   Identificador de la provincia a la que pertenece la
+   ID_Provincia                                                                       N
+                   localidad.
+                   Código NUTS (Nomenclatura de las Unidades
+   CodigoNUTS                                                                         A       5
+                   Territoriales Estadísticas).
+CodigoMunicipioINE Código de municipio INE.                                           A       5
+
+
+
+9. GetClientesWS
+Devuelve la información de los clientes que pueden operar desde la web.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetClientesWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetClientesWS?x=18&id_cliente=0
+
+Parámetros:
+
+         x: Número de sesión
+         id_cliente: Si solo queremos obtener información de un cliente en concreto en este
+          parámetro se especifica el identificador del cliente en Verial, si se le pasa un 0 estamos
+          indicando que queremos todos los clientes.
+         nif (opcional): Busca clientes con este CIF/NIF. Puede haber varios clientes con el
+          mismo CIF (sede fiscal y sedes comerciales).
+         fecha: Parámetro opcional que filtrará solo los clientes creados o modificados en una
+          fecha igual o posterior a la especificada.
+         hora: Parámetro opcional que añadirá la hora al parámetro de fecha para filtrar con
+          más precisión.
+
+Respuesta:
+
+         InfoError
+         Clientes - Lista de clientes, cada uno con estas propiedades:
+
+   Propiedad         Descripción                                                    Tipo     Info
+
+                                                  9
+     Id        Identificador del registro en Verial.                      N
+               Tipo de cliente con estos posibles valores:
+    Tipo       1 – Particular                                             N
+               2 – Empresa
+     NIF       NIF/CIF del cliente.                                       A    20
+  Nombre       Nombre.                                                    A    50
+  Apellido1    Primer apellido.                                           A    50
+  Apellido2    Segundo apellido.                                          A    50
+   ID_Pais     Identificador del país.                                    N
+ID_Provincia   Identificador de la provincia.                             N
+               Nombre de la provincia. Este dato vendrá relleno si no
+  Provincia    hay ID_Provincia y este cliente se dio de alta desde la    A    50
+               web.
+ID_Localidad   Identificador de la localidad.                             N
+               Nombre de la localidad. Este dato vendrá relleno si no
+  Localidad    hay ID_Localidad y este cliente se dio de alta desde la    A   100
+               web.
+               Información adicional de la localidad, por ejemplo, si
+LocalidadAux   queremos indicar que es un polígono industrial o una       A    50
+               urbanización dentro de la localidad.
+  CPostal      Código postal.                                             A   10
+ Direccion     Dirección incluyendo calle, número, piso, puerta, etc….    A   75
+ Telefono1     Nº de teléfono.                                            A   20
+ Telefono2     Nº de teléfono.                                            A   20
+   Movil       Nº de teléfono móvil.                                      A   20
+    Fax        Nº de fax.                                                 A   20
+  Email1       Dirección de correo electrónico.                           A   100
+  Email2       Dirección de correo electrónico.                           A   100
+               Sexo del cliente con estos posibles valores:
+               0 – No aplicable (empresa)
+    Sexo                                                                  N
+               1 – Masculino
+               2 – Femenino
+ RazonSocial   Razón social del cliente.                                  A    50
+               Régimen fiscal del cliente con estos posibles valores:
+               1 – IVA
+               2 – IVA y Recargo de Equivalencia
+               3 – IGIC general (Canarias)
+  RegFiscal    4 – Unión Europea (IVA Intracomunitario)                   N
+               5 – Exento de IVA, territorio nacional
+               6 – Exento de IVA, extranjero
+               7 – Agricultura, ganadería y pesca
+               8 – IGIC minorista (Canarias)
+               Importe que como mínimo debe tener el pedido para
+PedidoMinimo   poder finalizarlo. Si este valor es cero es que no hay     D   (6,2)
+               limitaciones.
+ DtoPPago      Porcentaje de descuento por pronto pago.                   D   (3,4)
+               Identificador del primer agente comisionista asignado al
+ ID_Agente1                                                               N
+               cliente.
+               Identificador del segundo agente comisionista asignado
+ ID_Agente2                                                               N
+               al cliente.
+ ID_Agente3    Identificador del tercer agente comisionista asignado al   N
+
+                                         10
+                   cliente.
+ID_MetodoPago      Identificador método de pago asignado al cliente.            N
+                   Identificador del grupo al que pertenece el cliente. Solo
+   ID_Grupo                                                                     N
+                   se debe usar este dato bajo supervisión de Verial Soft
+    Aux1           Campos auxiliares. Solo se deben usar bajo supervisión
+    Aux2           de Verial.
+    Aux3
+                                                                                A     50
+    Aux4
+    Aux5
+    Aux6
+  WebUser        Nombre de usuario en la web.                                   A     100
+ WebPassword     Contraseña de acceso en la web.                                A     50
+                 Indica si el cliente a accedido a recibir comunicaciones
+ EnviarAnuncios                                                                 L
+                 comerciales.
+                 Direcciones de envío de la mercancia. La estructura se
+DireccionesEnvio                                                               A-J
+                 detalla a continuación.
+
+
+Estructura del JSon de una dirección de envío:
+
+  Propiedad      Descripción                                                   Tipo   Info
+      Id         Identificador del registro en Verial.                          N
+   Nombre        Nombre.                                                        A     50
+   Apellido1     Primer apellido.                                               A     50
+   Apellido2     Segundo apellido.                                              A     50
+    ID_Pais      Identificador del país.                                        N
+ ID_Provincia    Identificador de la provincia.                                 N
+                 Nombre de la provincia. Este dato vendrá relleno si no hay
+  Provincia                                                                     A     50
+                 ID_Provincia y esta dirección se dio de alta desde la web.
+ID_Localidad     Identificador de la localidad.                                 N
+                 Nombre de la localidad. Este dato vendrá relleno si no hay
+  Localidad                                                                     A     100
+                 ID_Localidad y esta dirección se dio de alta desde la web.
+                 Información adicional de la localidad, por ejemplo, si
+LocalidadAux     queremos indicar que es un polígono industrial o una           A     50
+                 urbanización dentro de la localidad.
+   CPostal       Código postal.                                                 A     10
+  Direccion      Dirección incluyendo calle, número, piso, puerta, etc….        A     75
+  Telefono       Nº de teléfono.                                                A     20
+
+
+
+
+10. NuevoClienteWS
+Da de alta un nuevo cliente o modifica uno existente.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevoClienteWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoClienteWS
+
+Estructura del JSon de entrada:
+
+                                              11
+ Propiedad     Descripción                                                     Tipo   Info   Oblig.
+ sesionwcf     Nº de sesión en Verial. (18 para los test)                       N              X
+               Identificador del registro en Verial. Solo hay que
+     Id        especificar este dato si se quieren modificar los datos de       N
+               un cliente existente.
+               Tipo de cliente con estos posibles valores:
+    Tipo       1 – Particular                                                   N              X
+               2 – Empresa
+    NIF        NIF/CIF del cliente.                                             A     20
+ Nombre        Nombre.                                                          A     50       X
+ Apellido1     Primer apellido.                                                 A     50
+ Apellido2     Segundo apellido.                                                A     50
+RazonSocial    Razón social del cliente.                                        A     50
+               Régimen fiscal del cliente con estos posibles valores:
+               1 – IVA
+               2 – IVA y Recargo de Equivalencia
+               3 – IGIC general (Canarias)
+ RegFiscal     4 – Unión Europea (IVA Intracomunitario)                         N
+               5 – Exento de IVA, territorio nacional
+               6 – Exento de IVA, extranjero
+               7 – Agricultura, ganadería y pesca
+               8 – IGIC minorista (Canarias)
+  ID_Pais      Identificador del país.                                          N
+ID_Provincia   Identificador de la provincia.                                   N
+               Nombre de la provincia cuando no se especifique el dato
+               ID_Provincia. Este dato hay que rellenarlo cuando no se
+ Provincia                                                                      A     50
+               utilice la lista de provincias facilitadas por Verial o no se
+               encuentre en esa lista.
+ID_Localidad   Identificador de la localidad.                                   N
+               Nombre de la localidad cuando no se especifique el dato
+               ID_Localidad. Este dato hay que rellenarlo cuando no se
+ Localidad                                                                      A     100
+               utilice la lista de provincias facilitadas por Verial o no se
+               encuentre en esa lista.
+               Información adicional de la localidad, por ejemplo, si
+LocalidadAux   queremos indicar que es un polígono industrial o una             A     50
+               urbanización dentro de la localidad.
+  CPostal      Código postal.                                                   A     10
+ Direccion     Dirección incluyendo calle, número, piso, puerta, etc….          A     75
+               Nº de teléfono. (Si solo se gestiona un teléfono desde la
+ Telefono      web). Si rellena este dato se ignorarán los datos                A     20
+               Telefono1, Telefono2 y Movil.
+ Telefono1     Teléfonos. (Si se gestionan múltiples teléfonos desde la
+ Telefono2     web)                                                             A     20
+   Movil
+   Email       Dirección de correo electrónico.                                 A     100
+               Sexo del cliente con estos posibles valores:
+               0 – No aplicable (empresa)
+   Sexo                                                                         N
+               1 – Masculino
+               2 – Femenino
+               Identificador del primer agente comisionista asignado al
+ID_Agente1                                                                      N
+               cliente.
+
+                                           12
+                   Identificador del segundo agente comisionista asignado
+  ID_Agente2                                                                       N
+                   al cliente.
+                   Identificador del tercer agente comisionista asignado al
+  ID_Agente3                                                                       N
+                   cliente.
+ID_MetodoPago      Identificador del método de pago asignado al cliente.           N
+                   Identificador del grupo al que pertenece el cliente. Solo
+   ID_Grupo                                                                        N
+                   se debe usar este dato bajo supervisión de Verial Soft
+     Aux1          Campos auxiliares. Solo se deben usar bajo supervisión
+     Aux2          de Verial Soft.
+     Aux3
+                                                                                   A     50
+     Aux4
+     Aux5
+     Aux6
+                   Nombre antiguo de usuario en la web. Solo hay que
+                   especificar este dato si estamos queriendo cambiar el
+  WebUserOld                                                                       A     100
+                   WebUser e identificamos al cliente en Verial mediante
+                   ese dato.
+  WebUser          Nombre de usuario en la web.                                    A     100
+ WebPassword       Contraseña de acceso en la web.                                 A     50
+                   Indica si el cliente a accedido a recibir comunicaciones
+EnviarAnuncios                                                                     L
+                   comerciales.
+
+
+Estructura del JSon de una dirección de envío:
+
+  Propiedad      Descripción                                                      Tipo   Info   Oblig.
+                 Identificador del registro en Verial. Solo hay que especificar
+      Id         este dato si se quieren modificar los datos de una dirección      N
+                 de envío ya existente.
+   Nombre        Nombre.                                                           A     50       X
+   Apellido1     Primer apellido.                                                  A     50
+   Apellido2     Segundo apellido.                                                 A     50
+    ID_Pais      Identificador del país.                                           N
+ ID_Provincia    Identificador de la provincia.                                    N
+                 Nombre de la provincia cuando no se especifique el dato
+                 ID_Provincia. Este dato hay que rellenarlo cuando no se
+  Provincia                                                                        A     50
+                 utilice la lista de provincias facilitadas por Verial o no se
+                 encuentre en esa lista.
+ID_Localidad     Identificador de la localidad.                                    N
+                 Nombre de la localidad. Este dato vendrá relleno si no hay
+  Localidad                                                                        A     100
+                 ID_Localidad y esta dirección se dio de alta desde la web.
+                 Información adicional de la localidad, por ejemplo, si
+LocalidadAux     queremos indicar que es un polígono industrial o una              A     50
+                 urbanización dentro de la localidad.
+   CPostal       Código postal.                                                    A     10
+  Direccion      Dirección incluyendo calle, número, piso, puerta, etc….           A     75
+  Telefono       Nº de teléfono.                                                   A     20
+
+
+Estructura del JSon de salida: Es la misma que la del método GetClientesWS con los datos del
+cliente recién creado incluyendo el Id que se le ha asignado.
+
+
+                                               13
+Información adicional:
+
+Hay 3 formas en las que el servicio va a encontrar un cliente ya existente en Verial y va a
+actualizar los datos en lugar de crear un nuevo:
+
+        Si se especifica el dato Id quiere decir que queremos actualizar el registro de cliente
+         con ese identificador.
+        Por el NIF/CIF, si ya se encuentra en la base de datos un cliente con ese NIF/CIF se
+         asume que es ese cliente.
+        Por WebUser, si ya se encuentra en la base de datos un cliente con ese WebUser se
+         asume que es ese cliente.
+
+En el caso de la identificación por NIF si en la base de datos de Verial es encuentran más de un
+cliente con ese NIF quiere decir que es una empresa con varias direcciones comerciales, en ese
+caso no se va a permitir dar de alta un nuevo cliente, deberán ponerse en contacto con la
+empresa si quieren dar de alta una nueva dirección comercial.
+
+
+
+11. NuevaDireccionEnvioWS
+Da de alta una nueva dirección de envío en un cliente ya existente.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevaDireccionEnvioWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoDireccionEnvioWS
+
+Estructura del JSon de entrada:
+
+  Propiedad       Descripción                                                      Tipo       Info   Oblig.
+  sesionwcf       Nº de sesión en Verial. (18 para los test)                        N                  X
+                  Identificador del cliente al que pertenece la dirección de
+  ID_Cliente                                                                         N                 X
+                  envío.
+                  Identificador del registro en Verial. Solo hay que especificar
+        Id        este dato si se quieren modificar los datos de una dirección       N
+                  de envío ya existente.
+   Nombre         Nombre.                                                            A        50       X
+   Apellido1      Primer apellido.                                                   A        50
+   Apellido2      Segundo apellido.                                                  A        50
+    ID_Pais       Identificador del país.                                            N
+ ID_Provincia     Identificador de la provincia.                                     N
+                  Nombre de la provincia cuando no se especifique el dato
+                  ID_Provincia. Este dato hay que rellenarlo cuando no se
+  Provincia                                                                          A        50
+                  utilice la lista de provincias facilitadas por Verial o no se
+                  encuentre en esa lista.
+ID_Localidad      Identificador de la localidad.                                     N
+                  Nombre de la localidad. Este dato vendrá relleno si no hay
+  Localidad                                                                          A        100
+                  ID_Localidad y esta dirección se dio de alta desde la web.
+                  Información adicional de la localidad, por ejemplo, si
+LocalidadAux      queremos indicar que es un polígono industrial o una               A        50
+                  urbanización dentro de la localidad.
+
+
+                                                14
+    CPostal      Código postal.                                                  A      10
+  Direccion      Dirección incluyendo calle, número, piso, puerta, etc….         A      75
+   Telefono      Nº de teléfono.                                                 A      20
+  Telefono2      Nº de teléfono.                                                 A      20
+     Email       Dirección de correo electrónico.                                A      100
+     Cargo       Cargo en la empresa.                                            A      75
+ Comentario      Comentario.                                                     A
+
+
+Estructura del JSon de salida:
+
+  Propiedad      Descripción                                                   Tipo     Info
+      Id         Identificador del registro en Verial.                          N
+   Nombre        Nombre.                                                        A        50
+   Apellido1     Primer apellido.                                               A        50
+   Apellido2     Segundo apellido.                                              A        50
+    ID_Pais      Identificador del país.                                        N
+ ID_Provincia    Identificador de la provincia.                                 N
+                 Nombre de la provincia. Este dato vendrá relleno si no hay
+  Provincia                                                                      A       50
+                 ID_Provincia y esta dirección se dio de alta desde la web.
+ID_Localidad     Identificador de la localidad.                                  N
+                 Nombre de la localidad. Este dato vendrá relleno si no hay
+  Localidad                                                                      A      100
+                 ID_Localidad y esta dirección se dio de alta desde la web.
+                 Información adicional de la localidad, por ejemplo, si
+LocalidadAux     queremos indicar que es un polígono industrial o una            A       50
+                 urbanización dentro de la localidad.
+    CPostal      Código postal.                                                  A      10
+  Direccion      Dirección incluyendo calle, número, piso, puerta, etc….         A      75
+   Telefono      Nº de teléfono.                                                 A      20
+  Telefono2      Nº de teléfono.                                                 A      20
+     Email       Dirección de correo electrónico.                                A      100
+     Cargo       Cargo en la empresa.                                            A      75
+ Comentario      Comentario.                                                     A
+
+
+12. GetArticulosWS
+Devuelve la información de los artículos que se pueden vender desde la web.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetArticulosWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetArticulosWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+       fecha: Parámetro opcional que filtrará solo los artículos creados o modificados en una
+        fecha igual o posterior a la especificada.
+       hora: Parámetro opcional que añadirá la hora al parámetro de fecha para filtrar con
+        más precisión.
+
+
+                                              15
+        inicio: Parámetros opcional para obtener los artículos por bloques indicando el índice
+         del primer artículo a recuperar. Este índice empieza a contar desde el 1.
+        fin: Parámetros opcional para obtener los artículos por bloques indicando el índice del
+         último artículo a recuperar. Este índice empieza a contar desde el 1.
+
+Respuesta:
+
+        InfoError
+        Articulos - Lista de artículos y libros, cada uno con estas propiedades:
+
+       Propiedad         Descripción                                                Tipo   Info
+           Id            Identificador del registro en Verial.                       N
+                         Tipo de cliente con estos posibles valores:
+         Tipo            1 – Artículo normal                                         N
+                         2 – Libro
+      Nombre             Nombre del artículo o título del libro.                     A     100
+  ReferenciaBarras       Código de barras o referencia.                              A     25
+                         Fecha en la que el artículo o libro estará disponible
+                         para la venta. Puede ser por su reciente aparición o
+FechaDisponibilidad                                                                  F
+                         por falta de stock. Si está vacía es porque está
+                         disponible.
+                         Fecha en la que el artículo se puede empezar a
+  FechaInicioVenta                                                                   F
+                         vender.
+                         Fecha y hora a partir de la cual el artículo ya no se
+   FechaInactivo                                                                     F
+                         puede vender y pasa a estar inactivo en la web.
+   PorcentajeIVA         Porcentaje de IVA                                           D     (2,2)
+   PorcentajeRE          Porcentaje de RE                                            D     (2,2)
+                         Identificador de la categoría del artículo. Si se han
+   ID_Categoria          indicado categorías específicas para la web este dato       N
+                         debería ser ignorado.
+                         Identificador de la categoría 1 para la web del
+ ID_CategoriaWeb1                                                                    N
+                         artículo
+                         Identificador de la categoría 2 para la web del
+ ID_CategoriaWeb2                                                                    N
+                         artículo
+                         Identificador de la categoría 3 para la web del
+ ID_CategoriaWeb3                                                                    N
+                         artículo
+                         Identificador de la categoría 4 para la web del
+ ID_CategoriaWeb4                                                                    N
+                         artículo
+                         Identificador del fabricante del artículo. En el caso de
+   ID_Fabricante                                                                     N
+                         los libros el fabricante es la editorial.
+         Aux1            Dato auxiliar 1 del artículo                                A      50
+         Aux2            Dato auxiliar 2 del artículo                                A      50
+         Aux3            Dato auxiliar 3 del artículo                                A      50
+         Aux4            Dato auxiliar 4 del artículo                                A      50
+         Aux5            Dato auxiliar 5 del artículo                                A      50
+         Aux6            Dato auxiliar 6 del artículo                                A      50
+                         Nombre de las unidades de venta, por ejemplo: kilos,
+    NombreUds                                                                        A      15
+                         litros, etc..
+                         Nombre de las unidades auxiliares, por ejemplo:
+  NombreUdsAux                                                                       A      15
+                         cajas, piezas, etc..
+  NombreUdsOCU           Nombre de la unidad OCU, por ejemplo: litro                 A      15
+
+                                                16
+                     Relación numérica entre las unidades auxiliares y las
+                     facturables. Ejemplo, si el artículo viene en cajas que
+    RelacionUdsAux                                                               D     (10,4)
+                     contienen 10 unidades en este dato pondríamos un
+                     10.
+                     Relación porcentual entre la unidad facturable y la
+   RelacionUdsOCU                                                                D     (4,3)
+                     unidad definida por “NombreUdsOCU” (Kg. o L.).
+                     Indica si el artículo utiliza unidades auxiliares para la
+    VenderUdsAux                                                                 L
+                     venta.
+                     Indica cuantas posiciones decimales pueden tener
+     DecUdsVentas                                                                N
+                     las unidades de venta.
+                     Indica cuantas posiciones decimales puede tener un
+                     precio de venta siempre y cuando no sea un precio
+   DecPrecioVentas                                                               N
+                     con impuestos incluidos, en ese caso el número de
+                     posiciones decimales será 2.
+                     Indica en cuantas medidas se van a expresar las
+   NumDimensiones                                                                N
+                     dimensiones del artículo.
+         Ancho       Ancho expresado en milímetros.                              N
+          Alto       Alto expresado en milímetros.                               N
+        Grueso       Grueso expresado en milímetros.                             N
+          Peso       Peso expresado en kilogramos.                               D     (10,3)
+                     Valor que relaciona varios artículos entre sí. Se suele
+         Nexo        utilizar para vender artículos que se diferencian por       A      100
+                     talla, color, tamaño, etc…
+      Descripcion    Descripción amplia.                                         A
+                     Identificador del artículo que se utiliza para facturar
+                     las ecotasas. Si esté dato está relleno hay que añadir
+ ID_ArticuloEcotasas                                                             N
+                     ese artículo automáticamente al contenido con las
+                     mismas unidades que tenga el artículo que se vende.
+                     Precio sin impuestos de la ecotasa por cada unidad
+    PrecioEcotasas                                                               D     (4,2)
+                     del artículo que se vende .
+                     Lista con los valores de los campos configurables. La
+CamposConfigurables                                                              A-J   (4,2)
+                     estructura se detalla a continuación de esta tabla.
+                        A partir de aquí son datos exclusivos para libros        F
+     ObraCompleta    Código de barras del libro que es la obra completa.         A      25
+       Subtitulo     Subtítulo del libro.                                        A      100
+                     Otras menciones dadas, por ejemplo, comentarios o
+      Menciones                                                                  A      100
+                     premios.
+  ID_PaisPublicacion Identificador del país de publicación.                      N
+                     Número de la edición y algún comentario al
+        Edición                                                                  A      25
+                     respecto.
+     FechaEdicion    Fecha en que se publicó la edición.                         D
+        Paginas      Nº de páginas.                                              N
+      Volumenes      Nº de volúmenes.                                            N
+                     Depende de la descripción que dé el editor,
+   NumeroVolumen     normalmente será un número corto, pero podría               A       4
+                     contener letras.
+                     Identificador de la colección. (Se detallará más
+     ID_Coleccion                                                                N
+                     adelante la tabla de Colecciones).
+   NumeroColeccion   Nº del ejemplar dentro de la colección.                     A      10
+                     Identificador del curso al que pertenece el libro. (Se
+       ID_Curso                                                                  N
+                     detallará más adelante la tabla de Cursos).
+
+                                              17
+                        Identificador de la asignatura a la que pertenece el
+   ID_Asignatura        libro. (Se detallará más adelante la tabla de           N
+                        Asignaturas).
+   IdiomaOriginal       Idioma original del libro.                              A      250
+ IdiomaPublicacion      Idioma de publicación del libro.                        A      250
+       Indice           Índice del libro.                                       A
+      Resumen           Breve resumen del libro.                                A
+
+
+Estructura del JSon con el valor de los campos configurables:
+
+            Propiedad         Descripción                                      Tipo    Info
+                              Identificador del campo al que
+                              corresponde este valor. Se relaciona con el
+          ID_Campo                                                              N
+                              Id de la tabla que devuelve el método
+                              GetCamposConfigurablesArticulosWS.
+                              Identificador de la familia de campos
+                              configurables. Si este valor es un cero es
+ID_FamiliaCamposConfigurables                                                   N
+                              porque es un campo compartido por todos
+                              los artículos.
+                              Valor del campo. Será del tipo indicado en
+                              la configuración del campo definida en la
+            Valor
+                              tabla que devuelve
+                              GetCamposConfigurablesArticulosWS.
+
+
+13. GetNumArticulosWS
+Obtiene el número de artículos total que devolvería el GET GetArticulosWS. Este método sirve
+para poder obtener los artículos por bloques usando los parámetros inicio y fin del GET
+GetArticulosWS.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetNumArticulosWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetNumArticulosWS?x=18
+
+Parámetros:
+
+      x: Número de sesión
+      fecha: Parámetro opcional que filtrará solo los artículos creados o modificados en una
+       fecha igual o posterior a la especificada.
+      hora: Parámetro opcional que añadirá la hora al parámetro de fecha para filtrar con
+       más precisión.
+
+Respuesta:
+
+      InfoError
+      Numero – Dato de tipo entero que indica el número de artículos que se van a obtener
+       usando el GET GetArticulosWS.
+
+
+
+
+                                              18
+14. GetCursosWS
+Devuelve la información de los cursos de los libros.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetCursosWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetCursosWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+
+Respuesta:
+
+       InfoError
+       Valores - Lista de cursos, cada uno con estas propiedades:
+
+    Propiedad          Descripción                                             Tipo   Info
+        Id             Identificador del registro en Verial.                    N
+      Valor            Nombre del curso.                                        A     100
+
+
+15. GetAsignaturasWS
+Devuelve la información de las asignaturas de los libros.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetAsignaturasWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetAsignaturasWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+
+Respuesta:
+
+       InfoError
+       Valores - Lista de asignaturas, cada una con estas propiedades:
+
+    Propiedad          Descripción                                             Tipo   Info
+        Id             Identificador del registro en Verial.                    N
+      Valor            Nombre de la asignatura.                                 A     100
+
+
+16. GetColeccionesWS
+Devuelve la información de las colecciones de los libros.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetColeccionesWS
+
+                                                19
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetColeccionesWS?x=18
+
+Parámetros:
+
+        x: Número de sesión
+
+Respuesta:
+
+        InfoError
+        Valores - Lista de las colecciones, cada una con estas propiedades:
+
+    Propiedad          Descripción                                                 Tipo   Info
+        Id             Identificador del registro en Verial.                        N
+      Valor            Nombre de la colección.                                      A     100
+
+
+17. GetFabricantesWS
+Devuelve la información de los fabricantes y editores de los artículos y libros.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetFabricantesWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetFabricantesWS?x=18
+
+Parámetros:
+
+        x: Número de sesión
+
+Respuesta:
+
+        InfoError
+        Fabricantes - Lista de los fabricantes, cada uno con estas propiedades:
+
+    Propiedad          Descripción                                                 Tipo   Info
+        Id             Identificador del registro en Verial.                        N
+                       Tipo de fabricante con estos posibles valores:
+         Tipo          1 – Genérico                                                 A     200
+                       2 – Editor de libros
+        Nombre         Nombre del fabricante.                                       A     200
+
+
+18. GetCategoriasWS
+Devuelve la información de las categorías de los artículos.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetCategoriasWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetCategoriasWS?x=18
+
+Parámetros:
+
+        x: Número de sesión
+
+
+                                                20
+Respuesta:
+
+         InfoError
+         Categorias - Lista de las categorías, cada una con estas propiedades:
+
+            Propiedad         Descripción                                         Tipo   Info
+                Id            Identificador del registro en Verial.                N
+                              Identificador del registro de esta misma
+           ID_Padre                                                                N
+                              tabla que es el padre del registro actual.
+            Nombre            Nombre de la categoría.                              A      50
+                              Dato que servirá para ordenar los registros
+             Clave                                                                 A      24
+                              de categorías.
+                              Identificador de la familia de campos
+ID_FamiliaCamposConfigurables configurables asociados a esta categoría de          N
+                              artículos.
+
+
+Información adicional:
+
+Las categorías se organizan en modo árbol, es decir, hay categorías padres y categorías hijas
+hasta un máximo de 8 niveles. Los artículos solo pueden tener asignadas categorías hijas, es
+decir, que no sea padre de ninguna otra.
+
+
+
+19. GetCategoriasWebWS
+Devuelve la información de las categorías para la web de los artículos.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetCategoriasWebWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetCategoriasWebWS?x=18
+
+Parámetros:
+
+         x: Número de sesión
+
+Respuesta:
+
+         InfoError
+         Categorias - Lista de las categorías, cada una con estas propiedades:
+
+    Propiedad           Descripción                                               Tipo   Info
+        Id              Identificador del registro en Verial.                      N
+                        Identificador del registro de esta misma tabla que es
+        ID_Padre                                                                   N
+                        el padre del registro actual.
+        Nombre          Nombre de la categoría.                                    A      50
+                        Dato que servirá para ordenar los registros de
+         Clave                                                                     A      24
+                        categorías.
+
+
+Información adicional:
+
+
+
+                                                21
+Las categorías se organizan en modo árbol, es decir, hay categorías padres y categorías hijas
+hasta un máximo de 8 niveles. Los artículos solo pueden tener asignadas categorías hijas, es
+decir, que no sea padre de ninguna otra.
+
+
+
+20. GetCamposConfigurablesArticulosWS
+Devuelve la información de los campos configurables por el usuario.
+
+Tipo: GET
+
+URL: http://[IP del
+servidor]:8000/WcfServiceLibraryVerial/GetCamposConfigurablesArticulosWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/GetCamposConfigurablesArticulosWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+
+Respuesta:
+
+       InfoError
+       Campos – Lista de campos, cada uno con estas propiedades:
+
+            Propiedad         Descripción                                        Tipo    Info
+                              Si este valor es cero quiere decir que es un
+                              campo compartido por todos los artículos,
+                              si tiene un valor quiere decir que
+ID_FamiliaCamposConfigurables                                                      N
+                              pertenece a esa familia de campos que
+                              serán compartidos solo por ciertos
+                              registros de artículos.
+                              Tipo de dato del campo con estos posibles
+                              valores:
+                              1 – Alfanumérico con un máximo de 50
+                              caracteres.
+                              2 – Lógico (True o False).
+                              3 – Fecha.
+           TipoDato                                                                N
+                              4 – Numérico entero.
+                              5 – Numérico decimal.
+                              6 – Alfanumérico sin límite de caracteres.
+                              7 – Identificador de un registro de un árbol
+                              (más adelante se verá cómo obtener estos
+                              árboles)
+                              Número que identifica el campo. Este dato
+              Id              servirá para relacionar la definición de los         N
+                              campos con el valor guardado en artículos.
+          Descripcion         Breve descripción del campo.                         A      30
+                              Número de posiciones enteras del dato.
+         NumEnteros                                                                N
+                              Solo aplicable a los tipos de dato 4 y 5.
+                              Número de posiciones decimales del dato.
+        NumDecimales                                                               N
+                              Solo aplicable al tipo de dato 5.
+
+                                              22
+                                    Indica si el dato se obtiene de una lista fija
+             Validado                                                                  L
+                                    de opciones. Solo aplicable al tipo 1.
+                                    Indica si el dato tiene formato rtf. Solo
+        TextoConFormato                                                                L
+                                    aplicable al tipo 6.
+                                    Orden en el que deben aparecer los
+              Orden                                                                   N
+                                    campos.
+                                    Grupo al que pertenecen. Los campos con
+                                    el mismo texto en este dato deben
+              Grupo                                                                   A     100
+                                    aparecer agrupados y este texto debería
+                                    ser algo así como el encabezado
+
+
+Información adicional:
+
+En la estructura que devuelve el método GetArticulosWS hay una propiedad que se llama
+CamposConfigurables que contiene los valores de los campos aquí definidos. Se relacionan a
+través de los campos ID_FamiliaCamposConfigurables y el Id = ID_Campo.
+
+
+
+21. GetArbolCamposConfigurablesArticulosWS
+Devuelve el árbol completo de un campo configurable especificado.
+
+Tipo: GET
+
+URL: http://[IP del
+servidor]:8000/WcfServiceLibraryVerial/GetArbolCamposConfigurablesArticulosWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/GetArbolCamposConfigurablesArticulosWS?x
+=18
+
+Parámetros:
+
+        x: Número de sesión
+        id_campo: Identificador del campo configurable
+        id_familiacamposconfigurables: Identificador de la familia de campos configurables
+
+Respuesta:
+
+        InfoError
+        RamasArbol – Lista de ramas, cada una con estas propiedades:
+
+    Propiedad           Descripción                                                  Tipo   Info
+        Id              Identificador del registro en Verial.                         N
+                        Identificador del registro de esta misma tabla que es la
+       ID_Padre                                                                       N
+                        rama padre del registro actual.
+       Nombre           Nombre.                                                       A     50
+        Clave           Dato que servirá para ordenar los registros del árbol.        A     24
+
+
+
+
+                                                23
+22. GetValoresValidadosCampoConfigurableArticulosWS
+Devuelve el árbol completo de un campo configurable especificado.
+
+Tipo: GET
+
+URL: http://[IP del
+servidor]:8000/WcfServiceLibraryVerial/GetValoresValidadosCampoConfigurableArticulosWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/GetValoresValidadosCampoConfigurableArtic
+ulosWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+       id_campo: Identificador del campo configurable
+       id_familiacamposconfigurables: Identificador de la familia de campos configurables
+
+Respuesta:
+
+       InfoError
+       Valores – Lista de valores, cada uno con estas propiedades:
+
+    Propiedad          Descripción                                             Tipo    Info
+      Valor            Valor.                                                   A      100
+
+
+
+23. GetStockArticulosWS
+Devuelve la información del stock de los artículos.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetStockArticulosWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/GetStockArticulosWS?x=18&id_articulo=0
+
+Parámetros:
+
+       x: Número de sesión
+       id_articulo: Si solo queremos obtener información de un artículo en concreto en este
+        parámetro se especifica el identificador del artículo en Verial, si se le pasa un 0
+        estamos indicando que queremos el stock de todos los artículos.
+
+Respuesta:
+
+       InfoError
+       Stock - Lista del detalle del stock con estas propiedades:
+
+     Propiedad         Descripción                                             Tipo    Info
+    ID_Articulo        Identificador del artículo.                              N
+        Stock          Unidades de stock.                                       D     (10,4)
+      StockAux         Unidades auxiliares de stock.                            D     (10,4)
+
+                                               24
+24. GetImagenesArticulosWS
+Devuelve las imágenes de los artículos.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetImagenesArticulosWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/GetImagenesArticulosWS?x=18&id_articulo=
+0&numpixelsladomenor=0
+
+Parámetros:
+
+       x: Número de sesión
+       id_articulo: Si solo queremos obtener las imágenes de un artículo en concreto en este
+        parámetro se especifica el identificador del artículo en Verial, si se le pasa un 0
+        estamos indicando que queremos las imágenes de todos los artículos.
+       numpixelsladomenor: Si este parámetro es 0 quiere decir que la imagen es la original,
+        si indicamos un valor las imágenes se reducirán manteniendo las proporciones y el
+        lado menor tendrá el número de pixeles indicados en este parámetro.
+       fecha: Parámetro opcional que filtrará solo las imágenes de artículos creados o
+        modificados en una fecha igual o posterior a la especificada.
+       hora: Parámetro opcional que añadirá la hora al parámetro de fecha para filtrar con
+        más precisión.
+
+Respuesta:
+
+       InfoError
+       Imagenes - Lista de imágenes de los artículos, cada una con estas propiedades:
+
+     Propiedad        Descripción                                              Tipo      Info
+    ID_Articulo       Identificador del artículo.                               N
+      Imagen          Imagen del artículo codificada en Base64.                 A
+
+
+Información adicional:
+
+Un mismo artículo puede tener varias imágenes.
+
+
+
+
+25. GetCondicionesTarifaWS
+Devuelve las condiciones de tarifa para la venta desde la web.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetCondicionesTarifaWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/GetCondicionesTarifaWS?x=18&id_articulo=0
+&id_cliente=0&id_tarifa=0&fecha=2022-01-14
+
+                                              25
+Parámetros:
+
+       x: Número de sesión
+       id_articulo: Si solo queremos obtener las condiciones de un artículo en concreto en
+        este parámetro se especifica el identificador del artículo en Verial, si se le pasa un 0
+        estamos indicando que queremos las condiciones de tarifa de todos los artículos.
+       id_cliente: Si este parámetro es 0 quiere decir que queremos los precios de la tarifa
+        general para la web, si indicamos un cliente es porque queremos las condiciones
+        particulares para ese cliente.
+       id_tarifa (opcional): Si no se especifica este parámetro quiere decir que queremos los
+        precios de la tarifa general para la web o los del cliente indicado.
+       fecha (opcional): Este parámetro solo es necesario si hay que calcular los precios de la
+        tarifa a una fecha distinta a la actual.
+
+Respuesta:
+
+       InfoError
+       CondicionesTarifa - Lista de condiciones de tarifa, cada una con estas propiedades:
+
+     Propiedad        Descripción                                                Tipo     Info
+    ID_Articulo       Identificador del artículo.                                 N
+       Precio         Precio sin impuestos.                                       D      (8,6)
+        Dto           Porcentaje de descuento.                                    D      (3,4)
+                      Importe de descuento por cada unidad (sin contar las
+   DtoEurosXUd                                                                     D     (10,2)
+                      unidades de regalo).
+                      Nº de unidades que se deben vender como mínimo
+       UdsMin         para aplicar estas condiciones. Por ejemplo si se            D     (10,4)
+                      compran 3 unidades una de regalo.
+    UdsRegalo         Nº de unidades que se regalan.                               D     (10,4)
+
+
+Información adicional:
+
+Para un mismo artículo puede haber más de una condición, pero eso solo pasará si hay
+UdsMin, eso quiere decir que en función de las unidades que compre se aplicarán unas
+condiciones u otras.
+
+
+
+
+26. NuevoDocClienteWS
+Da de alta o modifica un documento de cliente.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevoDocClienteWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoDocClienteWS
+
+Estructura del JSon de entrada:
+
+    Propiedad         Descripción                                                Tipo    Info      Oblig.
+
+
+                                               26
+   sesionwcf        Nº de sesión en Verial. (18 para los test)                  N            X
+                    Identificador del registro en Verial. Solo hay que
+       Id           especificar este dato si se quieren modificar los datos     N
+                    de un documento ya existente.
+                    Tipo de documento con estos posibles valores (el 2 es
+                    un documento interno de Verial):
+                    1 – Factura
+      Tipo          3 – Albarán de venta                                        N            X
+                    4 – Factura simplificada
+                    5 – Pedido
+                    6 – Presupuesto
+                    Cuando el tipo sea Pedido se podrá rellenar este dato
+   Referencia       con una referencia que genere la web. Se puede dejar        A    40
+                    vacío.
+                    Este dato solo hay que indicarlo en el caso de facturas,
+                    facturas simplificadas y albaranes si la web lleva su
+    Numero          propia numeración. En el método GetNextNumDocs se           N
+                    explica cómo obtener los números por los que debe
+                    continuar la numeración de cada tipo de documento.
+     Fecha          Fecha del documento.                                        F            X
+                    Cuando el cliente ya existe en Verial y no hay que
+   ID_Cliente       modificar sus datos basta con especificar este valor con    N
+                    el identificador del cliente.
+                    Estructura JSon con los datos del cliente que servirá
+     Cliente        para crear o modificar un cliente. La estructura es la      J
+                    misma que para el método NuevoClienteWS.
+                    Nombre y dirección del cliente introducidos en modo
+                    etiqueta con saltos de línea y retornos de carro para
+                    cuando no se quiere crear un cliente y no está dado de
+ EtiquetaCliente                                                                A
+                    alta. Esto solo se usará en presupuestos para evitar
+                    crear fichas de clientes que en muchos casos no llegará
+                    a ser un cliente definitivo.
+                    Identificador de la dirección de envío si ya está dada de
+                    alta en Verial y no es necesario modificarla, en caso
+ID_DireccionEnvio                                                               N
+                    contrario se pasaría en la estructura Cliente de la
+                    propiedad anterior.
+                    Identificador del primer agente comisionista del
+   ID_Agente1                                                                   N
+                    documento.
+                    Identificador del segundo agente comisionista del
+   ID_Agente2                                                                   N
+                    documento.
+                    Identificador del tercer agente comisionista del
+   ID_Agente3                                                                   N
+                    documento.
+                    Identificador del método de pago asignado al
+                    documento. Este dato solo es necesario si no se hace
+ID_MetodoPago                                                                   N
+                    un pago asociado al documento pero si se sabe cómo
+                    va a pagar el cliente.
+ ID_FormaEnvio      Identificador de la forma de envío de la mercancía.         N
+                    Identificador de uno de los destinos definidos dentro
+   ID_Destino                                                                   N
+                    de las formas de envío.
+                    Peso expresado en kilogramos de todos los artículos
+      Peso                                                                      D   (10,3)
+                    del contenido.
+
+                                            27
+      Bultos        Nº de bultos de empaquetado.                                N
+                    Tipo de portes con estos posibles valores:
+                    0 – Sin portes / no gestionado
+    TipoPortes      1 – Portes pagados                                          N
+                    2 – Portes debidos
+                    3 – Recoger en tienda
+                    Indica si los precios que se van a detallar en el
+PreciosImpIncluidos                                                             L                X
+                    contenido son con impuestos incluidos.
+  BaseImponible     Importe total del documento sin impuestos.                  D     (10,2)
+   TotalImporte     Importe total del documento con impuestos.                  D     (10,2)     X
+       Portes       Importe de portes con impuestos incluidos.                  D     (10,2)
+    Comentario      Anotaciones y comentarios indicados por el cliente.         A
+    Descripcion     Descripción del documento.                                  A      100
+        Aux1        Campos auxiliares. Solo se deben usar bajo supervisión
+        Aux2        de Verial Soft.
+        Aux3
+                                                                                A      50
+        Aux4
+        Aux5
+        Aux6
+                    Líneas de contenido del documento. La estructura de
+     Contenido                                                                  A-J              X
+                    cada línea se detalla a continuación.
+                    Pagos asociados al documento. La estructura de cada
+       Pagos                                                                    A-J              X
+                    pago se detalla a continuación.
+
+
+Estructura del JSon de la línea de contenido:
+
+    Propiedad         Descripción                                              Tipo   Info     Oblig.
+                      Tipo de registro con estos posibles valores:
+   TipoRegistro       1 – Articulo                                              N                X
+                      2 – Comentario en línea
+                      Identificador del artículo (solo para los registros de
+    ID_Articulo                                                                 N                X
+                      TipoRegistro=1)
+                      Texto para el comentario en línea (solo para registros
+    Comentario                                                                  A      100       X
+                      de TipoRegistro=2)
+                      Unidades del artículo que se cobrarán, aquí no se
+        Uds                                                                     D     (10,4)     X
+                      incluyen las unidades de regalo.
+   UdsAuxiliares      Unidades auxiliares del artículo (Cajas, piezas, etc).    D     (10,4)
+                      Precio unitario sin descuentos. Si el documento es con
+                      impuestos incluidos, este precio tendrá 2 posiciones
+      Precio          decimales, si es sin impuestos incluidos el número de     D     (8,6)      X
+                      posiciones decimales lo determinará el valor de la
+                      propiedad DecPrecioVentas de la tabla de Artículos.
+        Dto           Porcentaje de descuento.                                  D     (3,4)
+     DtoPPago         Porcentaje de descuento por pronto pago.                  D     (3,4)
+                      Importe de descuento por cada unidad facturable. Si
+   DtoEurosXUd        se especifica este valor el dato DtoEuros debe estar      D     (10,2)
+                      vacío.
+                      Importe de descuento total para todas las unidades de
+     DtoEuros         la línea. Si se especifica este valor el dato             D     (10,2)
+                      DtoEurosXUd debe estar vacío.
+
+
+                                                28
+                      Importe de la línea calculado de estas 2 maneras en
+                      función de si se utiliza DtoEurosXUd o DtoEuros,
+                      redondeando siempre a 2 decimales:
+   ImporteLinea                                                                  D     (10,2)
+                      ((Precio * Uds) * (1 – (Dto/100))) – (DtoEurosXUd *
+                      Uds)
+                      ((Precio * Uds) * (1 – (Dto/100))) – DtoEuros
+                      Lote que se está vendiendo.
+       Lote           Este dato solo se debe indicar en facturas, albaranes y    A      30
+                      facturas simplificadas si se gestiona stock especial.
+                      Fecha de caducidad.
+    Caducidad         Este dato solo se debe indicar en facturas, albaranes y    F
+                      facturas simplificadas si se gestiona stock especial.
+                      Identificador de la partida.
+    ID_Partida        Este dato solo se debe indicar en facturas, albaranes y    N
+                      facturas simplificadas si se gestiona stock especial.
+                      Porcentaje de IVA de la línea. Si en la cabecera del
+                      documento se ha indicado que los precios son con
+  PorcentajeIVA                                                                  D     (2,2)     X?
+                      impuestos incluidos no es obligatorio especificar este
+                      dato, el propio servicio lo calculará.
+  PorcentajeRE        Porcentaje de RE de la línea.                              D     (2,2)
+DescripcionAmplia     Comentarios o información extra relativa a la línea.       A
+                      Este dato solo se debe especificar si el concepto de la
+     Concepto                                                                    A      100
+                      línea es distinto del nombre del artículo.
+
+
+Estructura del JSon de un pago:
+
+   Propiedad      Descripción                                                   Tipo   Info     Oblig.
+ID_MetodoPago     Identificador del método de pago.                              N                X
+     Fecha        Fecha del pago.                                                 F               X
+    Importe       Importe del pago.                                              D     (10,2)     X
+
+
+Estructura del JSon de salida: Es el JSon del documento completo incluyendo la estructura
+InfoError.
+
+Información adicional:
+
+Al modificar un documento ya existente lo que se hace es sustituir completamente el
+documento existente por la información nueva. Esto quiere decir que cuando sea una
+modificación hay que enviar el documento completo nuevamente y no solo líneas nuevas.
+
+27. PedidoModificableWS
+Este método sirve para consultar si un pedido es modificable o no. Un pedido no puede ser
+modificado cuando ya se ha empezado a procesar.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/PedidoModificableWS
+
+TEST:
+http://x.verial.org:8000/WcfServiceLibraryVerial/PedidoModificableWS?x=18&id_pedido=1
+
+
+                                              29
+Parámetros:
+
+      x: Número de sesión
+      id_pedido: Identificador del pedido que queremos consultar.
+
+Respuesta:
+
+      InfoError
+      Modificable – Propiedad lógica que devolverá un true o false en función de si es
+       modificable o no
+
+
+
+
+28. UpdateDocClienteWS
+Permite modificar ciertos datos de un documento de cliente ya existente sin necesidad de
+enviar el documento completo.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/UpdateDocClienteWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/UpdateDocClienteWS
+
+Estructura del JSon de entrada:
+
+    Propiedad         Descripción                                               Tipo      Info   Oblig.
+    sesionwcf         Nº de sesión en Verial. (18 para los test)                 N                 X
+                      Identificador del registro en Verial. Este dato es
+        Id            obligatorio a no ser que sea un pedido y                   N                X?
+                      especifiquemos la referencia con la que se dio de alta.
+                      Cuando el tipo sea Pedido se podrá rellenar este dato
+    Referencia        con una referencia que genere la web. Es obligatorio si    A        40      X?
+                      no se rellena el Id.
+       Aux1           Campos auxiliares. Solo se deben usar bajo supervisión
+       Aux2           de Verial Soft.
+       Aux3
+                                                                                 A        50
+       Aux4
+       Aux5
+       Aux6
+
+
+Estructura del JSon de salida: Es el JSon del documento completo incluyendo la estructura
+InfoError.
+
+
+
+
+29. GetNextNumDocsWS
+Devuelve el número que le correspondería al siguiente documento que se diera de alta por
+cada tipo de documento.
+
+Tipo: GET
+
+
+                                             30
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetNextNumDocsWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetNextNumDocsWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+
+Respuesta:
+
+       InfoError
+       Numeros - Lista del próximo número por cada tipo de documento, cada una con estas
+        propiedades:
+
+  Propiedad       Descripción                                                 Tipo     Info
+                  Tipo de documento con estos posibles valores (el 2 es un
+                  documento interno de Verial):
+                  1 – Factura
+       Tipo       3 – Albarán de venta                                          N
+                  4 – Factura simplificada
+                  5 – Pedido
+                  6 – Presupuesto
+    Numero        Número que le corresponderá al siguiente documento.           N
+
+
+Información adicional:
+
+En el caso de los pedidos no se recomienda llevar esta numeración, lo que se debe hacer es
+que la web le asigne un número y ese número se pone en el dato Referencia.
+
+Con el cambio de año estas numeraciones deberían reiniciarse al 1.
+
+
+
+30. GetMetodosPagoWS
+Devuelve los métodos de pago.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetMetodosPagoWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetMetodosPagoWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+
+Respuesta:
+
+       InfoError
+       MetodosPago - Lista de métodos de pago, cada una con estas propiedades:
+
+  Propiedad       Descripción                                                 Tipo     Info
+      Id          Identificador del registro en Verial.                        N
+   Nombre         Nombre.                                                      A       50
+
+
+                                               31
+31. NuevoPagoWS
+Añade pagos a pedidos ya creados.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevoPagoWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoPagoWS
+
+Estructura del JSon de entrada:
+
+   Propiedad       Descripción                                                 Tipo    Info    Oblig.
+   sesionwcf       Nº de sesión en Verial. (18 para los test)                   N                X
+   ID_DocCli       Identificador del pedido al que se quiere añadir el pago.    N                X
+ID_MetodoPago      Identificador del método de pago.                            N                X
+     Fecha         Fecha del pago.                                               F               X
+    Importe        Importe del pago.                                            D     (10,2)     X
+
+
+Respuesta:
+
+      InfoError
+
+
+
+32. GetAgentesWS
+Devuelve los agentes comisionistas.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetAgentesWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetAgentesWS?x=18
+
+Parámetros:
+
+      x: Número de sesión
+
+Respuesta:
+
+      InfoError
+      Agentes - Lista de agentes comisionistas, cada una con estas propiedades:
+
+  Propiedad        Descripción                                                 Tipo    Info
+      Id           Identificador del registro en Verial.                        N
+   Nombre          Nombre.                                                      A      100
+
+
+33. EstadoPedidosWS
+Este método sirve para consultar el estado de los pedidos. Se pueden consultar múltiples
+pedidos de una sola vez.
+
+Tipo: POST
+
+
+                                                32
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/EstadoPedidosWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/EstadoPedidosWS
+
+Estructura del JSon de entrada:
+
+  Propiedad         Descripción                                                    Tipo    Info   Oblig.
+  sesionwcf         Nº de sesión en Verial. (18 para los test)                      N               X
+   Pedidos          Lista de pedidos por los que se va a consultar el estado.       A-J             X
+
+
+Estructura del JSon de la lista de pedidos:
+
+    Propiedad           Descripción                                                Tipo    Info   Oblig.
+                        Identificador del pedido en Verial. Se debe indicar este
+          Id                                                                        N
+                        dato o la Referencia
+                        Referencia que se generó desde la web. Se debe
+    Referencia                                                                      A      40
+                        indicar este dato o el Id.
+
+
+Respuesta:
+
+         InfoError
+         Pedidos - Lista de los estados de los pedidos, cada una con estas propiedades:
+
+  Propiedad         Descripción                                                    Tipo    Info
+      Id            Identificador del registro en Verial.                           N
+  Referencia        Referencia que se generó desde la web.                          A      40
+                    Estado del pedido con estos posibles valores:
+                    0 – El pedido no existe en Verial.
+                    1 – Recibido.
+    Estado                                                                          N
+                    2 – En preparación.
+                    3 – Preparado.
+                    4 – Enviado.
+
+
+34. GetFormasEnvioWS
+Devuelve la información de las formas de envío disponibles
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetFormasEnvioWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetFormasEnvioWS?x=18
+
+Parámetros:
+
+         x: Número de sesión
+
+Respuesta:
+
+         InfoError
+         FormasEnvio - Lista de las formas de envío, cada una con estas propiedades:
+
+        Propiedad         Descripción                                              Tipo    Info
+
+                                                33
+         Id              Identificador del registro en Verial.                       N
+      Nombre             Nombre.                                                      A      50
+    Transportista        Nombre del transportista.                                    A      150
+      Destinos           Lista de destinos.                                          A-J
+
+
+Estructura del JSon de la lista de destinos:
+
+        Propiedad        Descripción                                                 Tipo   Info
+            Id           Identificador del registro en Verial.                        N
+         Nombre          Nombre.                                                      A      50
+                         Importe fijo para el envío; a éste se sumarán los
+           Fijo                                                                       D     (10,2)
+                         importes por unidad y kg.
+                         Importe (a añadir al fijo) por cada unidad facturada. Si
+        PorUnidad        no se quiere incrementar el importe en función del           D     (10,2)
+                         número de unidades, debe establecerse a 0.
+                         Importe (a añadir al fijo) por cada Kg. de peso. Si no se
+         PorPeso         quiere incrementar el importe en función del peso,           D     (10,2)
+                         debe establecerse a 0.
+                         Importe mínimo, que se aplicaría si el precio calculado
+                         con los datos anteriores resultara inferior, de modo
+         Minimo                                                                       D     (10,2)
+                         que no perjudique el hecho de enviar pocas unidades
+                         o que éstas resulten demasiado ligeras.
+                         Condiciona si deben realizarse más unidades logísticas
+    PesoMaximo           (bultos) por exceder el peso máximo permitido por            D     (10,3)
+                         esta forma de envío.
+                         Importe bruto de la compra a partir del cual los gastos
+          Gratis                                                                      D     (10,2)
+                         de envío correrán por cuenta del vendedor.
+                         Lista separada por comas de los identificadores de los
+         Paises                                                                       A      500
+                         países a los que afecta este destino.
+                         Lista separada por comas de los identificadores de las
+        Provincias                                                                    A      500
+                         provincias a las que afecta este destino.
+                         Lista separada por comas de los identificadores de las
+    Localidades                                                                       A      500
+                         localidades a las que afecta este destino.
+
+
+35. GetMascotasWS
+Devuelve la información de las mascotas.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetMascotasWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetMascotasWS?x=18
+
+Parámetros:
+
+         x: Número de sesión
+         id_cliente: Si este parámetro es 0 quiere decir que queremos las mascotas de todos los
+          clientes, si indicamos un cliente es porque queremos las mascotas de un cliente
+          concreto.
+
+
+                                                 34
+        fecha: Parámetro opcional que filtrará solo las mascotas creadas o modificadas en una
+         fecha igual o posterior a la especificada.
+
+Respuesta:
+
+        InfoError
+        Mascotas - Lista de las mascotas, cada una con estas propiedades:
+
+     Propiedad          Descripción                                              Tipo   Info
+         Id             Identificador del registro en Verial.                     N
+     ID_Cliente         Identificador del cliente al que pertenece la mascota.    N
+       Nombre           Nombre.                                                   A      50
+     TipoAnimal         Tipo de animal.                                           A      50
+        Raza            Raza.                                                     A      50
+  FechaNacimiento       Fecha de nacimiento.                                       F
+        Peso            Peso.                                                     D     (4,3)
+                        Situación del peso con estos posibles valores:
+                        0 – No especificada.
+   SituacionPeso        1 – Por debajo.                                           N
+                        2 – En peso.
+                        3 – Por encima.
+                        Actividad de la mascota con estos posibles valores:
+                        0 – No especificada.
+        Actividad       1 – Activo.                                               N
+                        2 – Normal.
+                        3 – Poco activo.
+   HayPatologias        Indica si tiene alguna patología y/o alergia.             L
+    Patologias          Descripción de las patologías y/o alergias.               A
+                        Alimentación de la mascota con estos posibles
+                        valores:
+                        0 – No especificada.
+    Alimentacion                                                                  N
+                        1 – Barf.
+                        2 – Pienso.
+                        3 – Otros.
+                        Descripción de la alimentación cuando la opción de
+ AlimentacionOtros                                                                A
+                        la propiedad “Alimentacion” sea “Otros”.
+
+
+36. NuevaMascotaWS
+Da de alta o modifica los datos de un registro de mascota.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/NuevaMascotaWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoMascotaWS
+
+Estructura del JSon de entrada:
+
+    Propiedad         Descripción                                                Tipo   Info     Oblig.
+    sesionwcf         Nº de sesión en Verial. (18 para los test)                  N                X
+    ID_Cliente        Identificador del cliente al que pertenece la mascota.      N                X
+
+
+                                               35
+                  Identificador del registro en Verial. Solo hay que
+        Id        especificar este dato si se quieren modificar los datos         N
+                  de una mascota ya existente.
+      Nombre      Nombre.                                                         A      50     X
+    TipoAnimal    Tipo de animal.                                                 A      50
+        Raza      Raza.                                                           A      50
+FechaNacimiento Fecha de nacimiento.                                              F
+        Peso      Peso.                                                           D     (4,3)
+                  Situación del peso con estos posibles valores:
+                  0 – No especificada.
+   SituacionPeso  1 – Por debajo.                                                 N
+                  2 – En peso.
+                  3 – Por encima.
+                  Actividad de la mascota con estos posibles valores:
+                  0 – No especificada.
+      Actividad   1 – Activo.                                                     N
+                  2 – Normal.
+                  3 – Poco activo.
+   HayPatologias  Indica si tiene alguna patología y/o alergia.                   L
+     Patologias   Descripción de las patologías y/o alergias.                     A
+                  Alimentación de la mascota con estos posibles valores:
+                  0 – No especificada.
+   Alimentacion   1 – Barf.                                                       N
+                  2 – Pienso.
+                  3 – Otros.
+                  Descripción de la alimentación cuando la opción de la
+AlimentacionOtros                                                                 A
+                  propiedad “Alimentacion” sea “Otros”.
+
+
+Estructura del JSon de salida:
+
+     Propiedad          Descripción                                              Tipo   Info
+         Id             Identificador del registro en Verial.                     N
+     ID_Cliente         Identificador del cliente al que pertenece la mascota.    N
+       Nombre           Nombre.                                                   A      50
+     TipoAnimal         Tipo de animal.                                           A      50
+        Raza            Raza.                                                     A      50
+  FechaNacimiento       Fecha de nacimiento.                                       F
+        Peso            Peso.                                                     D     (4,3)
+                        Situación del peso con estos posibles valores:
+                        0 – No especificada.
+   SituacionPeso        1 – Por debajo.                                           N
+                        2 – En peso.
+                        3 – Por encima.
+                        Actividad de la mascota con estos posibles valores:
+                        0 – No especificada.
+      Actividad         1 – Activo.                                               N
+                        2 – Normal.
+                        3 – Poco activo.
+   HayPatologias        Indica si tiene alguna patología y/o alergia.             L
+    Patologias          Descripción de las patologías y/o alergias.               A
+
+
+                                              36
+                        Alimentación de la mascota con estos posibles
+                        valores:
+                        0 – No especificada.
+    Alimentacion                                                                  N
+                        1 – Barf.
+                        2 – Pienso.
+                        3 – Otros.
+                        Descripción de la alimentación cuando la opción de
+ AlimentacionOtros                                                                A
+                        la propiedad “Alimentacion” sea “Otros”.
+
+
+37. BorrarMascotaWS
+Borra un registro de mascota.
+
+Tipo: POST
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/BorrarMascotaWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/BorrarMascotaWS
+
+Estructura del JSon de entrada:
+
+    Propiedad        Descripción                                                Tipo    Info   Oblig.
+    sesionwcf        Nº de sesión en Verial. (18 para los test)                  N               X
+    ID_Cliente       Identificador del cliente al que pertenece la mascota.      N               X
+        Id           Identificador del registro en Verial.                       N               X
+
+
+Respuesta:
+
+       InfoError
+
+
+
+38. GetHistorialPedidosWS
+Devuelve el historial de pedidos.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetHistorialPedidosWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetHistorialPedidosWS?x=18
+
+Parámetros:
+
+       x: Número de sesión
+       id_cliente: Parámetro opcional para filtrar solo los pedidos de un cliente concreto.
+       fechadesde: Parámetro opcional que filtrará solo los pedidos realizados a partir de
+        cierta fecha.
+       fechahasta: Parámetro opcional que filtrará solo los pedidos realizados hasta cierta
+        fecha.
+       allareasventa: Parámetro opcional de tipo boolean (true, false) para indicar si
+        queremos obtener los pedidos de todas las áreas de venta y no solo los del área de
+        venta donde se reciben los pedidos que llegan a través de este servicio web.
+
+                                              37
+Respuesta:
+
+      InfoError
+      Documentos - Lista de pedidos en formato JSon con la misma estructura que se
+       retorna cuando llamamos al método NuevoDocClienteWS.
+
+
+
+39. GetVersionWS
+Devuelve el número de versión del servicio web.
+
+Tipo: GET
+
+URL: http://[IP del servidor]:8000/WcfServiceLibraryVerial/GetVersionWS
+
+TEST: http://x.verial.org:8000/WcfServiceLibraryVerial/GetVersionWS?x=18
+
+Parámetros:
+
+      x: Número de sesión
+
+Respuesta:
+
+      InfoError
+      Version – Dato de tipo cadena con el número de versión, por ejemplo, 1.7.3
+
+
+
+
+                                             38
+

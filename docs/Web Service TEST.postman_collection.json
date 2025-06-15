@@ -1,0 +1,1170 @@
+{
+	"info": {
+		"_postman_id": "cd64193a-9b9c-4de6-9fcb-c00d2f3697b3",
+		"name": "Web Service TEST",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12301814"
+	},
+	"item": [
+		{
+			"name": "GetPaisesWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetPaisesWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetPaisesWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetProvinciasWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetProvinciasWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetProvinciasWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevaProvinciaWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Nombre\":\"Mainz\",\r\n   \"ID_Pais\":2,\r\n   \"CodigoNuts\":\"\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://192.168.0.42:8000/WcfServiceLibraryVerial/NuevaProvinciaWS",
+					"protocol": "http",
+					"host": [
+						"192",
+						"168",
+						"0",
+						"42"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevaProvinciaWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetLocalidadesWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetLocalidadesWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetLocalidadesWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevaLocalidadWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Nombre\":\"Maguncia\",\r\n   \"ID_Pais\":2,\r\n   \"ID_Provincia\":55,\r\n   \"CodigoNuts\":\"\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://192.168.0.42:8000/WcfServiceLibraryVerial/NuevaLocalidadWS",
+					"protocol": "http",
+					"host": [
+						"192",
+						"168",
+						"0",
+						"42"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevaLocalidadWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetAgentesWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetAgentesWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetAgentesWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetClientesWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetClientesWS?x=18&id_cliente=0&fecha=2024-02-05&hora=12:00",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetClientesWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_cliente",
+							"value": "0"
+						},
+						{
+							"key": "fecha",
+							"value": "2024-02-05"
+						},
+						{
+							"key": "hora",
+							"value": "12:00"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevoClienteWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Id\":0,\r\n   \"Tipo\":1,\r\n   \"NIF\":\"44444444A\",\r\n   \"Nombre\":\"Test2\",\r\n   \"Apellido1\":\"Prueba\",\r\n   \"Apellido2\":\"WebService\",\r\n   \"RazonSocial\":\"Razon social del cliente Test2\",\r\n   \"RegFiscal\":1,\r\n   \"ID_Pais\":1,\r\n   \"ID_Provincia\":0,\r\n   \"Provincia\":\"Salamanca\",\r\n   \"ID_Localidad\":0,\r\n   \"Localidad\":\"Salamanca\",\r\n   \"CPostal\":\"37006\",\r\n   \"Direccion\":\"Calle Nueva 100-110\",\r\n   \"DireccionAux\":\"Poligono industrial\",\r\n   \"Telefono\":\"999666333\",\r\n   \"Email\":\"direccion@correo.es\",\r\n   \"Sexo\":1,\r\n   \"ID_Agente1\":0,\r\n   \"ID_Agente2\":0,\r\n   \"ID_Agente3\":0,\r\n   \"ID_MetodoPago\":0,\r\n   \"WebUserOld\":null,\r\n   \"WebUser\":\"direcciontest@correo.es\",\r\n   \"WebPassword\":\"123456\",\r\n   \"EnviarAnuncios\": true,\r\n   \"DireccionesEnvio\":[\r\n      {\r\n         \"Id\":0,\r\n         \"Nombre\":\"Fernando\",\r\n         \"Apellido1\":\"Hernandez\",\r\n         \"Apellido2\":\"Fernandez\",\r\n         \"ID_Pais\":1,\r\n         \"ID_Provincia\":0,\r\n         \"Provincia\":\"Madrid\",\r\n         \"ID_Localidad\":0,\r\n         \"Localidad\":\"pozuelo de alarcón\",\r\n         \"CPostal\":\"28125\",\r\n         \"Direccion\":\"Avenida Larga 225-235\",\r\n         \"DireccionAux\":\"\",\r\n         \"Telefono\":\"666000333\"\r\n      },\r\n      {\r\n         \"Id\":0,\r\n         \"Nombre\":\"Rocío\",\r\n         \"Apellido1\":\"Santos\",\r\n         \"Apellido2\":\"García\",\r\n         \"ID_Pais\":1,\r\n         \"ID_Provincia\":37,\r\n         \"Provincia\":\"\",\r\n         \"ID_Localidad\":1,\r\n         \"Localidad\":\"\",\r\n         \"CPostal\":\"37002\",\r\n         \"Direccion\":\"Paseo de las flores 10\",\r\n         \"DireccionAux\":\"\",\r\n         \"Telefono\":\"666123000\"\r\n      }\r\n   ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoClienteWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevoClienteWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevaDireccionEnvioWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"ID_Cliente\":2,\r\n   \"Id\":0,\r\n   \"Nombre\":\"Juan Carlos\",\r\n   \"Apellido1\":\"Pinto\",\r\n   \"Apellido2\":\"Castillo\",\r\n   \"ID_Pais\":1,\r\n   \"ID_Provincia\":0,\r\n   \"Provincia\":\"Barcelona\",\r\n   \"ID_Localidad\":0,\r\n   \"Localidad\":\"Badalona\",\r\n   \"CPostal\":\"08910\",\r\n   \"Direccion\":\"Calle Mayor 8, Bajo\",\r\n   \"DireccionAux\":\"\",\r\n   \"Telefono\":\"666789000\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/NuevaDireccionEnvioWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevaDireccionEnvioWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevaMascotaWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Id\":1,\r\n   \"ID_Cliente\":8,\r\n   \"Nombre\":\"Rocky\",\r\n   \"TipoAnimal\":\"Perro\",\r\n   \"Raza\":\"Caniche\",\r\n   \"FechaNacimiento\":\"2019-06-13\",\r\n   \"Peso\":2.55,\r\n   \"SituacionPeso\":2,\r\n   \"Actividad\":3,\r\n   \"HayPatologias\":true,\r\n   \"Patologias\":\"Rabia\",\r\n   \"Alimentacion\":3,\r\n   \"AlimentacionOtros\":\"Comida de personas\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/NuevaMascotaWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevaMascotaWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "BorrarMascotaWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Id\":2,\r\n   \"ID_Cliente\":8\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/BorrarMascotaWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"BorrarMascotaWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetMascotasWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetMascotasWS?x=18&id_cliente=0",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetMascotasWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_cliente",
+							"value": "0"
+						},
+						{
+							"key": "fecha",
+							"value": "2023-12-29",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetArticulosWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "fecha",
+							"value": "2023-12-29",
+							"disabled": true
+						},
+						{
+							"key": "hora",
+							"value": "12:00",
+							"disabled": true
+						},
+						{
+							"key": "inicio",
+							"value": "0",
+							"disabled": true
+						},
+						{
+							"key": "fin",
+							"value": "0",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetNumArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetNumArticulosWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetNumArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "fecha",
+							"value": "2023-12-29",
+							"disabled": true
+						},
+						{
+							"key": "hora",
+							"value": "12:00",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetStockArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetStockArticulosWS?x=18&id_articulo=0",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetStockArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_articulo",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetImagenesArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetImagenesArticulosWS?x=18&id_articulo=0&numpixelsladomenor=300&fecha=2018-01-29&hora=12:00",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetImagenesArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_articulo",
+							"value": "0"
+						},
+						{
+							"key": "numpixelsladomenor",
+							"value": "300"
+						},
+						{
+							"key": "fecha",
+							"value": "2018-01-29"
+						},
+						{
+							"key": "hora",
+							"value": "12:00"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetCamposConfigurablesArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetCamposConfigurablesArticulosWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetCamposConfigurablesArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetArbolCamposConfigurablesArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetArbolCamposConfigurablesArticulosWS?x=18&id_campo=6000&id_familiacamposconfigurables=0",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetArbolCamposConfigurablesArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_campo",
+							"value": "6000"
+						},
+						{
+							"key": "id_familiacamposconfigurables",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetValoresValidadosCampoConfigurableArticulosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetValoresValidadosCampoConfigurableArticulosWS?x=18&id_campo=1&id_familiacamposconfigurables=0",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetValoresValidadosCampoConfigurableArticulosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_campo",
+							"value": "1"
+						},
+						{
+							"key": "id_familiacamposconfigurables",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetCursosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetCursosWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetCursosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetAsignaturasWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetAsignaturasWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetAsignaturasWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetColeccionesWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetColeccionesWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetColeccionesWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetFabricantesWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetFabricantesWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetFabricantesWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetCategoriasWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetCategoriasWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetCategoriasWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetCategoriasWebWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetCategoriasWebWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetCategoriasWebWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetCondicionesTarifaWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetCondicionesTarifaWS?x=18&id_articulo=0&id_cliente=0&fecha=2022-01-17",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetCondicionesTarifaWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_articulo",
+							"value": "0"
+						},
+						{
+							"key": "id_cliente",
+							"value": "0"
+						},
+						{
+							"key": "fecha",
+							"value": "2022-01-17"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "PedidoModificableWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/PedidoModificableWS?x=18&id_pedido=1",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"PedidoModificableWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_pedido",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevoDocClienteWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Id\":0,\r\n   \"Tipo\":5,\r\n   \"Referencia\":\"\",\r\n   \"Numero\":0,\r\n   \"Fecha\":\"2022-01-24\",\r\n   \"ID_Cliente\":0,\r\n   \"ID_DireccionEnvio\":0,\r\n   \"Cliente\":{\r\n      \"Id\":0,\r\n      \"Tipo\":1,\r\n      \"NIF\":\"\",\r\n      \"Nombre\":\"Rafael\",\r\n      \"Apellido1\":\"Santos\",\r\n      \"Apellido2\":\"De la Torre\",\r\n      \"RazonSocial\":\"\",\r\n      \"RegFiscal\":1,\r\n      \"ID_Pais\":1,\r\n      \"ID_Provincia\":37,\r\n      \"Provincia\":null,\r\n      \"ID_Localidad\":1,\r\n      \"Localidad\":null,\r\n      \"CPostal\":\"37006\",\r\n      \"Direccion\":\"Calle larga 25\",\r\n      \"DireccionAux\":\"\",\r\n      \"Telefono\":\"999000333\",\r\n      \"Email\":\"email@correo.es\",\r\n      \"Sexo\":1,\r\n      \"WebUserOld\":null,\r\n      \"WebUser\":\"email@correo.es\",\r\n      \"WebPassword\":\"abcdef\",\r\n      \"DireccionesEnvio\":[\r\n         {\r\n            \"Id\":0,\r\n            \"Nombre\":\"Antonio\",\r\n            \"Apellido1\":\"García\",\r\n            \"Apellido2\":\"García\",\r\n            \"ID_Pais\":1,\r\n            \"ID_Provincia\":37,\r\n            \"Provincia\":\"\",\r\n            \"ID_Localidad\":1,\r\n            \"Localidad\":\"\",\r\n            \"CPostal\":\"37003\",\r\n            \"Direccion\":\"Paseo de los Caracoles 225-235\",\r\n            \"DireccionAux\":\"\",\r\n            \"Telefono\":\"654321000\"\r\n         }\r\n      ]\r\n   },\r\n   \"EtiquetaCliente\":null,\r\n   \"ID_Agente1\":0,\r\n   \"ID_Agente2\":0,\r\n   \"ID_Agente3\":0,\r\n   \"ID_MetodoPago\":0,\r\n   \"Peso\":1.25,\r\n   \"Bultos\":1,\r\n   \"TipoPortes\":1,\r\n   \"Portes\":5.0,\r\n   \"PreciosImpIncluidos\":true,\r\n   \"BaseImponible\":78.64,\r\n   \"TotalImporte\":87.24,\r\n   \"Comentario\":null,\r\n   \"Descripcion\":null,\r\n   \"Contenido\":[\r\n      {\r\n         \"TipoRegistro\":1,\r\n         \"ID_Articulo\":11686,\r\n         \"Comentario\":null,\r\n         \"Precio\":17.8,\r\n         \"Dto\":20.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":0.0,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":1.0,\r\n         \"UdsRegalo\":0.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":14.24,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":21.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":\"Marcador de tiza\"\r\n      },\r\n      {\r\n         \"TipoRegistro\":1,\r\n         \"ID_Articulo\":11702,\r\n         \"Comentario\":null,\r\n         \"Precio\":4.25,\r\n         \"Dto\":0.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":0.0,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":3.0,\r\n         \"UdsRegalo\":0.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":12.75,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":21.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":null\r\n      },\r\n      {\r\n         \"TipoRegistro\":2,\r\n         \"ID_Articulo\":0,\r\n         \"Comentario\":\"Comentario en lína\",\r\n         \"Precio\":0.0,\r\n         \"Dto\":0.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":0.0,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":0.0,\r\n         \"UdsRegalo\":0.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":0.0,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":0.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":null\r\n      },\r\n      {\r\n         \"TipoRegistro\":1,\r\n         \"ID_Articulo\":11884,\r\n         \"Comentario\":null,\r\n         \"Precio\":12.00,\r\n         \"Dto\":0.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":1,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":4.0,\r\n         \"UdsRegalo\":0.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":44.00,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":4.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":null\r\n      },\r\n      {\r\n         \"TipoRegistro\":1,\r\n         \"ID_Articulo\":7872,\r\n         \"Comentario\":null,\r\n         \"Precio\":2.25,\r\n         \"Dto\":0.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":0.0,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":1.0,\r\n         \"UdsRegalo\":0.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":2.25,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":21.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":null\r\n      },\r\n      {\r\n         \"TipoRegistro\":1,\r\n         \"ID_Articulo\":11670,\r\n         \"Comentario\":null,\r\n         \"Precio\":1.5,\r\n         \"Dto\":0.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":0.0,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":3.0,\r\n         \"UdsRegalo\":2.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":4.5,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":21.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":null\r\n      },\r\n      {\r\n         \"TipoRegistro\":1,\r\n         \"ID_Articulo\":818,\r\n         \"Comentario\":null,\r\n         \"Precio\":4.5,\r\n         \"Dto\":0.0,\r\n         \"DtoPPago\":0.0,\r\n         \"DtoEurosXUd\":0.0,\r\n         \"DtoEuros\":0.0,\r\n         \"Uds\":1.0,\r\n         \"UdsRegalo\":0.0,\r\n         \"UdsAuxiliares\":0.0,\r\n         \"ImporteLinea\":4.5,\r\n         \"Lote\":null,\r\n         \"Caducidad\":null,\r\n         \"ID_Partida\":0,\r\n         \"PorcentajeIVA\":4.0,\r\n         \"PorcentajeRE\":0.0,\r\n         \"DescripcionAmplia\":null\r\n      }\r\n   ],\r\n   \"Pagos\":[\r\n      {\r\n         \"ID_MetodoPago\":8,\r\n         \"Fecha\":\"2022-01-24\",\r\n         \"Importe\":87.24\r\n      }\r\n   ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoDocClienteWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevoDocClienteWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UpdateDocClienteWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Id\":67,\r\n   \"Aux1\":\"Texto en auxiliar 1 del pedido\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/UpdateDocClienteWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"UpdateDocClienteWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetNextNumDocsWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetNextNumDocsWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetNextNumDocsWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetMetodosPagoWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetMetodosPagoWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetMetodosPagoWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetFormasEnvioWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetFormasEnvioWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetFormasEnvioWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NuevoPagoWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"ID_DocCli\":3,\r\n   \"ID_MetodoPago\":8,\r\n   \"Fecha\":\"2022-01-24\",\r\n   \"Importe\":10\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/NuevoPagoWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"NuevoPagoWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "EstadoPedidosWS",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n   \"sesionwcf\":18,\r\n   \"Pedidos\":[\r\n      {\r\n         \"Id\":14,\r\n         \"Referencia\":null\r\n      },\r\n      {\r\n         \"Id\":0,\r\n         \"Referencia\":\"10000002\"\r\n      },\r\n      {\r\n         \"Id\":0,\r\n         \"Referencia\":\"10000003\"\r\n      },\r\n      {\r\n         \"Id\":0,\r\n         \"Referencia\":\"10000004\"\r\n      }\r\n   ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/EstadoPedidosWS",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"EstadoPedidosWS"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetHistorialPedidosWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetHistorialPedidosWS?x=18&id_cliente=2&fechadesde=2023-01-01&fechahasta=2023-12-31",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetHistorialPedidosWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						},
+						{
+							"key": "id_cliente",
+							"value": "2"
+						},
+						{
+							"key": "fechadesde",
+							"value": "2023-01-01"
+						},
+						{
+							"key": "fechahasta",
+							"value": "2023-12-31"
+						},
+						{
+							"key": "allareasventa",
+							"value": "true",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetVersionWS",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://x.verial.org:8000/WcfServiceLibraryVerial/GetVersionWS?x=18",
+					"protocol": "http",
+					"host": [
+						"x",
+						"verial",
+						"org"
+					],
+					"port": "8000",
+					"path": [
+						"WcfServiceLibraryVerial",
+						"GetVersionWS"
+					],
+					"query": [
+						{
+							"key": "x",
+							"value": "18"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

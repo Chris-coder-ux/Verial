@@ -1,0 +1,2368 @@
+<?php
+/**
+ * Clase para manejar la conexión con la API externa.
+ *
+ * @since 1.0.0
+ * @package    MiIntegracionApi
+ * @subpackage MiIntegracionApi/Core
+ */
+
+namespace MiIntegracionApi\Core;
+
+use MiIntegracionApi\Helpers\Logger;
+use MiIntegracionApi\CacheManager;
+use MiIntegracionApi\SSL\CertificateCache;
+use MiIntegracionApi\SSL\SSLTimeoutManager;
+use MiIntegracionApi\SSL\SSLConfigManager;
+use MiIntegracionApi\SSL\CertificateRotation;
+use MiIntegracionApi\Core\Config_Manager;
+
+// Incluir fallbacks para WordPress cuando no están disponibles
+require_once __DIR__ . '/WP_Error.php';
+
+// Si este archivo es llamado directamente, abortar.
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+/**
+ * Clase para manejar todas las conexiones con la API externa.
+ *
+ * Esta clase proporciona los métodos necesarios para interactuar
+ * con la API de Verial, incluyendo autenticación, manejo de errores,
+ * y todas las operaciones HTTP necesarias.
+ *
+ * @since 1.0.0
+ * @package    MiIntegracionApi
+ * @subpackage MiIntegracionApi/Core
+ */
+class ApiConnector {
+    // Usar sistemas SSL avanzados
+    use SSLAdvancedSystemsTrait;
+
+    /**
+     * Número de sesión para Verial (sesionwcf)
+     * @var int
+     */
+    private int $sesionwcf = 18;
+
+    /**
+     * Base URL para la API
+     * @var string
+     */
+    private string $api_url = '';
+
+    /**
+     * Logger para registrar eventos
+     * @var \MiIntegracionApi\Helpers\ILogger
+     */
+    private \MiIntegracionApi\Helpers\ILogger $logger;
+
+    /**
+     * Contador de reintentos
+     * @var int
+     */
+    private int $retry_count = 0;
+
+    /**
+     * Path fijo del servicio Verial
+     * @var string
+     */
+    private string $service_path = '/WcfServiceLibraryVerial/';
+
+    /**
+     * Última URL construida para la petición (para diagnóstico)
+     * @var string|null
+     */
+    private ?string $last_request_url = null;
+
+    /**
+     * Opciones para las solicitudes HTTP.
+     *
+     * @since 1.0.0
+     * @access   protected
+     * @var      array    $request_options    Opciones para solicitudes HTTP.
+     */
+    protected array $request_options = [];
+    
+    /**
+     * Gestor de caché de certificados
+     * @var CertificateCache|null
+     */
+    private ?CertificateCache $cert_cache = null;
+    
+    /**
+     * Gestor de timeouts SSL
+     * @var SSLTimeoutManager|null
+     */
+    private ?SSLTimeoutManager $timeout_manager = null;
+    
+    /**
+     * Gestor de configuración SSL
+     * @var SSLConfigManager|null
+     */
+    private ?SSLConfigManager $ssl_config_manager = null;
+    
+    /**
+     * Gestor de rotación de certificados
+     * @var CertificateRotation|null
+     */
+    private ?CertificateRotation $cert_rotation = null;
+
+    /**
+     * Indica si se debe usar caché para las respuestas.
+     *
+     * @since 1.0.0
+     * @access   protected
+     * @var      boolean    $use_cache    Si se debe usar caché.
+     */
+    protected bool $use_cache = false;
+
+    /**
+     * Tiempo de vida predeterminado para caché en segundos.
+     *
+     * @since 1.0.0
+     * @access   protected
+     * @var      int    $default_cache_ttl    Tiempo de vida de caché.
+     */
+    protected int $default_cache_ttl = 3600;
+
+    /**
+     * Tiempo máximo de espera para solicitudes en segundos
+     *
+     * @var int
+     */
+    private int $timeout = 30;
+
+    /**
+     * Número máximo de reintentos para solicitudes fallidas
+     *
+     * @var int
+     */
+    private int $max_retries = 3;
+
+    /**
+     * Contador de reintentos de la última solicitud
+     *
+     * @var int
+     */
+    private int $last_retry_count = 0;
+
+    /**
+     * Configuración de retry personalizada
+     *
+     * @var array
+     */
+    private array $retry_config = [
+        'max_retries' => 3,
+        'base_delay' => 1000,
+        'max_delay' => 60000,
+        'backoff_multiplier' => 2,
+        'jitter' => true,
+        'strategy' => 'exponential'
+    ];
+
+    /**
+     * Configuración SSL para conexiones HTTPS
+     *
+     * @var array
+     */
+    private array $ssl_config = [
+        'verify_peer' => true,
+        'verify_host' => true,
+        'ca_bundle_path' => null,
+        'cert_path' => null,
+        'key_path' => null,
+        'allow_self_signed' => false,
+        'cipher_list' => null
+    ];
+
+    /**
+     * Indica si se debe forzar SSL/TLS
+     *
+     * @var bool
+     */
+    private bool $force_ssl = true;
+
+    /**
+     * Rutas de certificados CA por defecto
+     *
+     * @var array
+     */
+    private array $default_ca_paths = [
+        '/etc/ssl/certs/ca-certificates.crt',     // Debian/Ubuntu
+        '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',  // RHEL/CentOS
+        '/etc/ssl/ca-bundle.pem',                 // SUSE
+        '/usr/local/share/certs/ca-root-nss.crt', // FreeBSD
+        '/etc/ssl/cert.pem'                       // macOS/Alpine
+    ];
+
+    /**
+     * Instancia del CacheManager
+     *
+     * @var \MiIntegracionApi\CacheManager|null
+     */
+    private ?\MiIntegracionApi\CacheManager $cache_manager = null;
+
+    /**
+     * Configuración de caché habilitada
+     *
+     * @var bool
+     */
+    private bool $cache_enabled = false;
+
+    /**
+     * Configuración de TTL específico por endpoint
+     *
+     * @var array
+     */
+    private array $cache_ttl_config = [
+        'GetArticulosWS' => 7200,      // 2 horas para artículos
+        'GetClientesWS' => 3600,       // 1 hora para clientes  
+        'GetPedidosWS' => 1800,        // 30 minutos para pedidos
+        'GetCategoriasWS' => 14400,    // 4 horas para categorías
+        'GetEstadisticasWS' => 3600,   // 1 hora para estadísticas
+        'test-connection' => 300,      // 5 minutos para pruebas
+        'default' => 3600              // 1 hora por defecto
+    ];
+
+    /**
+     * Estadísticas de caché
+     *
+     * @var array
+     */
+    private array $cache_stats = [
+        'hits' => 0,
+        'misses' => 0,
+        'sets' => 0,
+        'hit_ratio' => 0.0
+    ];
+
+    /**
+     * Constructor.
+     *
+     * @since 1.0.0
+     * @param    array $config    Configuración opcional para el conector.
+     */
+    public function __construct(array $options = []) {
+        // Inicializar logger
+        $this->logger = new \MiIntegracionApi\Helpers\Logger('api_connector');
+
+        // Cargar configuración
+        $this->load_configuration($options);
+
+        // Inicializar sistemas SSL mejorados
+        $this->initSSLSystems();
+        
+        // Inicializar gestor de caché
+        $this->cache_manager = \MiIntegracionApi\CacheManager::get_instance();
+        
+        // Verificar y configurar certificados SSL si es necesario
+        if ($this->force_ssl) {
+            $this->ensureSslConfiguration();
+        }
+    }
+
+    /**
+     * Variable para rastrear el origen de la configuración
+     * @var string
+     */
+    private string $config_source = 'none';
+
+    /**
+     * Carga y valida la configuración ÚNICAMENTE desde opciones de WordPress
+     * @param array $config Configuración pasada al constructor (solo para compatibilidad con logger)
+     * @throws \Exception Si la configuración es inválida
+     */
+    private function load_configuration(array $config): void {
+        // Verificar si estamos en modo de prueba
+        if (isset($config['test_mode']) && $config['test_mode'] === true) {
+            $this->load_test_configuration($config);
+            return;
+        }
+        
+        // Verificar que WordPress esté disponible para configuración real
+        if (!function_exists('get_option')) {
+            throw new \Exception('WordPress no está disponible para cargar la configuración');
+        }
+
+        // Usar el Config_Manager para obtener la configuración
+        $config_manager = Config_Manager::get_instance();
+        
+        // Obtener configuración
+        $api_url = $config_manager->get('mia_url_base');
+        $sesionwcf = $config_manager->get('mia_numero_sesion');
+        
+        // Validar URL base - CRÍTICO para funcionamiento
+        if (empty($api_url)) {
+            throw new \Exception('URL base de Verial no configurada. Configure la URL en Mi Integración API > Configuración');
+        }
+        
+        if (!filter_var($api_url, FILTER_VALIDATE_URL)) {
+            throw new \Exception('URL base de Verial inválida: ' . $api_url);
+        }
+        
+        // Configurar propiedades
+        $this->api_url = rtrim($api_url, '/');
+        $this->sesionwcf = $sesionwcf;
+        $this->config_source = 'config_manager';
+        
+        // Registrar en log si está disponible
+        if (class_exists('\\MiIntegracionApi\\Helpers\\Logger') && defined('WP_DEBUG') && WP_DEBUG) {
+            $logger = new \MiIntegracionApi\Helpers\Logger('config');
+            $logger->debug('Configuración cargada desde Config_Manager', [
+                'api_url' => $this->api_url,
+                'sesion' => $this->sesionwcf
+            ]);
+        }
+    }
+
+    /**
+     * Obtiene el origen de la configuración actual
+     * @return string
+     */
+    public function get_config_source(): string {
+        return $this->config_source;
+    }
+
+    /**
+     * Obtiene la URL base de la API configurada, sin duplicar paths.
+     * @return string URL base de la API
+     */
+    public function get_api_base_url() {
+        // Según la documentación y la colección de Postman, la estructura correcta es:
+        // http://x.verial.org:8000/WcfServiceLibraryVerial
+        
+        // Si la URL ya contiene WcfServiceLibraryVerial, no añadirlo
+        if (stripos($this->api_url, 'WcfServiceLibraryVerial') !== false) {
+            return rtrim($this->api_url, '/');
+        }
+        return rtrim($this->api_url, '/') . '/WcfServiceLibraryVerial';
+    }
+
+    /**
+     * Obtiene el número de sesión utilizado para la conexión
+     * @return int|string Número de sesión
+     */
+    public function get_numero_sesion() {
+        return $this->sesionwcf;
+    }
+
+
+    /**
+     * Devuelve el número de sesión actual
+     * Si no está configurado, intenta obtenerlo de las opciones guardadas
+     * 
+     * @return mixed El valor de sesionwcf o null si no está configurado
+     */
+    public function getSesionWcf() {
+        if (empty($this->sesionwcf)) {
+            $this->logger->warning('[CONFIG] Se intentó acceder a sesionwcf pero no está configurado');
+            
+            // Intentar obtener de las opciones como respaldo
+            $options = get_option('mi_integracion_api_ajustes', []);
+            if (!empty($options['mia_numero_sesion'])) {
+                $this->sesionwcf = $options['mia_numero_sesion'];
+                $this->logger->info('[CONFIG] Se recuperó sesionwcf desde ajustes guardados', [
+                    'sesion' => $this->sesionwcf
+                ]);
+            }
+        }
+        
+        return $this->sesionwcf;
+    }
+
+    /**
+     * Inicializa el sistema de caché
+     * 
+     * @param array $config Configuración opcional
+     */
+    private function init_cache_system(array $config = []): void {
+        try {
+            // Obtener configuración de caché desde WordPress
+            $cache_enabled = get_option('mi_integracion_api_ajustes_cache_enabled', true);
+            $this->cache_enabled = (bool)($config['cache_enabled'] ?? $cache_enabled);
+            
+            if ($this->cache_enabled) {
+                // Inicializar el CacheManager
+                $this->cache_manager = \MiIntegracionApi\CacheManager::get_instance();
+                
+                // Configurar TTL específicos si se proporcionan
+                if (isset($config['cache_ttl_config'])) {
+                    $this->cache_ttl_config = array_merge($this->cache_ttl_config, $config['cache_ttl_config']);
+                }
+                
+                $this->logger->info('[CACHE] Sistema de caché inicializado', [
+                    'enabled' => $this->cache_enabled,
+                    'ttl_config' => $this->cache_ttl_config
+                ]);
+            } else {
+                $this->logger->info('[CACHE] Sistema de caché deshabilitado');
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('[CACHE] Error inicializando sistema de caché: ' . $e->getMessage());
+            $this->cache_enabled = false;
+        }
+    }
+
+    /**
+     * Configura el sistema de caché
+     * 
+     * @param bool $enabled Si habilitar/deshabilitar caché
+     * @param array $ttl_config Configuración de TTL por endpoint
+     * @return self Para method chaining
+     */
+    public function setCacheConfig(bool $enabled, array $ttl_config = []): self {
+        $this->cache_enabled = $enabled;
+        
+        if (!empty($ttl_config)) {
+            $this->cache_ttl_config = array_merge($this->cache_ttl_config, $ttl_config);
+        }
+        
+        if ($enabled && !$this->cache_manager) {
+            $this->cache_manager = \MiIntegracionApi\CacheManager::get_instance();
+        }
+        
+        $this->logger->info('[CACHE] Configuración de caché actualizada', [
+            'enabled' => $this->cache_enabled,
+            'ttl_config' => $this->cache_ttl_config
+        ]);
+        
+        return $this;
+    }
+
+    /**
+     * Obtiene el TTL configurado para un endpoint específico
+     * 
+     * @param string $endpoint Nombre del endpoint
+     * @return int TTL en segundos
+     */
+    private function getCacheTtlForEndpoint(string $endpoint): int {
+        return $this->cache_ttl_config[$endpoint] ?? $this->cache_ttl_config['default'];
+    }
+
+    /**
+     * Genera una clave de caché única para una solicitud
+     * 
+     * @param string $method Método HTTP
+     * @param string $endpoint Endpoint
+     * @param array $data Datos de la solicitud
+     * @param array $params Parámetros GET
+     * @return string Clave de caché
+     */
+    private function generateCacheKey(string $method, string $endpoint, array $data = [], array $params = []): string {
+        $key_parts = [
+            'api_connector',
+            strtolower($method),
+            $endpoint,
+            $this->sesionwcf
+        ];
+        
+        if (!empty($params)) {
+            $key_parts[] = md5(serialize($params));
+        }
+        
+        if (!empty($data)) {
+            $key_parts[] = md5(serialize($data));
+        }
+        
+        return implode('_', $key_parts);
+    }
+
+    /**
+     * Verifica si una respuesta debe ser cacheada
+     * 
+     * @param mixed $response Respuesta de la API
+     * @param int $status_code Código de estado HTTP
+     * @return bool True si debe ser cacheada
+     */
+    private function shouldCacheResponse($response, int $status_code): bool {
+        // Solo cachear respuestas exitosas
+        if ($status_code < 200 || $status_code >= 400) {
+            return false;
+        }
+        
+        // No cachear errores de WordPress
+        if (is_wp_error($response)) {
+            return false;
+        }
+        
+        // No cachear respuestas vacías
+        if (empty($response)) {
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Obtiene las estadísticas de caché
+     * 
+     * @return array Estadísticas de caché
+     */
+    public function getCacheStats(): array {
+        if (!empty($this->cache_stats['hits']) || !empty($this->cache_stats['misses'])) {
+            $total_requests = $this->cache_stats['hits'] + $this->cache_stats['misses'];
+            $this->cache_stats['hit_ratio'] = $total_requests > 0 
+                ? round(($this->cache_stats['hits'] / $total_requests) * 100, 2) 
+                : 0.0;
+        }
+        
+        return $this->cache_stats;
+    }
+
+    /**
+     * Reinicia las estadísticas de caché
+     */
+    public function resetCacheStats(): void {
+        $this->cache_stats = [
+            'hits' => 0,
+            'misses' => 0,
+            'sets' => 0,
+            'hit_ratio' => 0.0
+        ];
+    }
+
+    /**
+     * Construye la URL completa para la API de Verial con manejo mejorado de URLs
+     * @param string $endpoint
+     * @return string
+     */
+    private function build_api_url(string $endpoint): string {
+        $base = $this->get_api_base_url();
+        
+        // Limpiar el endpoint de espacios y barras iniciales/finales
+        $endpoint = trim($endpoint);
+        $endpoint = ltrim($endpoint, '/');
+        
+        // Si el endpoint está vacío, devolver solo la URL base
+        if (empty($endpoint)) {
+            $this->last_request_url = $base;
+            return $base;
+        }
+        
+        // Construir la URL de forma más robusta
+        $url = rtrim($base, '/') . '/' . $endpoint;
+        
+        // Eliminar dobles barras pero preservar el protocolo (http:// o https://)
+        // Esta expresión regular es más específica y no afecta el protocolo
+        $url = preg_replace('#(?<!:)//+#', '/', $url);
+        
+        // Validar que la URL resultante sea válida
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $this->logger->error('URL construida inválida', [
+                'base' => $base,
+                'endpoint' => $endpoint,
+                'resultado' => $url
+            ]);
+            
+            // Intentar construcción alternativa como fallback
+            $url = $base . (substr($base, -1) !== '/' ? '/' : '') . $endpoint;
+        }
+        
+        $this->last_request_url = $url;
+        return $url;
+    }
+
+    /**
+     * Devuelve la última URL usada en una petición
+     * @return string|null
+     */
+    public function get_last_request_url(): ?string {
+        return $this->last_request_url;
+    }
+
+    /**
+     * Realiza una solicitud GET a la API de Verial, añadiendo el parámetro x=sesionwcf.
+     * @param string $endpoint
+     * @param array $params
+     * @param bool $use_robust_retry Si usar el sistema de retry robusto con caché en lugar de CURL directo
+     * @return array|WP_Error
+     */
+    public function get($endpoint, $params = array(), $options_or_retry = true, array $options = []) {
+        // Mantener compatibilidad hacia atrás - comprobar si el tercer parámetro es un booleano o un array
+        $use_robust_retry = true;
+        if (is_bool($options_or_retry)) {
+            $use_robust_retry = $options_or_retry;
+        } elseif (is_array($options_or_retry)) {
+            $options = $options_or_retry;
+        }
+        // Asegurarse de que tenemos sesionwcf
+        $sesion = $this->getSesionWcf();
+        if (!$sesion) {
+            $this->logger->warning('[HTTP][GET] No se ha configurado sesionwcf');
+        }
+        
+        // COMPATIBILIDAD: Verificar si $params es una cadena (formato antiguo) y convertirlo a array
+        if (is_string($params) && !empty($params)) {
+            $this->logger->debug('[HTTP][GET] Params es una cadena, convirtiendo a array para compatibilidad');
+            
+            // Crear array de parámetros a partir de la cadena de consulta
+            $query_parts = [];
+            parse_str($params, $query_parts);
+            $params = $query_parts;
+            
+            $this->logger->debug('[HTTP][GET] Params convertidos a:', ['params' => $params]);
+        }
+        
+        // COMPATIBILIDAD: Verificar si hay parámetros concatenados al endpoint (formato antiguo)
+        if (is_string($endpoint) && strpos($endpoint, '&') !== false) {
+            $this->logger->debug('[HTTP][GET] Endpoint contiene parámetros, extrayendo');
+            
+            // Separar el endpoint y los parámetros
+            $parts = explode('&', $endpoint, 2);
+            $clean_endpoint = $parts[0];
+            
+            // Extraer parámetros adicionales
+            if (isset($parts[1])) {
+                $query_string = $parts[1];
+                $query_parts = [];
+                parse_str($query_string, $query_parts);
+                // Fusionar con parámetros existentes
+                $params = array_merge($query_parts, is_array($params) ? $params : []);
+                $endpoint = $clean_endpoint;
+                
+                $this->logger->debug('[HTTP][GET] Endpoint y params separados:', [
+                    'endpoint' => $endpoint,
+                    'params' => $params
+                ]);
+            }
+        }
+        
+        // Añadir información de depuración detallada
+        $this->logger->debug('[HTTP][GET] Información detallada', [
+            'endpoint_final' => $endpoint,
+            'params_final' => $params,
+            'params_type' => is_array($params) ? 'array' : gettype($params)
+        ]);
+        
+        if ($use_robust_retry) {
+            // Registrar opciones avanzadas si se proporcionan
+            if (!empty($options)) {
+                $this->logger->info('[HTTP][GET] Usando sistema de retry robusto con opciones avanzadas', [
+                    'endpoint' => $endpoint,
+                    'params' => $params,
+                    'cache_enabled' => $this->cache_enabled,
+                    'sesionwcf_presente' => !empty($sesion) ? 'sí' : 'no',
+                    'advanced_options' => array_keys($options),
+                    'timeout' => $options['timeout'] ?? 'default',
+                    'diagnostics' => isset($options['diagnostics']) ? 'enabled' : 'disabled',
+                    'trace_request' => isset($options['trace_request']) ? 'enabled' : 'disabled'
+                ]);
+            } else {
+                $this->logger->info('[HTTP][GET] Usando sistema de retry robusto con caché', [
+                    'endpoint' => $endpoint,
+                    'params' => $params,
+                    'cache_enabled' => $this->cache_enabled,
+                    'sesionwcf_presente' => !empty($sesion) ? 'sí' : 'no'
+                ]);
+            }
+            
+            // IMPORTANTE: NO añadimos aquí el parámetro 'x' porque lo hace makeRequestWithRetry
+            // Esto evita parámetros duplicados
+            
+            try {
+                // Registrar detalles de la solicitud para depuración
+                if (isset($this->logger)) {
+                    $this->logger->log("ApiConnector::get - Realizando solicitud: endpoint={$endpoint}, params=" . json_encode($params), 'debug');
+                }
+                
+                $result = $this->makeRequestWithRetry('GET', $endpoint, [], $params, $options);
+                
+                // Registrar información sobre la respuesta
+                if (isset($this->logger)) {
+                    $result_info = is_array($result) ? 'Array con ' . count($result) . ' elementos' : gettype($result);
+                    $this->logger->log("ApiConnector::get - Respuesta recibida: {$result_info}", 'debug');
+                }
+                
+                return $result;
+            } catch (\Throwable $api_ex) {
+                // Guardar el error para diagnóstico
+                $this->last_error = $api_ex->getMessage();
+                
+                if (isset($this->logger)) {
+                    $this->logger->log("Error en ApiConnector::get: " . $api_ex->getMessage(), 'error');
+                    $this->logger->log("Traza: " . $api_ex->getTraceAsString(), 'debug');
+                }
+                
+                // Re-lanzar para ser manejada por el llamador
+                throw $api_ex;
+            }
+        }
+        
+        // Fallback a método legacy CURL
+        // Solo añadimos el parámetro 'x' si no está presente en $params
+        if ($sesion && !isset($params['x'])) {
+            $params['x'] = $sesion;
+        }
+        
+        $this->logger->info('[CURL][GET] Endpoint (método legacy)', [
+            'endpoint' => $endpoint,
+            'params' => $params
+        ]);
+        
+        // Añadir información de depuración detallada
+        $this->logger->debug('[HTTP][GET] Información detallada', [
+            'endpoint_original' => $endpoint,
+            'params_original' => $params,
+            'params_type' => is_array($params) ? 'array' : gettype($params)
+        ]);
+        
+        // COMPATIBILIDAD: Verificar si $params es una cadena (formato antiguo) y convertirlo a array
+        if (is_string($params) && !empty($params)) {
+            $this->logger->debug('[HTTP][GET] Params es una cadena, convirtiendo a array para compatibilidad');
+            
+            // Crear array de parámetros a partir de la cadena de consulta
+            $query_parts = [];
+            parse_str($params, $query_parts);
+            $params = $query_parts;
+            
+            $this->logger->debug('[HTTP][GET] Params convertidos a:', ['params' => $params]);
+        }
+        
+        // COMPATIBILIDAD: Verificar si hay parámetros concatenados al endpoint (formato antiguo)
+        if (is_string($endpoint) && strpos($endpoint, '&') !== false) {
+            $this->logger->debug('[HTTP][GET] Endpoint contiene parámetros, extrayendo');
+            
+            // Separar el endpoint y los parámetros
+            $parts = explode('&', $endpoint, 2);
+            $clean_endpoint = $parts[0];
+            
+            // Extraer parámetros adicionales
+            if (isset($parts[1])) {
+                $query_string = $parts[1];
+                $query_parts = [];
+                parse_str($query_string, $query_parts);
+                // Fusionar con parámetros existentes
+                $params = array_merge($query_parts, is_array($params) ? $params : []);
+                $endpoint = $clean_endpoint;
+                
+                $this->logger->debug('[HTTP][GET] Endpoint y params separados:', [
+                    'endpoint' => $endpoint,
+                    'params' => $params
+                ]);
+            }
+        }
+        
+        return $this->curl_request($endpoint, $params);
+    }
+
+    /**
+     * Realiza una solicitud POST a la API de Verial, añadiendo sesionwcf al JSON de entrada.
+     * @param string $endpoint
+     * @param array $data
+     * @param bool $use_robust_retry Si usar el sistema de retry robusto en lugar de CURL directo
+     * @return array|WP_Error
+     */
+    public function post($endpoint, $data = array(), bool $use_robust_retry = true) {
+        // Asegurarse de que tenemos sesionwcf
+        $sesion = $this->getSesionWcf();
+        if (!$sesion) {
+            $this->logger->warning('[HTTP][POST] No se ha configurado sesionwcf');
+        }
+        
+        if ($use_robust_retry) {
+            // Asegurarnos que la sesión está incluida en el cuerpo
+            if ($sesion && !isset($data['sesionwcf'])) {
+                $data['sesionwcf'] = $sesion;
+            }
+            
+            $this->logger->info('[HTTP][POST] Usando sistema de retry robusto', [
+                'endpoint' => $endpoint,
+                'data_keys' => array_keys($data),
+                'sesionwcf_presente' => isset($data['sesionwcf']) ? 'sí' : 'no'
+            ]);
+            
+            return $this->makeRequestWithRetry('POST', $endpoint, $data);
+        }
+        
+        // Fallback a método legacy CURL
+        if ($sesion) {
+            $data['sesionwcf'] = $sesion;
+        }
+        
+        $this->logger->info('[CURL][POST] Endpoint (método legacy)', [
+            'endpoint' => $endpoint,
+            'data_keys' => array_keys($data),
+            'sesionwcf_presente' => isset($data['sesionwcf']) ? 'sí' : 'no'
+        ]);
+        
+        return $this->curl_request($endpoint, [], $data);
+    }
+
+    /**
+     * Realiza una solicitud PUT usando el sistema de retry robusto
+     * 
+     * @param string $endpoint Endpoint de la API
+     * @param array $data Datos para enviar en el cuerpo
+     * @param array $options Opciones adicionales
+     * @return array|WP_Error Respuesta de la API o error
+     */
+    public function put(string $endpoint, array $data = [], array $options = []) {
+        $this->logger->info('[HTTP][PUT] Realizando solicitud PUT', [
+            'endpoint' => $endpoint,
+            'data_keys' => array_keys($data)
+        ]);
+        
+        return $this->makeRequestWithRetry('PUT', $endpoint, $data, [], $options);
+    }
+
+    /**
+     * Realiza una solicitud DELETE usando el sistema de retry robusto
+     * 
+     * @param string $endpoint Endpoint de la API
+     * @param array $params Parámetros GET opcionales
+     * @param array $options Opciones adicionales
+     * @return array|WP_Error Respuesta de la API o error
+     */
+    public function delete(string $endpoint, array $params = [], array $options = []) {
+        $this->logger->info('[HTTP][DELETE] Realizando solicitud DELETE', [
+            'endpoint' => $endpoint,
+            'params' => $params
+        ]);
+        
+        return $this->makeRequestWithRetry('DELETE', $endpoint, [], $params, $options);
+    }
+
+    /**
+     * Realiza una solicitud PATCH usando el sistema de retry robusto
+     * 
+     * @param string $endpoint Endpoint de la API
+     * @param array $data Datos para enviar en el cuerpo
+     * @param array $options Opciones adicionales
+     * @return array|WP_Error Respuesta de la API o error
+     */
+    public function patch(string $endpoint, array $data = [], array $options = []) {
+        $this->logger->info('[HTTP][PATCH] Realizando solicitud PATCH', [
+            'endpoint' => $endpoint,
+            'data_keys' => array_keys($data)
+        ]);
+        
+        return $this->makeRequestWithRetry('PATCH', $endpoint, $data, [], $options);
+    }
+
+    /**
+     * Configura las opciones de retry para el ApiConnector
+     * 
+     * @param array $retry_config Configuración de retry
+     *   - max_retries: Número máximo de reintentos (default: 3)
+     *   - base_delay: Delay base en segundos (default: 1)
+     *   - max_delay: Delay máximo en segundos (default: 60)
+     *   - backoff_multiplier: Multiplicador para backoff exponencial (default: 2)
+     *   - jitter: Agregar jitter aleatorio (default: true)
+     * @return self Para method chaining
+     */
+    public function setRetryConfig(array $retry_config): self {
+        $this->retry_config = array_merge([
+            'max_retries' => 3,
+            'base_delay' => 1,
+            'max_delay' => 60,
+            'backoff_multiplier' => 2,
+            'jitter' => true
+        ], $retry_config);
+        
+        // Actualizar max_retries para compatibilidad con métodos legacy
+        if (isset($retry_config['max_retries'])) {
+            $this->max_retries = $retry_config['max_retries'];
+        }
+        
+        $this->logger->info('[CONFIG] Configuración de retry actualizada', $this->retry_config);
+        
+        return $this;
+    }
+
+    /**
+     * Obtiene la configuración actual de retry
+     * 
+     * @return array Configuración de retry
+     */
+    public function getRetryConfig(): array {
+        return $this->retry_config ?? [
+            'max_retries' => $this->max_retries,
+            'base_delay' => 1,
+            'max_delay' => 60,
+            'backoff_multiplier' => 2,
+            'jitter' => true
+        ];
+    }
+
+    /**
+     * Configura timeouts específicos por método HTTP
+     * 
+     * @param array $timeouts Timeouts por método (ej: ['GET' => 30, 'POST' => 60])
+     * @return self Para method chaining
+     */
+    public function setTimeoutConfig(array $timeouts): self {
+        $this->timeout_config = array_merge($this->timeout_config, $timeouts);
+        $this->logger->info('[CONFIG] Configuración de timeouts actualizada', $this->timeout_config);
+        return $this;
+    }
+
+    /**
+     * Obtiene el timeout configurado para un método HTTP específico
+     * 
+     * @param string $method Método HTTP
+     * @return int Timeout en segundos
+     */
+    public function getTimeoutForMethod(string $method): int {
+        return $this->timeout_config[strtoupper($method)] ?? $this->timeout;
+    }
+
+    /**
+     * Configura una retry policy predefinida
+     * 
+     * @param string $policy_name Nombre de la policy ('critical', 'standard', 'background', 'realtime')
+     * @return self Para method chaining
+     * @throws \InvalidArgumentException Si la policy no existe
+     */
+    public function setRetryPolicy(string $policy_name): self {
+        if (!isset($this->retry_policies[$policy_name])) {
+            throw new \InvalidArgumentException("Retry policy '{$policy_name}' no existe. Políticas disponibles: " . implode(', ', array_keys($this->retry_policies)));
+        }
+
+        $this->setRetryConfig($this->retry_policies[$policy_name]);
+        $this->logger->info("[CONFIG] Retry policy '{$policy_name}' aplicada", $this->retry_policies[$policy_name]);
+        return $this;
+    }
+
+    /**
+     * Configura el circuit breaker
+     * 
+     * @param array $config Configuración del circuit breaker
+     * @return self Para method chaining
+     */
+    public function setCircuitBreakerConfig(array $config): self {
+        $this->circuit_breaker = array_merge($this->circuit_breaker, $config);
+        $this->logger->info('[CONFIG] Circuit breaker configurado', $this->circuit_breaker);
+        return $this;
+    }
+
+    /**
+     * Verifica el estado del circuit breaker antes de hacer una solicitud
+     * 
+     * @return bool True si la solicitud puede proceder, false si debe ser bloqueada
+     */
+    private function checkCircuitBreaker(): bool {
+        if (!$this->circuit_breaker['enabled']) {
+            return true;
+        }
+
+        $current_time = time();
+
+        switch ($this->circuit_breaker['state']) {
+            case 'closed':
+                return true;
+
+            case 'open':
+                if ($current_time - $this->circuit_breaker['last_failure_time'] >= $this->circuit_breaker['recovery_timeout']) {
+                    $this->circuit_breaker['state'] = 'half-open';
+                    $this->circuit_breaker['current_failures'] = 0;
+                    $this->logger->info('[CIRCUIT-BREAKER] Estado cambiado a half-open, permitiendo solicitudes de prueba');
+                    return true;
+                }
+                return false;
+
+            case 'half-open':
+                return $this->circuit_breaker['current_failures'] < $this->circuit_breaker['half_open_max_calls'];
+
+            default:
+                return true;
+        }
+    }
+
+    /**
+     * Registra el resultado de una solicitud en el circuit breaker
+     * 
+     * @param bool $success Si la solicitud fue exitosa
+     */
+    private function recordCircuitBreakerResult(bool $success): void {
+        if (!$this->circuit_breaker['enabled']) {
+            return;
+        }
+
+        if ($success) {
+            if ($this->circuit_breaker['state'] === 'half-open') {
+                $this->circuit_breaker['state'] = 'closed';
+                $this->circuit_breaker['current_failures'] = 0;
+                $this->logger->info('[CIRCUIT-BREAKER] Recuperación exitosa, estado cambiado a closed');
+            }
+        } else {
+            $this->circuit_breaker['current_failures']++;
+            $this->circuit_breaker['last_failure_time'] = time();
+
+            if ($this->circuit_breaker['current_failures'] >= $this->circuit_breaker['failure_threshold']) {
+                $this->circuit_breaker['state'] = 'open';
+                $this->logger->warning('[CIRCUIT-BREAKER] Límite de fallos alcanzado, estado cambiado a open', [
+                    'failures' => $this->circuit_breaker['current_failures'],
+                    'threshold' => $this->circuit_breaker['failure_threshold']
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Calcula el delay usando la estrategia configurada
+     * 
+     * @param int $attempt Número del intento actual
+     * @param array $retry_config Configuración de retry
+     * @return float Delay en segundos
+     */
+    private function calculateRetryDelay(int $attempt, array $retry_config): float {
+        $base_delay = $retry_config['base_delay'] ?? 1;
+        $max_delay = $retry_config['max_delay'] ?? 60;
+        $backoff_multiplier = $retry_config['backoff_multiplier'] ?? 2;
+        $strategy = $retry_config['strategy'] ?? 'exponential';
+        $jitter = $retry_config['jitter'] ?? true;
+
+        switch ($strategy) {
+            case 'linear':
+                $delay = $base_delay + ($attempt * $base_delay);
+                break;
+
+            case 'exponential':
+            default:
+                $delay = $base_delay * pow($backoff_multiplier, $attempt);
+                break;
+
+            case 'fixed':
+                $delay = $base_delay;
+                break;
+
+            case 'custom':
+                // Para estrategias personalizadas, permitir callback
+                if (isset($retry_config['custom_delay_function']) && is_callable($retry_config['custom_delay_function'])) {
+                    $delay = call_user_func($retry_config['custom_delay_function'], $attempt, $retry_config);
+                } else {
+                    $delay = $base_delay * pow($backoff_multiplier, $attempt);
+                }
+                break;
+        }
+
+        // Aplicar límite máximo
+        $delay = min($delay, $max_delay);
+
+        // Agregar jitter si está habilitado
+        if ($jitter) {
+            $jitter_range = $delay * 0.1; // 10% de variación
+            $jitter_amount = mt_rand(-$jitter_range * 1000, $jitter_range * 1000) / 1000;
+            $delay = max(0.1, $delay + $jitter_amount);
+        }
+
+        return $delay;
+    }
+
+    /**
+     * Actualiza las estadísticas de reintentos
+     * 
+     * @param int $retry_count Número de reintentos utilizados
+     * @param bool $success Si la solicitud fue exitosa
+     * @param int $status_code Código de estado HTTP
+     */
+    private function updateRetryStats(int $retry_count, bool $success, int $status_code = 0): void {
+        // Inicializar el array si no existe
+        if (!isset($this->retry_stats) || !is_array($this->retry_stats)) {
+            $this->retry_stats = [
+                'total_requests' => 0,
+                'total_retries' => 0,
+                'success_after_retry' => 0,
+                'failed_after_retries' => 0,
+                'avg_retry_count' => 0,
+                'status_codes' => []
+            ];
+        }
+        
+        $this->retry_stats['total_requests']++;
+        $this->retry_stats['total_retries'] += $retry_count;
+
+        if ($success && $retry_count > 0) {
+            $this->retry_stats['success_after_retry']++;
+        } elseif (!$success) {
+            $this->retry_stats['failed_after_retries']++;
+        }
+
+        // Actualizar promedio de reintentos
+        $this->retry_stats['avg_retry_count'] = $this->retry_stats['total_retries'] / $this->retry_stats['total_requests'];
+
+        // Estadísticas por código de estado
+        if ($status_code > 0 && $retry_count > 0) {
+            if (!isset($this->retry_stats['retry_by_status_code'][$status_code])) {
+                $this->retry_stats['retry_by_status_code'][$status_code] = 0;
+            }
+            $this->retry_stats['retry_by_status_code'][$status_code]++;
+        }
+    }
+
+    /**
+     * Obtiene las estadísticas detalladas de reintentos
+     * 
+     * @return array Estadísticas de reintentos
+     */
+    public function getRetryStats(): array {
+        return array_merge($this->retry_stats, [
+            'circuit_breaker_state' => $this->circuit_breaker['state'] ?? 'disabled',
+            'circuit_breaker_failures' => $this->circuit_breaker['current_failures'] ?? 0,
+            'cache_stats' => $this->getCacheStats()
+        ]);
+    }
+
+    /**
+     * Obtiene estadísticas combinadas de retry y caché
+     * 
+     * @return array Estadísticas completas del sistema
+     */
+    public function getSystemStats(): array {
+        $retry_stats = $this->getRetryStats();
+        $cache_stats = $this->getCacheStats();
+        
+        return [
+            'retry' => $retry_stats,
+            'cache' => [
+                'enabled' => $this->cache_enabled,
+                'stats' => $cache_stats,
+                'ttl_config' => $this->cache_ttl_config
+            ],
+            'performance' => [
+                'total_requests' => $retry_stats['total_requests'],
+                'cache_hit_ratio' => $cache_stats['hit_ratio'],
+                'avg_retry_count' => $retry_stats['avg_retry_count'] ?? 0,
+                'circuit_breaker_state' => $retry_stats['circuit_breaker_state']
+            ]
+        ];
+    }
+
+    /**
+     * Reinicia las estadísticas de reintentos
+     * 
+     * @return self Para method chaining
+     */
+    public function resetRetryStats(): self {
+        $this->retry_stats = [
+            'total_requests' => 0,
+            'total_retries' => 0,
+            'success_after_retry' => 0,
+            'failed_after_retries' => 0,
+            'avg_retry_count' => 0,
+            'retry_by_status_code' => []
+        ];
+        $this->logger->info('[STATS] Estadísticas de retry reiniciadas');
+        return $this;
+    }
+
+    /**
+     * Variable para rastrear el estado del circuito
+     * @var array
+     */
+    private array $circuit_breaker = [
+        'enabled' => false,
+        'failure_threshold' => 5,
+        'recovery_timeout' => 300, // 5 minutos
+        'half_open_max_calls' => 3,
+        'current_failures' => 0,
+        'state' => 'closed', // closed, open, half-open
+        'last_failure_time' => 0
+    ];
+
+    /**
+     * Retry policies predefinidas por tipo de operación
+     * @var array
+     */
+    private array $retry_policies = [
+        'critical' => [
+            'max_retries' => 5,
+            'base_delay' => 2,
+            'max_delay' => 120,
+            'backoff_multiplier' => 2.5,
+            'jitter' => true,
+            'strategy' => 'exponential'
+        ],
+        'standard' => [
+            'max_retries' => 3,
+            'base_delay' => 1,
+            'max_delay' => 60,
+            'backoff_multiplier' => 2,
+            'jitter' => true,
+            'strategy' => 'exponential'
+        ],
+        'background' => [
+            'max_retries' => 7,
+            'base_delay' => 5,
+            'max_delay' => 300,
+            'backoff_multiplier' => 1.5,
+            'jitter' => true,
+            'strategy' => 'linear'
+        ],
+        'realtime' => [
+            'max_retries' => 2,
+            'base_delay' => 0.5,
+            'max_delay' => 5,
+            'backoff_multiplier' => 2,
+            'jitter' => false,
+            'strategy' => 'exponential'
+        ]
+    ];
+
+    /**
+     * Realiza una solicitud HTTP con sistema de retry robusto y backoff exponencial
+     *
+     * @param string $method Método HTTP (GET, POST, PUT, DELETE, etc.)
+     * @param string $endpoint Endpoint de la API
+     * @param array $data Datos para enviar en el cuerpo de la solicitud (para POST/PUT)
+     * @param array $params Parámetros GET para agregar a la URL
+     * @param array $options Opciones adicionales de la solicitud
+     * @return array|WP_Error Respuesta de la API o error
+     */
+    public function makeRequestWithRetry(string $method, string $endpoint, array $data = [], array $params = [], array $options = []) {
+        // 1. VERIFICACIÓN DE CACHÉ - Solo para métodos GET
+        if ($this->cache_enabled && $this->cache_manager && strtoupper($method) === 'GET') {
+            $cache_key = $this->generateCacheKey($method, $endpoint, $data, $params);
+            $cached_response = $this->cache_manager->get($cache_key);
+            
+            if ($cached_response !== false) {
+                $this->cache_stats['hits']++;
+                $this->logger->info('[CACHE][HIT] Respuesta obtenida desde caché', [
+                    'endpoint' => $endpoint,
+                    'cache_key' => $cache_key,
+                    'hit_ratio' => $this->getCacheStats()['hit_ratio'] . '%'
+                ]);
+                return $cached_response;
+            } else {
+                $this->cache_stats['misses']++;
+                $this->logger->info('[CACHE][MISS] Respuesta no encontrada en caché', [
+                    'endpoint' => $endpoint,
+                    'cache_key' => $cache_key
+                ]);
+            }
+        }
+
+        // 2. VERIFICACIÓN CIRCUIT BREAKER
+        if (!$this->checkCircuitBreaker()) {
+            $error = new \WP_Error(
+                'circuit_breaker_open',
+                'Circuit breaker está abierto, solicitudes bloqueadas temporalmente',
+                ['state' => $this->circuit_breaker['state'], 'failures' => $this->circuit_breaker['current_failures']]
+            );
+            $this->updateRetryStats(0, false, 0);
+            return $error;
+        }
+
+        // Configuración del retry - usar retry_config si está disponible, sino options, sino defaults
+        $retry_config = array_merge($this->getRetryConfig(), $options);
+        $max_retries = $retry_config['max_retries'];
+        $timeout = $options['timeout'] ?? $this->getTimeoutForMethod($method);
+        
+        // Códigos de estado HTTP que deben reintentarse
+        $retryable_codes = [
+            408, // Request Timeout
+            429, // Too Many Requests
+            500, // Internal Server Error
+            502, // Bad Gateway
+            503, // Service Unavailable
+            504, // Gateway Timeout
+            520, // Unknown Error (Cloudflare)
+            521, // Web Server Is Down (Cloudflare)
+            522, // Connection Timed Out (Cloudflare)
+            523, // Origin Is Unreachable (Cloudflare)
+            524, // A Timeout Occurred (Cloudflare)
+        ];
+        
+        $this->last_retry_count = 0;
+        $last_error = null;
+        $request_start_time = microtime(true);
+        
+        // Preparar URL
+        $endpoint = (string) $endpoint;
+        
+        // Verificar si el endpoint ya contiene la URL base de la API
+        if (strpos($endpoint, 'http://') === 0 || strpos($endpoint, 'https://') === 0) {
+            $url = $endpoint; // El endpoint ya es una URL completa
+            $this->logger->info('[URL] Usando URL completa proporcionada en el endpoint', ['url' => $url]);
+        } else {
+            // Obtener URL base de la API
+            $base = $this->get_api_base_url();
+            if (empty($base)) {
+                $this->logger->error('[URL] URL base de API no configurada');
+                return new \WP_Error('api_url_missing', 'URL base de API no configurada');
+            }
+            
+            // Verificar si el endpoint ya contiene el path base de la API o es solo un nombre de función
+            if (strpos($endpoint, '.php') !== false || strpos($endpoint, '?') === 0) {
+                $url = rtrim($base, '/') . '/' . ltrim($endpoint, '/');
+            } else {
+                // Según la documentación y colección de Postman, el formato correcto es /WcfServiceLibraryVerial/NombreFuncion
+                // Separamos el endpoint por si contiene parámetros como "&pagina=1"
+                $endpoint_parts = explode('&', $endpoint, 2);
+                $function_name = $endpoint_parts[0];
+                $params = isset($endpoint_parts[1]) ? $endpoint_parts[1] : '';
+                
+                // Construir la URL con el método como parte de la ruta
+                $url = rtrim($base, '/') . '/' . $function_name;
+                
+                // No añadimos parámetros aquí, se manejarán más adelante con http_build_query
+                // Los parámetros serán añadidos después con comprobaciones adicionales
+                // para evitar duplicados
+            }
+            
+            // Validar la URL resultante
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                $this->logger->warning('[URL] URL potencialmente inválida construida', [
+                    'base' => $base, 
+                    'endpoint' => $endpoint, 
+                    'url' => $url
+                ]);
+            }
+            
+            $this->logger->info('[URL] URL construida para endpoint', ['endpoint' => $endpoint, 'url' => $url]);
+        }
+        
+        // Agregar parámetros GET a la URL, asegurando que no haya duplicación del parámetro 'x'
+        if (!empty($params)) {
+            // Si la URL ya tiene el parámetro 'x' pero también viene en los parámetros, eliminarlo de los parámetros
+            if (strpos($url, 'x=') !== false && isset($params['x'])) {
+                $this->logger->debug('[URL] Eliminando parámetro x duplicado de los parámetros');
+                unset($params['x']);
+            }
+            
+            // Añadir parámetros GET restantes a la URL
+            if (!empty($params)) {
+                $url .= (strpos($url, '?') === false ? '?' : '&') . http_build_query($params);
+            }
+        }
+        
+        // Configurar argumentos base de la solicitud
+        $ssl_config = $this->getSSLConfiguration();
+        $args = array_merge([
+            'method' => strtoupper($method),
+            'timeout' => $this->timeout,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'User-Agent' => 'Mi-Integracion-API/1.0'
+            ],
+            'sslverify' => $ssl_config['verify_peer'],
+            'sslcertificates' => !empty($ssl_config['ca_bundle_path']) && file_exists($ssl_config['ca_bundle_path']) ? $ssl_config['ca_bundle_path'] : null,
+            'redirection' => 5,
+        ], $options['wp_args'] ?? []);
+        
+        // Configuración SSL adicional para wp_remote_*
+        if (!empty($ssl_config['ca_bundle_path']) && file_exists($ssl_config['ca_bundle_path'])) {
+            $args['sslcertificates'] = $ssl_config['ca_bundle_path'];
+        }
+        
+        // Agregar datos al cuerpo para métodos POST/PUT/PATCH
+        if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH', 'DELETE']) && !empty($data)) {
+            $args['body'] = json_encode($data);
+        }
+        
+        // Agregar sesionwcf para compatibilidad con Verial
+        $sesion = $this->getSesionWcf();
+        if ($sesion) {
+            $this->logger->info('[URL] Agregando sesionwcf a la solicitud', ['sesionwcf' => $sesion]);
+            
+            // Para todos los métodos HTTP, asegurarnos que la sesión esté incluida UNA SOLA VEZ
+            if (in_array(strtoupper($method), ['GET', 'HEAD'])) {
+                // Verificar si ya existe el parámetro x en la URL
+                $url_has_x = preg_match('/[?&]x=/', $url);
+                $params_has_x = isset($params['x']);
+                
+                // Si la URL ya tiene el parámetro x múltiples veces, limpiarla
+                if ($url_has_x) {
+                    // Extraer partes de la URL
+                    $url_parts = parse_url($url);
+                    $base = $url_parts['scheme'] . '://' . $url_parts['host'];
+                    if (isset($url_parts['port'])) $base .= ':' . $url_parts['port'];
+                    if (isset($url_parts['path'])) $base .= $url_parts['path'];
+                    
+                    // Analizar los parámetros de consulta
+                    $query = [];
+                    if (isset($url_parts['query'])) {
+                        parse_str($url_parts['query'], $query);
+                    }
+                    
+                    // Asegurar que solo haya un parámetro 'x'
+                    $query['x'] = $sesion;
+                    
+                    // Reconstruir la URL sin duplicados
+                    $url = $base . '?' . http_build_query($query);
+                    $this->logger->debug('[URL] URL reconstruida para eliminar parámetros x duplicados', ['url' => $url]);
+                } else if (!$params_has_x) {
+                    // Si no tiene parámetro x, agregarlo
+                    $separator = strpos($url, '?') === false ? '?' : '&';
+                    $url .= $separator . 'x=' . $sesion;
+                    $this->logger->debug('[URL] Parámetro x=sesionwcf añadido a la URL');
+                } else {
+                    $this->logger->debug('[URL] Parámetro x=sesionwcf ya presente en params, no se duplica');
+                }
+            } else {
+                // Para POST/PUT/etc., siempre agregamos al cuerpo JSON
+                if (empty($data)) {
+                    $data = [];
+                }
+                if (!isset($data['sesionwcf'])) {
+                    $data['sesionwcf'] = $sesion;
+                }
+                $args['body'] = json_encode($data);
+            }
+            
+            // Verificar si la URL final es válida y tiene el parámetro de sesión
+            $this->logger->debug('[URL] URL final para solicitud', [
+                'url' => $url, 
+                'method' => $method,
+                'tiene_sesion' => strpos($url, 'x=') !== false || isset($data['sesionwcf']),
+                'post_data_keys' => is_array($data) ? array_keys($data) : 'no_data'
+            ]);
+        } else {
+            $this->logger->error('[URL] No se pudo obtener sesionwcf para la solicitud', [
+                'method' => $method,
+                'endpoint' => $endpoint,
+                'url' => $url
+            ]);
+        }
+        
+        // Bucle de reintentos
+        for ($attempt = 0; $attempt <= $max_retries; $attempt++) {
+            $this->last_retry_count = $attempt;
+            
+            // Log del intento
+            $this->logger->info('[RETRY] Intento de solicitud HTTP', [
+                'attempt' => $attempt + 1,
+                'max_attempts' => $max_retries + 1,
+                'method' => $method,
+                'url' => $url,
+                'timeout' => $timeout,
+                'strategy' => $retry_config['strategy'] ?? 'exponential'
+            ]);
+            
+            // Verificar estado del circuit breaker
+            if (!$this->checkCircuitBreaker()) {
+                $this->logger->warning('[RETRY] Circuit breaker abierto, abortando solicitud', [
+                    'state' => $this->circuit_breaker['state'],
+                    'failures' => $this->circuit_breaker['current_failures']
+                ]);
+                $this->updateRetryStats($attempt, false, 0);
+                return new \WP_Error('circuit_breaker_open', 'El circuito está abierto, la solicitud no puede ser procesada');
+            }
+
+            // Actualizar timeout en args
+            $args['timeout'] = $timeout;
+            
+            // Realizar la solicitud
+            if (function_exists('wp_remote_request')) {
+                $response = wp_remote_request($url, $args);
+                $is_wp_error = is_wp_error($response);
+            } else {
+                // Fallback usando cURL directo cuando no hay WordPress
+                $response = $this->makeRequestWithCurl($url, $args);
+                $is_wp_error = isset($response['error']);
+            }
+            
+            // Verificar si hay error de WordPress/HTTP o cURL
+            if ($is_wp_error) {
+                if (function_exists('wp_remote_request')) {
+                    // WordPress error handling
+                    $error_code = $response->get_error_code();
+                    $error_message = $response->get_error_message();
+                    $error_data = $response->get_error_data();
+                    $last_error = new \WP_Error($error_code, $error_message, $error_data);
+                } else {
+                    // cURL error handling
+                    $error_code = $response['error_code'] ?? 'curl_error';
+                    $error_message = $response['error_message'] ?? 'Unknown cURL error';
+                    $error_data = $response['error_data'] ?? [];
+                    $last_error = new \WP_Error($error_code, $error_message, $error_data);
+                }
+                
+                // Información de diagnóstico mejorada cuando se solicita
+                $log_context = [
+                    'attempt' => $attempt + 1,
+                    'error_code' => $error_code,
+                    'error_message' => $error_message,
+                    'url' => $url
+                ];
+                
+                // Agregar información de diagnóstico detallada si está habilitada
+                if (!empty($options['diagnostics'])) {
+                    $log_context['error_data'] = $error_data;
+                    $log_context['request_args'] = $args;
+                    $log_context['full_url'] = $url;
+                    $log_context['sesion'] = $this->sesionwcf;
+                    $log_context['php_version'] = PHP_VERSION;
+                    $log_context['timeout'] = $args['timeout'];
+                }
+                
+                // Rastrear la solicitud completa si está habilitado
+                if (!empty($options['trace_request'])) {
+                    $log_context['trace'] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+                    $log_context['server_info'] = $_SERVER;
+                }
+                
+                $this->logger->error('[RETRY] Error HTTP/WordPress', $log_context);
+                
+                // Algunos errores no deben reintentarse
+                $non_retryable_errors = ['http_request_failed', 'rest_forbidden', 'rest_authentication_error'];
+                if (in_array($error_code, $non_retryable_errors) && $attempt < $max_retries) {
+                    $this->logger->warning('[RETRY] Error no reintentable, abortando', [
+                        'error_code' => $error_code
+                    ]);
+                    break;
+                }
+            } else {
+                // Verificar código de estado HTTP
+                if (function_exists('wp_remote_retrieve_response_code')) {
+                    // WordPress response handling
+                    $response_code = wp_remote_retrieve_response_code($response);
+                    $response_body = wp_remote_retrieve_body($response);
+                    $response_message = wp_remote_retrieve_response_message($response);
+                    $response_headers = wp_remote_retrieve_headers($response);
+                } else {
+                    // cURL response handling
+                    $response_code = $response['status_code'] ?? 0;
+                    $response_body = $response['body'] ?? '';
+                    $response_message = $response['status_message'] ?? '';
+                    $response_headers = $response['headers'] ?? [];
+                }
+                
+                $this->logger->info('[RETRY] Respuesta recibida', [
+                    'attempt' => $attempt + 1,
+                    'status_code' => $response_code,
+                    'body_length' => strlen($response_body)
+                ]);
+                
+                // Si es exitoso (2xx), devolver respuesta
+                if ($response_code >= 200 && $response_code < 300) {
+                    $log_context = [
+                        'attempts_used' => $attempt + 1,
+                        'status_code' => $response_code,
+                        'total_time' => round(microtime(true) - $request_start_time, 3),
+                        'body_size' => strlen($response_body)
+                    ];
+                    
+                    // Agregar información detallada de diagnóstico cuando se solicita
+                    if (!empty($options['diagnostics'])) {
+                        $log_context['headers'] = $response_headers;
+                        $log_context['request_args'] = $args;
+                        $log_context['response_time'] = date('Y-m-d H:i:s');
+                    }
+                    
+                    $this->logger->info('[RETRY] Solicitud exitosa', $log_context);
+                    
+                    // Registrar éxito en circuit breaker y estadísticas
+                    $this->recordCircuitBreakerResult(true);
+                    $this->updateRetryStats($attempt, true, $response_code);
+                    
+                    // Decodificar respuesta JSON
+                    $decoded_data = json_decode($response_body, true);
+                    $is_valid_json = json_last_error() === JSON_ERROR_NONE;
+                    
+                    // Preparar respuesta final
+                    $final_response = null;
+                    
+                    if ($is_valid_json) {
+                        $final_response = $decoded_data;
+                        
+                        // Verificar si la respuesta de Verial tiene errores lógicos
+                        if (isset($decoded_data['InfoError']) &&
+                            isset($decoded_data['InfoError']['Codigo']) &&
+                            $decoded_data['InfoError']['Codigo'] != 0) {
+                            
+                            $error_message = $decoded_data['InfoError']['Descripcion'] ?? 'Error desconocido de Verial';
+                            $error_code = $decoded_data['InfoError']['Codigo'];
+                            
+                            // Determinar si este error es transitorio
+                            $is_transient_error = false;
+                            if (!empty($options['retry_transient_errors'])) {
+                                $transient_codes = [-100, -101, -200, -500]; // Códigos transitorios conocidos
+                                $is_transient_error = in_array($error_code, $transient_codes) ||
+                                                     strpos(strtolower($error_message), 'timeout') !== false ||
+                                                     strpos(strtolower($error_message), 'sesión') !== false;
+                            }
+                            
+                            if ($is_transient_error && $attempt < $max_retries) {
+                                $this->logger->warning('[RETRY] Error transitorio detectado en respuesta', [
+                                    'error_code' => $error_code,
+                                    'error_message' => $error_message,
+                                    'attempt' => $attempt + 1,
+                                    'max_retries' => $max_retries
+                                ]);
+                                
+                                // Crear un error para forzar un reintento
+                                $last_error = new \WP_Error(
+                                    'verial_transient_error',
+                                    "Error transitorio de Verial: ({$error_code}) {$error_message}",
+                                    ['response_body' => $response_body]
+                                );
+                                
+                                // No devolver la respuesta aún, continuar con el bucle
+                                // Saltamos a la siguiente iteración del loop
+                                continue;
+                            }
+                        }
+                    } else {
+                        // Si no es JSON válido, devolver respuesta raw
+                        $final_response = [
+                            'status_code' => $response_code,
+                            'body' => $response_body,
+                            'headers' => $response_headers,
+                            'json_error' => json_last_error_msg()
+                        ];
+                        
+                        // Registrar cuando la respuesta no es JSON válida
+                        $this->logger->warning('[RETRY] Respuesta no es JSON válido', [
+                            'json_error' => json_last_error_msg(),
+                            'body_preview' => substr($response_body, 0, 100)
+                        ]);
+                    }
+                    
+                    // 3. GUARDAR EN CACHÉ - Solo para métodos GET exitosos
+                    if ($this->cache_enabled && $this->cache_manager && strtoupper($method) === 'GET' && $this->shouldCacheResponse($final_response, $response_code)) {
+                        $cache_key = $this->generateCacheKey($method, $endpoint, $data, $params);
+                        $ttl = $this->getCacheTtlForEndpoint($endpoint);
+                        
+                        $cache_saved = $this->cache_manager->set($cache_key, $final_response, $ttl);
+                        if ($cache_saved) {
+                            $this->cache_stats['sets']++;
+                            $this->logger->info('[CACHE][SET] Respuesta guardada en caché', [
+                                'endpoint' => $endpoint,
+                                'cache_key' => $cache_key,
+                                'ttl' => $ttl,
+                                'size_bytes' => strlen(serialize($final_response))
+                            ]);
+                        } else {
+                            $this->logger->warning('[CACHE][ERROR] Error guardando respuesta en caché', [
+                                'endpoint' => $endpoint,
+                                'cache_key' => $cache_key
+                            ]);
+                        }
+                    }
+                    
+                    return $final_response;
+                }
+                
+                // Si es un error retryable, continuar con reintentos
+                if (in_array($response_code, $retryable_codes)) {
+                    // Construir contexto detallado para el error
+                    $error_context = [
+                        'status' => $response_code,
+                        'body' => substr($response_body, 0, 1000),
+                        'url' => $url,
+                        'endpoint' => $endpoint,
+                        'method' => $method,
+                        'attempt' => $attempt + 1,
+                        'session_id' => $this->sesionwcf
+                    ];
+                    
+                    // Si las opciones de diagnóstico están habilitadas, añadir más información
+                    if (!empty($options['diagnostics'])) {
+                        // Añadir información de encabezados de respuesta para diagnóstico
+                        $error_context['response_headers'] = $response_headers;
+                        
+                        // Intentar decodificar el cuerpo para verificar si hay errores de JSON
+                        $json_decode_error = json_last_error_msg();
+                        if ($json_decode_error !== 'No error') {
+                            $error_context['json_error'] = $json_decode_error;
+                        }
+                        
+                        // Añadir detalles sobre los parámetros de la solicitud
+                        $error_context['request_params'] = $params;
+                    }
+                    
+                    $last_error = new \WP_Error(
+                        'http_error_retryable',
+                        "HTTP Error {$response_code}: " . $response_message,
+                        $error_context
+                    );
+                    
+                    // Registro detallado para depuración
+                    $log_context = [
+                        'attempt' => $attempt + 1,
+                        'status_code' => $response_code,
+                        'response_message' => $response_message,
+                        'url' => $url,
+                        'body_preview' => substr($response_body, 0, 200)
+                    ];
+                    
+                    // Añadir información de diagnóstico detallada para el registro
+                    if (!empty($options['diagnostics'])) {
+                        $log_context['endpoint'] = $endpoint;
+                        $log_context['params'] = $params;
+                        $log_context['timeout'] = $args['timeout'];
+                        $log_context['next_retry_in'] = $this->calculateRetryDelay($attempt, $retry_config);
+                    }
+                    
+                    $this->logger->warning('[RETRY] Error HTTP retryable', $log_context);
+                } else {
+                    // Error no retryable, devolver inmediatamente
+                    $error_code = 'http_error_final';
+                    
+                    // Construir contexto detallado para el error
+                    $error_context = [
+                        'status' => $response_code,
+                        'body_preview' => substr($response_body, 0, 1000),
+                        'url' => $url,
+                        'endpoint' => $endpoint,
+                        'method' => $method,
+                        'attempt' => $attempt + 1,
+                        'session_id' => $this->sesionwcf
+                    ];
+                    
+                    // Si las opciones de diagnóstico están habilitadas, añadir más información
+                    if (!empty($options['diagnostics'])) {
+                        // Añadir información de encabezados de respuesta para diagnóstico
+                        $error_context['response_headers'] = $response_headers;
+                        
+                        // Añadir detalles del cuerpo JSON si es posible
+                        $decoded_json = json_decode($response_body, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            if (isset($decoded_json['InfoError'])) {
+                                $error_context['verial_error'] = $decoded_json['InfoError'];
+                            }
+                            // Añadir primeras claves de la respuesta para diagnóstico
+                            $error_context['response_keys'] = array_keys($decoded_json);
+                        } else {
+                            $error_context['json_error'] = json_last_error_msg();
+                        }
+                        
+                        // Añadir detalles sobre los parámetros de la solicitud
+                        $error_context['request_params'] = $params;
+                        $error_context['request_data'] = $data;
+                    }
+                    
+                    // Mensaje específico para errores 404
+                    if ($response_code === 404) {
+                        $error_message = "HTTP Error 404: Recurso no encontrado. Verifique la URL y los parámetros.";
+                        
+                        $log_context = [
+                            'status_code' => $response_code,
+                            'url' => $url,
+                            'sesionwcf_presente' => !empty($this->getSesionWcf()) ? 'sí' : 'no',
+                            'endpoint' => $endpoint
+                        ];
+                        
+                        // Añadir información de diagnóstico detallada
+                        if (!empty($options['diagnostics'])) {
+                            $log_context['params'] = $params;
+                            $log_context['constructed_url'] = $this->build_api_url($endpoint);
+                            $log_context['body_preview'] = substr($response_body, 0, 200);
+                        }
+                        
+                        $this->logger->error('[RETRY] Error 404: URL no encontrada', $log_context);
+                    } else {
+                        $error_message = "HTTP Error {$response_code}: " . $response_message;
+                        
+                        $log_context = [
+                            'status_code' => $response_code,
+                            'response_message' => $response_message,
+                            'url' => $url,
+                            'endpoint' => $endpoint
+                        ];
+                        
+                        // Añadir información de diagnóstico detallada
+                        if (!empty($options['diagnostics'])) {
+                            $log_context['body_preview'] = substr($response_body, 0, 500);
+                            $log_context['params'] = $params;
+                            $log_context['data'] = $data;
+                            $log_context['headers'] = $response_headers;
+                            
+                            // Intentar extraer información de errores específicos de Verial
+                            $decoded_json = json_decode($response_body, true);
+                            if (json_last_error() === JSON_ERROR_NONE && isset($decoded_json['InfoError'])) {
+                                $log_context['verial_error'] = $decoded_json['InfoError'];
+                            }
+                        }
+                        
+                        $this->logger->error('[RETRY] Error HTTP no retryable', $log_context);
+                    }
+                    
+                    // Registrar fallo en circuit breaker y estadísticas
+                    $this->recordCircuitBreakerResult(false);
+                    $this->updateRetryStats($attempt, false, $response_code);
+                    
+                    // Si está habilitado el rastreo de solicitudes, añadir información adicional
+                    if (!empty($options['trace_request'])) {
+                        $trace_info = [
+                            'url' => $url,
+                            'args' => $args,
+                            'response_code' => $response_code,
+                            'response_body_preview' => substr($response_body, 0, 1000),
+                            'session_id' => $this->sesionwcf,
+                            'endpoint' => $endpoint,
+                            'time' => date('Y-m-d H:i:s'),
+                            'server_info' => $_SERVER
+                        ];
+                        
+                        $this->logger->error('[API_CONNECTOR] Diagnóstico completo del error final', $trace_info);
+                    } else {
+                        // Log básico sin información detallada
+                        $this->logger->error('[API_CONNECTOR] Error final de la solicitud', [
+                            'url' => $url,
+                            'status_code' => $response_code
+                        ]);
+                    }
+               
+                    return new \WP_Error($error_code, $error_message, $error_context);
+                   }
+                  }
+                  
+                  // Si llegamos aquí y es el último intento, no hacer delay
+            if ($attempt >= $max_retries) {
+                break;
+            }
+            
+            // Calcular delay usando la nueva estrategia configurable
+            $delay = $this->calculateRetryDelay($attempt, $retry_config);
+            
+            $this->logger->info('[RETRY] Esperando antes del siguiente intento', [
+                'delay_seconds' => round($delay, 2),
+                'next_attempt' => $attempt + 2,
+                'strategy' => $retry_config['strategy'] ?? 'exponential'
+            ]);
+            
+            // Esperar antes del siguiente intento
+            usleep($delay * 1000000); // usleep acepta microsegundos
+        }
+        
+        // Si llegamos aquí, todos los reintentos fallaron
+        $this->logger->error('[RETRY] Todos los reintentos fallaron', [
+            'total_attempts' => $this->last_retry_count + 1,
+            'max_retries' => $max_retries,
+            'total_time' => round(microtime(true) - $request_start_time, 3),
+            'final_error' => $last_error ? $last_error->get_error_message() : 'Error desconocido'
+        ]);
+        
+        // Registrar fallo final en circuit breaker y estadísticas
+        $this->recordCircuitBreakerResult(false);
+        $this->updateRetryStats($this->last_retry_count, false, 0);
+        
+        // Devolver el último error o crear uno genérico
+        return $last_error ?: new \WP_Error(
+            'max_retries_exceeded',
+            "Se excedió el número máximo de reintentos ({$max_retries}) para la solicitud {$method} {$endpoint}",
+            ['attempts' => $this->last_retry_count + 1]
+        );
+    }
+
+    /**
+     * Wrapper: Obtiene artículos de Verial.
+     * @param array $params Parámetros opcionales (inicio, fin, fecha, etc.)
+     * @return array|WP_Error
+     */
+    public function get_articulos($params = array()) {
+        // Soporta paginación: inicio, fin, fecha
+        $endpoint = 'GetArticulosWS';
+        
+        // Validar parámetros
+        if (!is_array($params)) {
+            $params = array(); // Asegurar que params sea un array
+            $this->logger->log('ATENCIÓN: get_articulos recibió parámetros no válidos. Tipo: ' . gettype($params), 'warning');
+        }
+        
+        // Registrar llamada a la API
+        if (isset($this->logger)) {
+            $this->logger->log("Llamando a get_articulos con endpoint={$endpoint} y parámetros: " . print_r($params, true), 'debug');
+        }
+        
+        $response = $this->get($endpoint, $params);
+        
+        // Registrar respuesta para depuración
+        if (isset($this->logger)) {
+            if (is_wp_error($response)) {
+                $this->logger->log("Error en get_articulos: " . $response->get_error_message(), 'error');
+            } else {
+                $count = is_array($response) ? count($response) : 0;
+                $this->logger->log("Respuesta de get_articulos recibida. Tipo: " . gettype($response) . ", Elementos: {$count}", 'debug');
+            }
+        }
+        
+        return $response;
+    }
+
+    /**
+     * Wrapper: Obtiene categorías de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_categorias($params = array()) {
+        $endpoint = 'GetCategoriasWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene clientes de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_clientes($params = array()) {
+        $endpoint = 'GetClientesWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene pedidos de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_pedidos($params = array()) {
+        $endpoint = 'GetPedidosWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene el stock de artículos de Verial.
+     * @param array|int $params Puede ser array de filtros o id_articulo (int)
+     * @return array|WP_Error
+     */
+    public function get_stock_articulos($params = array()) {
+        $endpoint = 'GetStockArticulosWS';
+        // Permite pasar id_articulo directamente
+        if (is_int($params)) {
+            $params = ['id_articulo' => $params];
+        }
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene condiciones de tarifa de un artículo.
+     * @param int $id_articulo
+     * @param int $id_cliente
+     * @param int|null $id_tarifa
+     * @param string|null $fecha
+     * @return array|WP_Error
+     */
+    public function get_condiciones_tarifa($id_articulo, $id_cliente = 0, $id_tarifa = null, $fecha = null) {
+        $endpoint = 'GetCondicionesTarifaWS';
+        $params = [
+            'id_articulo' => $id_articulo,
+            'id_cliente' => $id_cliente,
+        ];
+        if (!is_null($id_tarifa)) {
+            $params['id_tarifa'] = $id_tarifa;
+        }
+        if (!is_null($fecha)) {
+            $params['fecha'] = $fecha;
+        }
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene imágenes de artículos.
+     * @param array $params Parámetros opcionales (id_articulo, numpixelsladomenor, etc.)
+     * @return array|WP_Error
+     */
+    public function get_imagenes_articulos($params = array()) {
+        $endpoint = 'GetImagenesArticulosWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Prueba la conectividad con la API de Verial usando un método simple (GetPaisesWS).
+     * @return true|string Mensaje de error si falla, true si conecta correctamente.
+     */
+    public function test_connectivity() {
+        try {
+            $this->logger->info('[TEST] Iniciando prueba de conectividad completa...', [
+                'api_url' => $this->api_url,
+                'sesionwcf' => $this->sesionwcf
+            ]);
+            
+            // PASO 1: Verificar que la URL base es accesible
+            $this->logger->info('[TEST] Verificando accesibilidad de URL base...');
+            $response = $this->doRequestWithRetry('GET', $this->api_url, [
+                'timeout' => 10, // Un timeout inicial más bajo para la accesibilidad
+                'sslverify' => false, // No es necesario verificar SSL en este punto
+                'headers' => [
+                    'User-Agent' => 'Mi-Integracion-API/1.0'
+                ],
+                'retries' => 0, // No reintentar esta solicitud, solo verificar accesibilidad
+            ]);
+            
+            if (is_wp_error($response)) {
+                $error_msg = 'No se puede acceder a la URL base: ' . $response->get_error_message();
+                $this->logger->error('[TEST] Error de accesibilidad: ' . $error_msg);
+                return $error_msg;
+            }
+            
+            $response_code = wp_remote_retrieve_response_code($response);
+            if ($response_code < 200 || $response_code >= 400) {
+                $error_msg = 'URL base devuelve código de error HTTP: ' . $response_code;
+                $this->logger->error('[TEST] Error HTTP: ' . $error_msg);
+                return $error_msg;
+            }
+            
+            $this->logger->info('[TEST] ✓ URL base accesible (HTTP ' . $response_code . ')');
+            
+            // PASO 2: Verificar que el número de sesión es válido con la API
+            $this->logger->info('[TEST] Verificando número de sesión con GetPaisesWS...');
+            $test_url = $this->build_api_url('GetPaisesWS') . '?x=' . urlencode($this->sesionwcf);
+            $this->logger->info('[TEST] URL de prueba: ' . $test_url);
+            
+            $api_response = $this->get('GetPaisesWS');
+            
+            // Log de respuesta para diagnóstico
+            $this->logger->info('[TEST] Respuesta de GetPaisesWS', [
+                'type' => gettype($api_response),
+                'is_wp_error' => is_wp_error($api_response),
+                'response' => $api_response
+            ]);
+            
+            if (is_wp_error($api_response)) {
+                $error_msg = 'Error en la conexión de prueba: ' . $api_response->get_error_message();
+                $this->logger->error('[TEST] Error WP_Error: ' . $error_msg);
+                return $error_msg;
+            }
+            
+            // PASO 3: Validar respuesta de la API
+            if (isset($api_response['InfoError'])) {
+                $info_error = $api_response['InfoError'];
+                
+                if (isset($info_error['Codigo']) && $info_error['Codigo'] == 0) {
+                    $this->logger->info('[TEST] ✓ Conectividad exitosa con Verial');
+                    return true;
+                } else {
+                    $error_msg = 'Error de API: ' . ($info_error['Descripcion'] ?? 'Error desconocido');
+                    $this->logger->error('[TEST] Error InfoError: ' . $error_msg, $info_error);
+                    
+                    // Proporcionar contexto adicional para errores comunes
+                    if (isset($info_error['Codigo'])) {
+                        switch ($info_error['Codigo']) {
+                            case -1:
+                                $error_msg .= ' (Posible número de sesión inválido)';
+                                break;
+                            case -2:
+                                $error_msg .= ' (Posible error de autenticación)';
+                                break;
+                            case -3:
+                                $error_msg .= ' (Posible servicio no disponible)';
+                                break;
+                        }
+                    }
+                    
+                    return $error_msg;
+                }
+            } else {
+                $error_msg = 'Respuesta inesperada de la API de Verial (sin InfoError)';
+                $this->logger->error('[TEST] ' . $error_msg, $api_response);
+                return $error_msg;
+            }
+            
+        } catch (\Throwable $e) {
+            $error_msg = 'Excepción durante prueba de conectividad: ' . $e->getMessage();
+            $this->logger->error('[TEST] ' . $error_msg, [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return $error_msg;
+        }
+    }
+
+    /**
+     * Lee la configuración desde las opciones de WordPress, compatible con ambos plugins.
+     */
+    private function load_settings() {
+        $ajustes = get_option('mi_integracion_api_ajustes', array());
+        $this->api_url = $ajustes['mia_url_base'] ?? '';
+        $this->sesionwcf = $ajustes['mia_numero_sesion'] ?? '';
+
+        // Si la URL base o el número de sesión están vacíos, lanzar una excepción
+        if (empty($this->api_url) || empty($this->sesionwcf)) {
+            throw new \Exception('La URL base o el número de sesión no están configurados correctamente. Por favor, revisa la configuración del plugin.');
+        }
+    }
+
+    /**
+     * Valida la configuración actual del conector
+     * @return array{is_valid: bool, errors: string[], config: array}
+     */
+    public function validate_configuration(): array {
+        $errors = [];
+        $config = [
+            'api_url' => $this->api_url,
+            'sesionwcf' => $this->sesionwcf,
+            'source' => $this->config_source
+        ];
+        
+        // Validar URL base
+        if (empty($this->api_url)) {
+            $errors[] = 'URL base de Verial no configurada';
+        } elseif (!filter_var($this->api_url, FILTER_VALIDATE_URL)) {
+            $errors[] = 'URL base de Verial tiene formato inválido: ' . $this->api_url;
+        }
+        
+        // Validar número de sesión usando método dedicado
+        $session_validation = self::validate_session_number($this->sesionwcf);
+        if (!$session_validation['is_valid']) {
+            $errors[] = $session_validation['error'];
+        }
+        
+        // Validar que la fuente de configuración no sea de error
+        if ($this->config_source === 'error_fallback') {
+            $errors[] = 'Configuración cargada desde fallback de error';
+        }
+        
+        return [
+            'is_valid' => empty($errors),
+            'errors' => $errors,
+            'config' => $config
+        ];
+    }
+
+    /**
+     * Valida si un número de sesión es válido para Verial
+     * 
+     * @param mixed $sesionwcf Número de sesión a validar
+     * @return array Array con 'is_valid' (bool) y 'error' (string)
+     */
+    public static function validate_session_number($sesionwcf): array {
+        // Verificar que no esté vacío
+        if ($sesionwcf === null || $sesionwcf === '') {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión no puede estar vacío'
+            ];
+        }
+        
+        // Verificar que sea numérico
+        if (!is_numeric($sesionwcf)) {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión debe ser numérico, recibido: ' . gettype($sesionwcf)
+            ];
+        }
+        
+        // Convertir a entero para validaciones adicionales
+        $sesion_int = (int)$sesionwcf;
+        
+        // Verificar rango válido
+        if ($sesion_int <= 0) {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión debe ser mayor que 0, recibido: ' . $sesion_int
+            ];
+        }
+        
+        if ($sesion_int > 9999) {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión debe ser menor que 10000, recibido: ' . $sesion_int
+            ];
+        }
+        
+        // Si llegamos aquí, es válido
+        return [
+            'is_valid' => true,
+            'error' => ''
+        ];
+    }
+
+    /**
+     * Obtiene el número de sesión actual
+     * 
+     * @return int
+     */
+    public function get_session_number(): int {
+        return $this->sesionwcf;
+    }
+
+    /**
+     * Establece un nuevo número de sesión (con validación)
+     * 
+     * @param mixed $sesionwcf Nuevo número de sesión
+     * @throws \Exception Si el número de sesión es inválido
+     */
+    public function set_session_number($sesionwcf): void {
+        $validation = self::validate_session_number($sesionwcf);
+        
+        if (!$validation['is_valid']) {
+            throw new \Exception('Número de sesión inválido: ' . $validation['error']);
+        }
+        
+        $this->sesionwcf = (int)$sesionwcf;
+        $this->logger->info('Número de sesión actualizado', ['new_session' => $this->sesionwcf]);
+    }
+
+    /**
+     * Recarga la configuración desde WordPress
+     * @throws \Exception Si la configuración es inválida
+     */
+    public function reload_configuration(): void {
+        $this->load_configuration([]);
+    }
+
+    /**
+     * Método de prueba para demostrar el nuevo sistema de retry
+     * 
+     * @param string $test_endpoint Endpoint para probar (default: 'test-connection')
+     * @return array Resultados de la prueba incluyendo estadísticas de retry
+     */
+    public function testRetrySystem(string $test_endpoint = 'test-connection'): array {
+        $this->logger->info('[TEST] Iniciando prueba del sistema de retry robusto');
+        
+        $test_results = [];
+        
+        // Prueba 1: Solicitud GET con retry robusto
+        $this->logger->info('[TEST] Prueba 1: GET con retry robusto');
+        $start_time = microtime(true);
+        $get_result = $this->makeRequestWithRetry('GET', $test_endpoint, [], ['test' => 'retry_system']);
+        $get_time = microtime(true) - $start_time;
+        
+        $test_results['get_test'] = [
+            'success' => !is_wp_error($get_result),
+            'execution_time' => round($get_time, 3),
+            'retry_count' => $this->getLastRetryCount(),
+            'result' => is_wp_error($get_result) ? $get_result->get_error_message() : 'Success'
+        ];
+        
+        // Prueba 2: Solicitud POST con retry robusto
+        $this->logger->info('[TEST] Prueba 2: POST con retry robusto');
+        $start_time = microtime(true);
+        $post_result = $this->makeRequestWithRetry('POST', $test_endpoint, ['test_data' => 'retry_system_post']);
+        $post_time = microtime(true) - $start_time;
+        
+        $test_results['post_test'] = [
+            'success' => !is_wp_error($post_result),
+            'execution_time' => round($post_time, 3),
+            'retry_count' => $this->getLastRetryCount(),
+            'result' => is_wp_error($post_result) ? $post_result->get_error_message() : 'Success'
+        ];
+        
+        // Prueba 3: Comparación con método legacy
+        $this->logger->info('[TEST] Prueba 3: Comparación con método legacy');
+        $start_time = microtime(true);
+        $legacy_result = $this->makeRequest('GET', $test_endpoint);
+        $legacy_time = microtime(true) - $start_time;
+        
+        $test_results['legacy_comparison'] = [
+            'success' => !is_wp_error($legacy_result),
+            'execution_time' => round($legacy_time, 3),
+            'retry_count' => $this->getLastRetryCount(),
+            'result' => is_wp_error($legacy_result) ? $legacy_result->get_error_message() : 'Success'
+        ];
+        
+        // Resumen de la prueba
+        $test_results['summary'] = [
+            'total_tests' => 3,
+            'total_time' => round($get_time + $post_time + $legacy_time, 3),
+            'retry_config' => $this->getRetryConfig(),
+            'api_url' => $this->getApiUrl(),
+            'timestamp' => date('Y-m-d H:i:s')
+        ];
+        
+        $this->logger->info('[TEST] Prueba del sistema de retry completada', $test_results['summary']);
+        
+        return $test_results;
+    }
+
+    /**
+     * Realiza un diagnóstico detallado de la conexión a la API
+     * 
+     * @return array|WP_Error Resultado del diagnóstico
+     */
+    public function diagnosticarConexion() {
+        $resultado = [
+            'estado' => 'error',
+            'mensaje' => '',
+            'detalles' => [],
+            'sugerencias' => []
+        ];
+        
+        $url_base = $this->get_api_base_url();
+        $sesion = $this->getSesionWcf();
+        
+        if (empty($url_base)) {
+            $resultado['mensaje'] = 'No se ha configurado la URL base de la API de Verial';
+            $resultado['sugerencias'][] = 'Configure la URL base en Ajustes > Mi Integración API';
+            return $resultado;
+        }
+        
+        if (empty($sesion)) {
+            $resultado['mensaje'] = 'No se ha configurado el número de sesión (sesionwcf)';
+            $resultado['sugerencias'][] = 'Configure el número de sesión en Ajustes > Mi Integración API';
+            return $resultado;
+        }
+        
+        $resultado['detalles']['url_base'] = $url_base;
+        $resultado['detalles']['sesion'] = $sesion;
+        
+        // 2. Intentar conexión básica a la URL base
+        $test_url = rtrim($url_base, '/') . '/testConexion?x=' . $sesion;
+        
+        try {
+            $response = wp_remote_get($test_url, [
+                'timeout' => 15,
+                'sslverify' => false
+            ]);
+            
+            if (is_wp_error($response)) {
+                $resultado['mensaje'] = 'Error al conectar con la API: ' . $response->get_error_message();
+                $resultado['sugerencias'][] = 'Verifique que la URL base sea correcta';
+                $resultado['sugerencias'][] = 'Compruebe que su servidor puede conectarse a Internet';
+                $resultado['detalles']['error'] = $response->get_error_message();
+                return $resultado;
+            }
+            
+            $status_code = wp_remote_retrieve_response_code($response);
+            $body = wp_remote_retrieve_body($response);
+            
+            $resultado['detalles']['status_code'] = $status_code;
+            $resultado['detalles']['response_size'] = strlen($body);
+            
+            if ($status_code === 404) {
+                $resultado['mensaje'] = 'La URL de la API no existe (404)';
+                $resultado['sugerencias'][] = 'Verifique que la URL base sea correcta';
+                $resultado['sugerencias'][] = 'Confirme que la API de Verial está accesible desde su servidor';
+                return $resultado;
+            }
+            
+            if ($status_code >= 400) {
+                $resultado['mensaje'] = "Error HTTP $status_code al conectar con la API";
+                $resultado['sugerencias'][] = 'Verifique que la URL y sesión sean correctas';
+                $resultado['detalles']['response'] = substr($body, 0, 500); // Primeros 500 caracteres
+                return $resultado;
+            }
+            
+            // 3. Intentar la conexión parecida a los endpoints normales
+            $endpoint = 'test';
+            $response_api = $this->get($endpoint);
+            
+            if (is_wp_error($response_api)) {
+                $resultado['mensaje'] = 'Error al probar un endpoint de API: ' . $response_api->get_error_message();
+                $resultado['detalles']['endpoint_error'] = $response_api->get_error_message();
+                $resultado['sugerencias'][] = 'Verifique que el número de sesión sea correcto';
+                return $resultado;
+            }
+            
+            // Si llegamos aquí, la conexión parece funcionar
+            $resultado['estado'] = 'success';
+            $resultado['mensaje'] = 'Conexión establecida correctamente';
+            
+            return $resultado;
+        } catch (\Exception $e) {
+            $resultado['mensaje'] = 'Error inesperado al diagnosticar conexión: ' . $e->getMessage();
+            $resultado['detalles']['exception'] = $e->getMessage();
+            $resultado['detalles']['trace'] = $e->getTraceAsString();
+            return $resultado;
+        }
+    }
+
+    /**
+     * Devuelve información de la última solicitud para diagnósticos
+     * 
+     * @return array Información de la última solicitud
+     */
+    public function get_last_request_info() {
+        $info = [
+            'api_url' => $this->api_url ?? 'no configurada',
+            'sesionwcf' => $this->sesionwcf ?? 'no configurada',
+            'config_source' => $this->config_source ?? 'desconocido',
+            'cache_enabled' => $this->cache_enabled ?? false,
+            'cache_stats' => $this->cache_stats ?? [],
+            'ssl_settings' => [
+                'ssl_enabled' => isset($this->ssl_verify) ? ($this->ssl_verify ? 'habilitado' : 'deshabilitado') : 'no configurado',
+                'cert_path' => $this->cert_path ?? 'no configurado',
+                'ca_path' => $this->ca_path ?? 'no configurado',
+            ],
+            'last_error' => $this->last_error ?? 'ninguno'
+        ];
+        
+        return $info;
+    }
+}

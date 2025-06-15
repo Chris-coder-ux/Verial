@@ -1,0 +1,41 @@
+/* Archivo CSS para Mi Integración API */
+
+.mi-integracion-api-compatibility {
+  background: #f8f9fa;
+  padding: 24px;
+  border-radius: 6px;
+  margin-bottom: 24px;
+}
+
+.mi-integracion-api-compatibility .compat-card {
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 18px 16px;
+  margin-bottom: 18px;
+}
+
+.mi-integracion-api-compatibility .compat-status-ok {
+  color: #217a00;
+  font-weight: bold;
+}
+.mi-integracion-api-compatibility .compat-status-error {
+  color: #b30000;
+  font-weight: bold;
+}
+
+.mi-integracion-api-compatibility table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  margin-top: 18px;
+}
+.mi-integracion-api-compatibility th, .mi-integracion-api-compatibility td {
+  border: 1px solid #e1e1e1;
+  padding: 8px 10px;
+  text-align: left;
+}
+.mi-integracion-api-compatibility th {
+  background: #f0f0f0;
+  font-weight: 600;
+}

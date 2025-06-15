@@ -1,0 +1,248 @@
+/**
+ * Estilos mejorados para el visor seguro de logs
+ * 
+ * @package Mi_Integracion_API
+ * @since 1.0.0
+ */
+
+.mi-api-logs-container {
+    position: relative;
+    margin: 20px 0;
+    border: 1px solid #ddd;
+    background: #fff;
+    border-radius: 4px;
+    padding: 15px;
+    min-height: 200px;
+}
+
+.mi-api-logs-container.loading:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 5;
+}
+
+.mi-api-loading {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 10px 20px;
+    background: #f0f0f0;
+    border-radius: 4px;
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.mi-api-logs-container.loading .mi-api-loading {
+    display: block;
+}
+
+.mi-api-filters {
+    margin-bottom: 20px;
+}
+
+.mi-api-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.mi-api-filter-item {
+    flex: 1;
+    min-width: 200px;
+    max-width: 300px;
+}
+
+.mi-api-filter-item label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.mi-api-filter-item input,
+.mi-api-filter-item select {
+    width: 100%;
+}
+
+.mi-api-filter-actions {
+    display: flex;
+    align-items: flex-end;
+}
+
+.mi-api-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.mi-api-pagination {
+    margin-top: 20px;
+}
+
+.pagination-links {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.pagination-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 30px;
+    padding: 0 5px;
+    border: 1px solid #ddd;
+    background: #f7f7f7;
+    text-decoration: none;
+    color: #0073aa;
+    border-radius: 3px;
+}
+
+.pagination-link.current {
+    background: #0073aa;
+    color: #fff;
+    border-color: #006291;
+}
+
+.pagination-link.disabled {
+    color: #aaa;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.pagination-ellipsis {
+    margin: 0 5px;
+}
+
+/* Estilos para tipos de log */
+.log-type {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.log-error {
+    background-color: #ffebee;
+    color: #c62828;
+}
+
+.log-warning {
+    background-color: #fff8e1;
+    color: #f57f17;
+}
+
+.log-info {
+    background-color: #e3f2fd;
+    color: #1565c0;
+}
+
+.log-debug {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+.log-audit {
+    background-color: #ede7f6;
+    color: #6a1b9a;
+}
+
+/* Estilos para formato JSON */
+.json-bracket {
+    color: #666;
+}
+
+.json-key {
+    color: #0073aa;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.mi-api-logs-container table {
+    animation: fadeIn 0.3s ease-in-out;
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+/* Estilos adicionales para la tabla */
+.mi-api-logs-container th {
+    text-align: left;
+    padding: 10px;
+    border-bottom: 2px solid #ddd;
+    font-weight: 600;
+    background-color: #f8f8f8;
+}
+
+.mi-api-logs-container td {
+    padding: 10px;
+    vertical-align: top;
+    word-break: break-word;
+}
+
+.mi-api-logs-container tbody tr:hover {
+    background-color: #f5f5f5;
+}
+
+/* Estilos para el botón con icono */
+.button .dashicons {
+    margin-top: 3px;
+    margin-right: 5px;
+}
+
+/* Estilo para tarjetas administrativas */
+.mi-api-admin-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.mi-api-admin-card h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 16px;
+}
+
+/* Mostrar contextos JSON de manera más legible */
+td pre {
+    margin: 0;
+    padding: 5px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 3px;
+    max-height: 200px;
+    overflow: auto;
+}
+
+/* Transición suave para los cambios de estado */
+.mi-api-logs-container, 
+.pagination-link, 
+.button, 
+.mi-api-loading {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Estado para botones deshabilitados */
+.button.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

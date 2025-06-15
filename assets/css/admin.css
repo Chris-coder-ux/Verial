@@ -1,0 +1,421 @@
+/* Archivo CSS para Mi Integración API - Versión Moderna */
+
+/* Variables CSS */
+:root {
+  --primary-color: #2563eb;
+  --primary-hover: #1d4ed8;
+  --secondary-color: #64748b;
+  --success-color: #22c55e;
+  --error-color: #ef4444;
+  --warning-color: #f59e0b;
+  --background-color: #f8fafc;
+  --card-background: #ffffff;
+  --border-color: #e2e8f0;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+}
+
+/* Layout general del panel de administración */
+.mi-integracion-api-admin {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--background-color);
+  padding: var(--spacing-xl);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.mi-integracion-api-admin h1 {
+  color: var(--text-primary);
+  font-size: 1.875rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.mi-integracion-api-admin h2 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: var(--spacing-xl) 0 var(--spacing-md);
+}
+
+/* Cards y contenedores */
+.mi-integracion-api-card {
+  background: var(--card-background);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  border: 1px solid var(--border-color);
+  transition: box-shadow 0.2s ease;
+}
+
+.mi-integracion-api-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Tablas de datos */
+.mi-integracion-api-admin table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--card-background);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.mi-integracion-api-admin th,
+.mi-integracion-api-admin td {
+  padding: var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mi-integracion-api-admin th {
+  background: var(--background-color);
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: 0.05em;
+}
+
+.mi-integracion-api-admin tr:last-child td {
+  border-bottom: none;
+}
+
+.mi-integracion-api-admin tr:hover td {
+  background: var(--background-color);
+}
+
+/* Formularios */
+.mi-integracion-api-admin input[type="text"],
+.mi-integracion-api-admin input[type="email"],
+.mi-integracion-api-admin input[type="password"],
+.mi-integracion-api-admin select {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-background);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  margin-bottom: var(--spacing-md);
+}
+
+.mi-integracion-api-admin input:focus,
+.mi-integracion-api-admin select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.mi-integracion-api-admin label {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+  display: block;
+  font-size: 0.875rem;
+}
+
+/* Notificaciones */
+.mi-integracion-api-admin .notice {
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.mi-integracion-api-admin .notice-success {
+  background: #f0fdf4;
+  color: var(--success-color);
+  border: 1px solid #dcfce7;
+}
+
+.mi-integracion-api-admin .notice-error {
+  background: #fef2f2;
+  color: var(--error-color);
+  border: 1px solid #fee2e2;
+}
+
+.mi-integracion-api-admin .notice-warning {
+  background: #fffbeb;
+  color: var(--warning-color);
+  border: 1px solid #fef3c7;
+}
+
+/* Botones */
+.mi-integracion-api-admin .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: var(--spacing-xs);
+}
+
+.mi-integracion-api-admin .button-primary {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+}
+
+.mi-integracion-api-admin .button-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.mi-integracion-api-admin .button-secondary {
+  background: white;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.mi-integracion-api-admin .button-secondary:hover {
+  background: var(--background-color);
+  border-color: var(--text-secondary);
+}
+
+/* Estados y badges */
+.mi-integracion-api-admin .status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mi-integracion-api-admin .status-success {
+  background: #dcfce7;
+  color: var(--success-color);
+}
+
+.mi-integracion-api-admin .status-error {
+  background: #fee2e2;
+  color: var(--error-color);
+}
+
+.mi-integracion-api-admin .status-warning {
+  background: #fef3c7;
+  color: var(--warning-color);
+}
+
+/* Grid y Layout */
+.mi-integracion-api-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .mi-integracion-api-admin {
+    padding: var(--spacing-md);
+  }
+  
+  .mi-integracion-api-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .mi-integracion-api-admin table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* Estilos para el panel de administración de Mi Integración API */
+
+.mi-integracion-api-wrap {
+    margin: 20px;
+    max-width: 1200px;
+}
+
+.mi-integracion-api-header {
+    background: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.mi-integracion-api-header h1 {
+    margin: 0;
+    color: #23282d;
+    font-size: 24px;
+}
+
+.mi-integracion-api-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.mi-integracion-api-form {
+    max-width: 800px;
+}
+
+.mi-integracion-api-form .form-table th {
+    width: 200px;
+    padding: 20px 10px 20px 0;
+}
+
+.mi-integracion-api-form .form-table td {
+    padding: 15px 10px;
+}
+
+.mi-integracion-api-form input[type="text"],
+.mi-integracion-api-form input[type="password"],
+.mi-integracion-api-form input[type="number"],
+.mi-integracion-api-form select {
+    width: 100%;
+    max-width: 400px;
+}
+
+.mi-integracion-api-notice {
+    padding: 10px 15px;
+    margin: 15px 0;
+    border-left: 4px solid #fff;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.04);
+}
+
+.mi-integracion-api-notice.success {
+    border-left-color: #46b450;
+    background: #ecf7ed;
+}
+
+.mi-integracion-api-notice.error {
+    border-left-color: #dc3232;
+    background: #fbeaea;
+}
+
+.mi-integracion-api-notice.warning {
+    border-left-color: #ffb900;
+    background: #fff8e5;
+}
+
+.mi-integracion-api-button {
+    margin: 5px;
+}
+
+.mi-integracion-api-loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    border-top-color: #0073aa;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Estilos para tablas de datos */
+.mi-integracion-api-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+.mi-integracion-api-table th,
+.mi-integracion-api-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.mi-integracion-api-table th {
+    background: #f9f9f9;
+    font-weight: 600;
+}
+
+.mi-integracion-api-table tr:hover {
+    background: #f5f5f5;
+}
+
+/* Estilos para modales */
+.mi-integracion-api-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.mi-integracion-api-modal-content {
+    background-color: #fefefe;
+    margin: 10% auto;
+    padding: 20px;
+    border-radius: 5px;
+    max-width: 500px;
+    position: relative;
+}
+
+.mi-integracion-api-modal-close {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* Estilos para tooltips */
+.mi-integracion-api-tooltip {
+    position: relative;
+    display: inline-block;
+    margin-left: 5px;
+    color: #666;
+}
+
+.mi-integracion-api-tooltip .tooltip-text {
+    visibility: hidden;
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.mi-integracion-api-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}

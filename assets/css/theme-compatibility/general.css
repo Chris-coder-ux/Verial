@@ -1,0 +1,177 @@
+/**
+ * Compatibilidad general para temas
+ *
+ * Este archivo contiene soluciones generales para problemas comunes de compatibilidad
+ * con diferentes temas en WordPress.
+ *
+ * @since 1.0.0
+ */
+
+/* Arreglos generales para la interfaz de administración */
+.mi-api-wrap {
+    /* Resetear propiedades que puedan ser afectadas por temas */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+    line-height: 1.5 !important;
+    color: #444 !important;
+}
+
+/* Formularios */
+.mi-api-form input,
+.mi-api-form select,
+.mi-api-form textarea {
+    /* Asegurar que los elementos de formulario tienen un estilo consistente */
+    font-family: inherit !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+    color: #32373c !important;
+    background-color: #fff !important;
+}
+
+/* Botones */
+.mi-api-button {
+    /* Asegurar que los botones tienen estilo consistente */
+    font-family: inherit !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-weight: normal !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+/* Tablas */
+.mi-api-table {
+    /* Asegurar que las tablas tienen estilo consistente */
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    table-layout: auto !important;
+}
+
+.mi-api-table th,
+.mi-api-table td {
+    /* Asegurar que las celdas tienen estilo consistente */
+    padding: 8px 10px !important;
+    text-align: left !important;
+    vertical-align: top !important;
+    border: 1px solid #e5e5e5 !important;
+}
+
+.mi-api-table thead th {
+    /* Asegurar que los encabezados tienen estilo consistente */
+    background-color: #f9f9f9 !important;
+    font-weight: 600 !important;
+    border-bottom: 2px solid #e1e1e1 !important;
+}
+
+/* Tarjetas y paneles */
+.mi-api-card {
+    /* Asegurar que las tarjetas tienen un estilo consistente */
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04) !important;
+    background-color: #fff !important;
+    border: 1px solid #ccd0d4 !important;
+    border-radius: 0 !important;
+}
+
+/* Modales */
+.mi-api-modal-content {
+    /* Asegurar que los modales están sobre cualquier elemento de tema */
+    z-index: 999999 !important;
+}
+
+/* Tabs */
+.mi-api-tabs-wrapper {
+    /* Asegurar que las pestañas tienen estilo consistente */
+    border-bottom: 1px solid #ccd0d4 !important;
+}
+
+.mi-api-tabs-wrapper .nav-tab {
+    /* Asegurar que las pestañas tienen estilo consistente */
+    background: transparent !important;
+    border: 1px solid #ccd0d4 !important;
+    border-bottom: none !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+}
+
+.mi-api-tabs-wrapper .nav-tab-active {
+    /* Asegurar que la pestaña activa tiene estilo consistente */
+    background-color: #fff !important;
+    border-bottom: 1px solid #fff !important;
+    margin-bottom: -1px !important;
+}
+
+/* Typography */
+.mi-api-wrap h1,
+.mi-api-wrap h2,
+.mi-api-wrap h3,
+.mi-api-wrap h4,
+.mi-api-wrap h5,
+.mi-api-wrap h6 {
+    /* Asegurar que los encabezados tienen estilo consistente */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif !important;
+    font-weight: 600 !important;
+    color: #23282d !important;
+    margin-top: 0 !important;
+}
+
+/* Notificaciones */
+.mi-api-notice {
+    /* Asegurar que las notificaciones tienen estilo consistente */
+    background-color: #fff !important;
+    border-left: 4px solid #ddd !important;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .04) !important;
+    padding: 1px 12px !important;
+    margin: 5px 0 15px !important;
+}
+
+.mi-api-notice.success {
+    border-left-color: #46b450 !important;
+}
+
+.mi-api-notice.error {
+    border-left-color: #dc3232 !important;
+}
+
+.mi-api-notice.warning {
+    border-left-color: #ffb900 !important;
+}
+
+.mi-api-notice.info {
+    border-left-color: #00a0d2 !important;
+}
+
+/* Color picker */
+.mi-api-color-picker .wp-picker-container {
+    /* Asegurar que el selector de color tiene estilo consistente */
+    line-height: 27px !important;
+}
+
+.mi-api-color-picker .wp-color-result {
+    /* Asegurar que el resultado de color tiene estilo consistente */
+    height: 24px !important;
+    box-shadow: 0 1px 0 #ccc !important;
+    border: 1px solid #ccc !important;
+    border-radius: 3px !important;
+    background-color: #f7f7f7 !important;
+}
+
+.mi-api-color-picker .wp-color-result-text {
+    /* Asegurar que el texto del resultado tiene estilo consistente */
+    font-size: 12px !important;
+    line-height: 22px !important;
+}
+
+/* Select2 */
+.mi-api-select2 .select2-container {
+    /* Asegurar que Select2 tiene estilo consistente */
+    width: 100% !important;
+}
+
+.mi-api-select2 .select2-selection {
+    /* Asegurar que la selección de Select2 tiene estilo consistente */
+    border: 1px solid #7e8993 !important;
+    border-radius: 3px !important;
+    height: auto !important;
+    min-height: 30px !important;
+    box-shadow: none !important;
+}

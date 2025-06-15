@@ -1,0 +1,40 @@
+/**
+ * Estilos de compatibilidad para Avada
+ * 
+ * Estos estilos corrigen problemas específicos de compatibilidad entre 
+ * Mi Integración API y el tema Avada.
+ */
+
+/* Evitar conflictos con los estilos de Fusion Builder */
+.mi-integration-api-admin-panel .fusion-builder-module-settings {
+    display: block !important;
+    width: 100% !important;
+}
+
+/* Corrección para los componentes de tablas en paneles de administración */
+.mi-integration-api-admin-panel .table-2 {
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+/* Prevenir que los estilos de botones de Avada afecten a nuestros botones */
+.mi-integration-api-admin-panel .fusion-button {
+    transform: none !important;
+    transition: none !important;
+}
+
+/* Mejoras para la visualización de formularios */
+.mi-integration-api-admin-panel .fusion-form-form-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Corregir problemas con modales y z-index */
+.mi-integration-modal {
+    z-index: 99999 !important; /* Asegurar que nuestros modales estén por encima de los de Avada */
+}
+
+/* Asegurar que los iconos se muestren correctamente */
+.mi-integration-api-admin-panel .fusion-icon-wrapper {
+    display: inline !important;
+}
