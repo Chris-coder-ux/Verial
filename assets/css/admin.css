@@ -419,3 +419,106 @@
     visibility: visible;
     opacity: 1;
 }
+
+/* Estilos para sección de diagnóstico */
+.mi-diagnostic-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  align-items: end;
+  margin-bottom: var(--spacing-md);
+}
+
+.mi-range-input {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+}
+
+.mi-range-input label {
+  font-weight: 500;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-primary);
+}
+
+.mi-range-input input[type="number"] {
+  padding: var(--spacing-xs);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.mi-diagnostic-options {
+  display: flex;
+  align-items: center;
+  margin-top: var(--spacing-md);
+}
+
+.mi-diagnostic-options label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  cursor: pointer;
+}
+
+.problematic-ranges-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-md) 0;
+}
+
+.range-badge {
+  background: var(--error-color);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.range-badge:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.diagnostic-result {
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+}
+
+.diagnostic-result h5 {
+  margin: var(--spacing-md) 0 var(--spacing-sm);
+  font-weight: 600;
+}
+
+.diagnostic-result ul {
+  margin: var(--spacing-sm) 0;
+  padding-left: var(--spacing-lg);
+}
+
+.diagnostic-result li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.diagnostic-result details {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm);
+}
+
+.diagnostic-result summary {
+  cursor: pointer;
+  font-weight: 500;
+  padding: var(--spacing-xs);
+}
+
+.diagnostic-result summary:hover {
+  background: var(--background-color);
+}

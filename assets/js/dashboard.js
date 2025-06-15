@@ -166,10 +166,35 @@ jQuery(document).ready(function($) {
   // También capturamos el selector de tamaño de lote
   var $batchSizeSelector = $('#mi-batch-size');
 
+  // Manejar cambios en el selector de batch size para guardar la selección
+  $batchSizeSelector.on('change', function() {
+    const selectedSize = parseInt($(this).val()) || 20;
+    console.log('Batch size cambiado a:', selectedSize);
+    
+    // Guardar la selección del usuario inmediatamente
+    $.post(ajaxurl, {
+      action: 'mi_integracion_api_save_batch_size',
+      batch_size: selectedSize,
+      nonce: miIntegracionApiDashboard.nonce
+    }, function(response) {
+      if (response.success) {
+        console.log('Batch size guardado exitosamente:', selectedSize);
+      } else {
+        console.warn('Error al guardar batch size:', response.data);
+      }
+    });
+  });
+
   $syncBtn.on('click', function(e) {
     e.preventDefault();
-    const batchSize = parseInt($batchSizeSelector.val()) || 20; // Valor por defecto: 20
-    console.log('Click en sincronizar productos en lote. Tamaño de lote:', batchSize);
+    const batchSize = parseInt($batchSizeSelector.val()) || 20; // Valor por defecto unificado: 20
+    
+    // Logging mejorado para diagnóstico
+    console.log('=== INICIO SINCRONIZACIÓN ===');
+    console.log('Tamaño de lote seleccionado:', batchSize);
+    console.log('Valor raw del selector:', $batchSizeSelector.val());
+    console.log('Tipo de dato:', typeof batchSize);
+    console.log('Timestamp:', new Date().toISOString());
     
     $syncBtn.prop('disabled', true);
     $batchSizeSelector.prop('disabled', true); // También deshabilitamos el selector
@@ -180,25 +205,22 @@ jQuery(document).ready(function($) {
     $progressBar.css('width', '5%'); // Comenzar con un 5% para que se vea algo
     $progressInfo.text('Preparando sincronización...');
     
-    // Lanzar AJAX para iniciar la sincronización batch
-    const timeStamp = new Date().toISOString();
-    console.log(`[${timeStamp}] Iniciando sincronización batch...`);
-    console.log('URL AJAX:', ajaxurl);
-    console.log('Datos a enviar:', { 
+    // Datos a enviar con logging detallado
+    const ajaxData = { 
       action: 'mi_integracion_api_sync_products_batch', 
       nonce: miIntegracionApiDashboard.nonce,
       batch_size: batchSize
-    });
+    };
+    
+    console.log('URL AJAX:', ajaxurl);
+    console.log('Datos completos a enviar:', ajaxData);
+    console.log('Nonce válido:', miIntegracionApiDashboard.nonce ? 'SÍ' : 'NO');
     
     $.ajax({
       url: ajaxurl,
       type: 'POST',
       dataType: 'json',
-      data: { 
-        action: 'mi_integracion_api_sync_products_batch', 
-        nonce: miIntegracionApiDashboard.nonce,
-        batch_size: batchSize
-      },
+      data: ajaxData,
       success: function(response) {
         const timeStamp = new Date().toISOString();
         console.log(`[${timeStamp}] Respuesta de mi_integracion_api_sync_products_batch:`, response);
@@ -272,4 +294,110 @@ jQuery(document).ready(function($) {
   } else {
     $syncStatusContainer.hide();
   }
+  
+  // Handler para diagnóstico de rangos problemáticos
+  $('#mi-diagnose-range').on('click', function(e) {
+    e.preventDefault();
+    
+    const inicio = parseInt($('#diagnostic-inicio').val()) || 0;
+    const fin = parseInt($('#diagnostic-fin').val()) || 0;
+    const deepAnalysis = $('#diagnostic-deep').is(':checked');
+    
+    if (inicio <= 0 || fin <= 0 || inicio > fin) {
+      alert('Por favor, especifique un rango válido (inicio <= fin, ambos > 0)');
+      return;
+    }
+    
+    const $btn = $(this);
+    const $feedback = $('#mi-diagnostic-feedback');
+    const $content = $('#mi-diagnostic-content');
+    
+    console.log('=== INICIO DIAGNÓSTICO ===');
+    console.log('Rango:', inicio, '-', fin);
+    console.log('Análisis profundo:', deepAnalysis);
+    
+    $btn.prop('disabled', true).text('Diagnosticando...');
+    $feedback.show();
+    $content.html('<p>Ejecutando diagnóstico, esto puede tomar varios minutos...</p>');
+    
+    $.ajax({
+      url: ajaxurl,
+      type: 'POST',
+      dataType: 'json',
+      data: {
+        action: 'mi_integracion_api_diagnose_range',
+        nonce: miIntegracionApiDashboard.nonce,
+        inicio: inicio,
+        fin: fin,
+        deep_analysis: deepAnalysis
+      },
+      success: function(response) {
+        console.log('Respuesta de diagnóstico:', response);
+        
+        if (response.success) {
+          const result = response.data.diagnostic_result;
+          let html = '<div class="diagnostic-result">';
+          
+          // Resumen
+          html += '<h5>Resumen del Diagnóstico</h5>';
+          html += '<p><strong>Rango:</strong> ' + result.range[0] + '-' + result.range[1] + '</p>';
+          html += '<p><strong>Pruebas realizadas:</strong> ' + result.tests_performed.join(', ') + '</p>';
+          html += '<p><strong>Problemas encontrados:</strong> ' + result.issues_found.length + '</p>';
+          
+          // Problemas encontrados
+          if (result.issues_found.length > 0) {
+            html += '<h5 style="color: #d63638;">Problemas Detectados</h5>';
+            html += '<ul>';
+            result.issues_found.forEach(function(issue) {
+              html += '<li><strong>' + issue.type + ':</strong> ' + issue.description;
+              if (issue.details) {
+                html += '<br><small>Detalles: ' + JSON.stringify(issue.details) + '</small>';
+              }
+              html += '</li>';
+            });
+            html += '</ul>';
+          }
+          
+          // Recomendaciones
+          if (result.recommendations.length > 0) {
+            html += '<h5 style="color: #2271b1;">Recomendaciones</h5>';
+            html += '<ul>';
+            result.recommendations.forEach(function(rec) {
+              html += '<li>' + rec + '</li>';
+            });
+            html += '</ul>';
+          }
+          
+          // Detalles técnicos (colapsable)
+          html += '<details style="margin-top: 15px;">';
+          html += '<summary><strong>Detalles Técnicos</strong></summary>';
+          html += '<pre style="background: #f1f1f1; padding: 10px; overflow: auto; max-height: 300px; font-size: 12px;">';
+          html += JSON.stringify(result, null, 2);
+          html += '</pre>';
+          html += '</details>';
+          
+          html += '</div>';
+          $content.html(html);
+        } else {
+          $content.html('<p style="color: #d63638;">Error: ' + (response.data?.message || 'Error desconocido') + '</p>');
+        }
+      },
+      error: function(xhr, status, error) {
+        console.error('Error en diagnóstico:', status, error);
+        $content.html('<p style="color: #d63638;">Error de comunicación: ' + xhr.status + ' ' + error + '</p>');
+      },
+      complete: function() {
+        $btn.prop('disabled', false).text('Diagnosticar Rango');
+      }
+    });
+  });
+
+  // Rellenar campos con rangos problemáticos conocidos al hacer clic
+  $('.range-badge').on('click', function() {
+    const range = $(this).text().split('-');
+    if (range.length === 2) {
+      $('#diagnostic-inicio').val(range[0]);
+      $('#diagnostic-fin').val(range[1]);
+    }
+  });
 });

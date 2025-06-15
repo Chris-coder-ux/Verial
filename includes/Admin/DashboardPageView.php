@@ -98,13 +98,20 @@ class DashboardPageView {
 				<div class="mi-batch-sync-controls">
 					<div class="mi-batch-size-selector">
 						<label for="mi-batch-size"><?php esc_html_e('Productos por lote:', 'mi-integracion-api'); ?></label>
+						<?php 
+						// Obtener el valor actual del tamaño de lote desde la configuración unificada
+						$current_batch_size = (int) get_option('mi_integracion_api_batch_size', 20);
+						?>
 						<select id="mi-batch-size" name="mi-batch-size" <?php echo $in_progress ? 'disabled' : ''; ?>>
-							<option value="10">10</option>
-							<option value="20" selected>20</option>
-							<option value="30">30</option>
-							<option value="50">50</option>
-							<option value="100">100</option>
+							<option value="10" <?php selected($current_batch_size, 10); ?>>10</option>
+							<option value="20" <?php selected($current_batch_size, 20); ?>>20</option>
+							<option value="30" <?php selected($current_batch_size, 30); ?>>30</option>
+							<option value="50" <?php selected($current_batch_size, 50); ?>>50</option>
+							<option value="100" <?php selected($current_batch_size, 100); ?>>100</option>
 						</select>
+						<small style="display:block;margin-top:5px;color:#666;">
+							<?php printf(esc_html__('Actual: %d productos por lote', 'mi-integracion-api'), $current_batch_size); ?>
+						</small>
 					</div>
 					<button id="mi-batch-sync-products" class="button button-primary" <?php echo $in_progress ? 'disabled' : ''; ?>>
 						<?php esc_html_e('Sincronizar productos en lote', 'mi-integracion-api'); ?> <span class="dashicons dashicons-update"></span>
@@ -128,6 +135,54 @@ class DashboardPageView {
 						<button id="mi-cancel-sync" class="button button-secondary">
 							<?php esc_html_e('Cancelar Sincronización', 'mi-integracion-api'); ?>
 						</button>
+					</div>
+				</div>
+			</div>
+			<!-- Sección de Diagnóstico de Rangos Problemáticos -->
+			<div class="postbox">
+				<h2 class="hndle"><span><?php esc_html_e('Diagnóstico de Rangos Problemáticos', 'mi-integracion-api'); ?></span></h2>
+				<div class="inside">
+					<p><?php esc_html_e('Use esta herramienta para diagnosticar por qué ciertos rangos de productos fallan durante la sincronización.', 'mi-integracion-api'); ?></p>
+					
+					<div class="mi-diagnostic-controls">
+						<div class="mi-range-input">
+							<label for="diagnostic-inicio"><?php esc_html_e('Producto inicial:', 'mi-integracion-api'); ?></label>
+							<input type="number" id="diagnostic-inicio" name="diagnostic-inicio" min="1" max="10000" value="3201" />
+						</div>
+						<div class="mi-range-input">
+							<label for="diagnostic-fin"><?php esc_html_e('Producto final:', 'mi-integracion-api'); ?></label>
+							<input type="number" id="diagnostic-fin" name="diagnostic-fin" min="1" max="10000" value="3210" />
+						</div>
+						<div class="mi-diagnostic-options">
+							<label>
+								<input type="checkbox" id="diagnostic-deep" name="diagnostic-deep" />
+								<?php esc_html_e('Análisis profundo (más lento)', 'mi-integracion-api'); ?>
+							</label>
+						</div>
+						<button id="mi-diagnose-range" class="button button-secondary">
+							<?php esc_html_e('Diagnosticar Rango', 'mi-integracion-api'); ?>
+						</button>
+					</div>
+					
+					<div id="mi-diagnostic-feedback" style="margin-top:10px; display:none;">
+						<h4><?php esc_html_e('Resultado del Diagnóstico', 'mi-integracion-api'); ?></h4>
+						<div id="mi-diagnostic-content"></div>
+					</div>
+					
+					<div class="mi-known-problematic-ranges" style="margin-top:15px;">
+						<h4><?php esc_html_e('Rangos Problemáticos Conocidos', 'mi-integracion-api'); ?></h4>
+						<p><?php esc_html_e('Los siguientes rangos han sido identificados como problemáticos:', 'mi-integracion-api'); ?></p>
+						<div class="problematic-ranges-list">
+							<span class="range-badge">2601-2610</span>
+							<span class="range-badge">2801-2810</span>
+							<span class="range-badge">3101-3110</span>
+							<span class="range-badge">3201-3210</span>
+							<span class="range-badge">2501-2510</span>
+							<span class="range-badge">2701-2710</span>
+							<span class="range-badge">2901-2910</span>
+							<span class="range-badge">3001-3010</span>
+						</div>
+						<p><small><?php esc_html_e('Estos rangos se saltan automáticamente durante la sincronización para evitar errores.', 'mi-integracion-api'); ?></small></p>
 					</div>
 				</div>
 			</div>

@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Verificar sintaxis y funcionalidad de archivos modificados",
+			"type": "shell",
+			"command": "cd /home/christian/Documentos/Poyectos/mi-integracion-api && php -l assets/js/dashboard.js || echo 'JavaScript no se puede verificar con PHP' && php -l includes/Admin/AjaxSync.php && php -l includes/Core/ApiConnector.php && php -l includes/Core/Sync_Manager.php",
+			"group": "build",
+			"isBackground": false
+		}
+	]
+}

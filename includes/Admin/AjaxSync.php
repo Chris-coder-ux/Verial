@@ -32,6 +32,8 @@ class AjaxSync {
                 'wp_ajax_mi_sync_get_fabricantes',
                 'wp_ajax_mi_sync_autocomplete_sku',
                 'wp_ajax_mi_integracion_api_sync_clients_job_batch',
+                'wp_ajax_mi_integracion_api_save_batch_size',
+                'wp_ajax_mi_integracion_api_diagnose_range',
             ]
         ], 'sync-debug');
 		add_action( 'wp_ajax_mia_sync_progress', [self::class, 'sync_progress_callback'] );
@@ -48,6 +50,9 @@ class AjaxSync {
 		add_action( 'wp_ajax_mi_sync_get_fabricantes', [self::class, 'get_fabricantes'] );
 		add_action( 'wp_ajax_mi_sync_autocomplete_sku', [self::class, 'autocomplete_sku'] );
 		add_action( 'wp_ajax_mi_integracion_api_sync_clients_job_batch', [self::class, 'sync_clients_job_batch'] );
+		add_action( 'wp_ajax_mi_integracion_api_save_batch_size', [self::class, 'save_batch_size'] );
+		add_action( 'wp_ajax_mi_integracion_api_diagnose_range', [self::class, 'diagnose_range'] );
+		add_action( 'wp_ajax_mi_integracion_api_save_batch_size', [self::class, 'save_batch_size'] ); // Registrar nuevo handler
 	}
 
 	public static function store_sync_progress( $porcentaje, $mensaje, $estadisticas = array() ) {
@@ -1044,18 +1049,23 @@ class AjaxSync {
     	          $filters = $_REQUEST['filters'];
     	          $logger->info('Filtros de sincronización recibidos', ['filters' => $filters]);
     	      }
-    	      
-    	      // Capturar el tamaño de lote seleccionado por el usuario
-    	      $batch_size = isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : null;
-    	      
-    	      if ($batch_size) {
-    	          // Asegurar que el tamaño de lote esté en un rango razonable
-    	          $batch_size = max(5, min($batch_size, 100));
-    	          $logger->info('Tamaño de lote recibido: ' . $batch_size, ['raw' => $_REQUEST['batch_size']]);
-    	          
-    	          // Actualizar la configuración para usar este tamaño de lote
-    	          update_option('mi_integracion_api_optimal_batch_size', $batch_size);
-    	      }
+    	    	      // Capturar y validar el tamaño de lote seleccionado por el usuario
+	      $batch_size = isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : 20; // Valor por defecto unificado
+	      
+	      // Asegurar que el tamaño de lote esté en un rango razonable
+	      $batch_size = max(5, min($batch_size, 100));
+	      $logger->info('Tamaño de lote validado: ' . $batch_size, [
+	          'raw_value' => $_REQUEST['batch_size'] ?? 'no_provided',
+	          'final_value' => $batch_size
+	      ]);
+	      
+	      // UNIFICACIÓN: Usar una sola opción para el tamaño de lote
+	      // Eliminar configuraciones redundantes y usar solo 'mi_integracion_api_batch_size'
+	      update_option('mi_integracion_api_batch_size', $batch_size);
+	      
+	      // Para compatibilidad temporal, también actualizar la opción legacy
+	      // TODO: Remover esto en versiones futuras una vez que todo el código use la nueva opción
+	      update_option('mi_integracion_api_optimal_batch_size', $batch_size);
   
     		// Decidir si iniciar una nueva sincronización o procesar el siguiente lote
     		try {
@@ -1070,14 +1080,15 @@ class AjaxSync {
     				$recovery_mode = !empty($_REQUEST['recovery_mode']);
     				
     				// SOLUCIÓN RADICAL: Interceptar posibles errores de WP_Error como array
-    				try {
-    					// Añadimos información detallada antes de procesar
-    					$logger->info('Procesando siguiente lote con tamaño: ' . $batch_size, [
-    						'memory_before' => memory_get_usage(true),
-    						'time_before' => microtime(true),
-    						'recovery_mode' => $recovery_mode,
-    						'batch_size' => $batch_size
-    					]);
+    				try {					// Añadimos información detallada antes de procesar
+					$logger->info('Procesando siguiente lote', [
+						'memory_before' => memory_get_usage(true),
+						'time_before' => microtime(true),
+						'recovery_mode' => $recovery_mode,
+						'batch_size_from_request' => $batch_size,
+						'batch_size_stored' => get_option('mi_integracion_api_batch_size', 'not_set'),
+						'batch_size_legacy' => get_option('mi_integracion_api_optimal_batch_size', 'not_set')
+					]);
     					
     					$result = $sync_manager->process_next_batch($recovery_mode);
     					
@@ -1236,34 +1247,85 @@ class AjaxSync {
     		], 500);
     	}
     }
-}
-
-/*
-JavaScript para cargar opciones de filtros (mover a archivo JS separado en producción)
-jQuery(document).ready(function($) {
-	// Carga inicial de opciones de filtros
-	$.post(ajaxurl, {
-		action: 'mia_load_filter_options',
-		_ajax_nonce: (typeof miIntegracionApiDashboard !== 'undefined' ? miIntegracionApiDashboard.nonce : '')
-	}, function(response) {
-		console.log('AJAX filtros:', response); // DEBUG
-		if (response.success) {
-			// Población de selectores de categorías y fabricantes
-			var $categoriaSelect = $('#id_categoria_verial');
-			var $fabricanteSelect = $('#id_fabricante_verial');
-
-			$categoriaSelect.empty().append('<option value="0">Todas las categorías</option>');
-			$.each(response.data.categories, function(index, category) {
-				$categoriaSelect.append('<option value="' + category.id + '">' + category.nombre + '</option>');
-			});
-
-			$fabricanteSelect.empty().append('<option value="0">Todos los fabricantes</option>');
-			$.each(response.data.manufacturers, function(index, manufacturer) {
-				$fabricanteSelect.append('<option value="' + manufacturer.id + '">' + manufacturer.nombre + '</option>');
-			});
-		} else {
-			console.error('Error al cargar opciones de filtros:', response.message);
+    
+    // Handler para guardar el batch size seleccionado
+	public static function save_batch_size() {
+		// Validar nonce y permisos
+		check_ajax_referer( MiIntegracionApi_NONCE_PREFIX . 'dashboard', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ], 403 );
 		}
-	});
-});
-*/
+
+		$batch_size = isset($_POST['batch_size']) ? intval($_POST['batch_size']) : 20;
+		$batch_size = max(5, min($batch_size, 100)); // Validar rango
+
+		// Guardar la configuración
+		update_option('mi_integracion_api_batch_size', $batch_size);
+
+		// Log de la operación
+		$logger = new Logger('batch-size-config');
+		$logger->info('Batch size actualizado por el usuario', [
+			'new_size' => $batch_size,
+			'user_id' => get_current_user_id(),
+			'timestamp' => current_time('mysql')
+		]);
+
+		wp_send_json_success([
+			'message' => sprintf(__('Tamaño de lote guardado: %d productos', 'mi-integracion-api'), $batch_size),
+			'batch_size' => $batch_size
+		]);
+	}
+
+	// Handler para diagnosticar rangos problemáticos
+	public static function diagnose_range() {
+		// Validar nonce y permisos
+		check_ajax_referer( MiIntegracionApi_NONCE_PREFIX . 'dashboard', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ], 403 );
+		}
+
+		$inicio = isset($_POST['inicio']) ? intval($_POST['inicio']) : 0;
+		$fin = isset($_POST['fin']) ? intval($_POST['fin']) : 0;
+		$deep_analysis = isset($_POST['deep_analysis']) && $_POST['deep_analysis'] === 'true';
+
+		if ($inicio <= 0 || $fin <= 0 || $inicio > $fin) {
+			wp_send_json_error(['message' => 'Rango inválido especificado']);
+		}
+
+		try {
+			// Obtener instancia del Sync Manager
+			if (!class_exists('\MiIntegracionApi\Core\Sync_Manager')) {
+				require_once dirname(__DIR__) . '/Core/Sync_Manager.php';
+			}
+			
+			$sync_manager = \MiIntegracionApi\Core\Sync_Manager::get_instance();
+			$diagnostic_result = $sync_manager->diagnose_problematic_range($inicio, $fin, $deep_analysis);
+
+			// Log de la operación
+			$logger = new Logger('range-diagnostics');
+			$logger->info('Diagnóstico de rango ejecutado', [
+				'range' => [$inicio, $fin],
+				'deep_analysis' => $deep_analysis,
+				'issues_found' => count($diagnostic_result['issues_found']),
+				'user_id' => get_current_user_id()
+			]);
+
+			wp_send_json_success([
+				'message' => sprintf(__('Diagnóstico completado para rango %d-%d', 'mi-integracion-api'), $inicio, $fin),
+				'diagnostic_result' => $diagnostic_result
+			]);
+
+		} catch (\Exception $e) {
+			$logger = new Logger('range-diagnostics');
+			$logger->error('Error en diagnóstico de rango', [
+				'range' => [$inicio, $fin],
+				'error' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
+
+			wp_send_json_error([
+				'message' => __('Error al ejecutar diagnóstico: ', 'mi-integracion-api') . $e->getMessage()
+			]);
+		}
+	}
+}

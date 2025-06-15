@@ -1445,9 +1445,82 @@ class ApiConnector {
             // Actualizar timeout en args
             $args['timeout'] = $timeout;
             
-            // Realizar la solicitud
+            // Realizar la solicitud y capturar información detallada
+            $request_start_time = microtime(true);
             if (function_exists('wp_remote_request')) {
                 $response = wp_remote_request($url, $args);
+                $request_end_time = microtime(true);
+                $request_duration = $request_end_time - $request_start_time;
+                
+                // Análisis detallado de la respuesta para diagnóstico
+                $is_wp_error = is_wp_error($response);
+                $response_code = $is_wp_error ? 'error' : wp_remote_retrieve_response_code($response);
+                $response_message = $is_wp_error ? $response->get_error_message() : wp_remote_retrieve_response_message($response);
+                $response_headers = $is_wp_error ? [] : wp_remote_retrieve_headers($response);
+                $response_body = $is_wp_error ? '' : wp_remote_retrieve_body($response);
+                $response_size = strlen($response_body);
+                
+                // Log detallado de la respuesta para rangos específicos o errores
+                $should_log_detailed = $is_wp_error || $response_size == 0 || $response_code >= 400;
+                
+                // También log detallado si estamos en un rango problemático conocido
+                if (!$should_log_detailed && strpos($url, 'GetArticulosWS') !== false) {
+                    // Extraer parámetros inicio y fin de la URL para detectar rangos problemáticos
+                    preg_match('/inicio=(\d+)/', $url, $inicio_matches);
+                    preg_match('/fin=(\d+)/', $url, $fin_matches);
+                    
+                    if (!empty($inicio_matches[1]) && !empty($fin_matches[1])) {
+                        $inicio = (int)$inicio_matches[1];
+                        $fin = (int)$fin_matches[1];
+                        
+                        // Rangos problemáticos conocidos - expandidos basado en patrones detectados
+                        $problematic_ranges = [
+                            // Rangos conocidos con problemas confirmados
+                            [2601, 2610], [2801, 2810], [3101, 3110],
+                            
+                            // Rangos expandidos basados en patrones detectados
+                            [2501, 2510], [2701, 2710], [2901, 2910], [3001, 3010], [3201, 3210],
+                            [3301, 3310], [3401, 3410], [3501, 3510], [3601, 3610], [3701, 3710],
+                            
+                            // Rangos adicionales en franjas críticas
+                            [2401, 2410], [2481, 2490], [2581, 2590], [2681, 2690], [2781, 2790],
+                            [2881, 2890], [2981, 2990], [3081, 3090], [3181, 3190], [3281, 3290],
+                            
+                            // Rangos de productos con IDs específicos que pueden causar problemas
+                            [1, 10], [91, 100], [191, 200], [291, 300], [391, 400],
+                            [991, 1000], [1991, 2000], [2991, 3000], [3991, 4000], [4991, 5000]
+                        ];
+                        
+                        foreach ($problematic_ranges as $range) {
+                            if (($inicio >= $range[0] && $inicio <= $range[1]) || 
+                                ($fin >= $range[0] && $fin <= $range[1])) {
+                                $should_log_detailed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if ($should_log_detailed) {
+                    $this->logger->info('[HTTP_DETAILED] Respuesta detallada capturada', [
+                        'url' => $url,
+                        'method' => $method,
+                        'request_duration' => round($request_duration, 4),
+                        'response_code' => $response_code,
+                        'response_message' => $response_message,
+                        'response_size' => $response_size,
+                        'response_headers' => array_slice((array)$response_headers, 0, 10), // Limitar headers
+                        'response_first_200_chars' => substr($response_body, 0, 200),
+                        'response_last_100_chars' => $response_size > 100 ? substr($response_body, -100) : '',
+                        'is_json' => json_decode($response_body) !== null,
+                        'json_error' => json_last_error_msg(),
+                        'attempt' => $attempt + 1,
+                        'is_wp_error' => $is_wp_error,
+                        'memory_usage' => memory_get_usage(true),
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ]);
+                }
+                
                 $is_wp_error = is_wp_error($response);
             } else {
                 // Fallback usando cURL directo cuando no hay WordPress
@@ -2364,5 +2437,60 @@ class ApiConnector {
         ];
         
         return $info;
+    }
+
+    /**
+     * Analiza la estructura de una respuesta para detectar patrones
+     */
+    private function analyzeResponseStructure($response) {
+        if (!is_array($response)) {
+            return ['type' => gettype($response), 'structure' => 'no_array'];
+        }
+        
+        $structure = [
+            'keys' => array_keys($response),
+            'has_table' => isset($response['Table']),
+            'table_count' => isset($response['Table']) && is_array($response['Table']) ? count($response['Table']) : 0,
+            'has_error' => isset($response['InfoError']),
+            'total_keys' => count($response)
+        ];
+        
+        return $structure;
+    }
+    
+    /**
+     * Extrae el rango de productos de una URL
+     */
+    private function extractRangeFromUrl($url) {
+        $range = ['inicio' => null, 'fin' => null];
+        
+        if (preg_match('/inicio=(\d+)/', $url, $inicio_matches)) {
+            $range['inicio'] = (int)$inicio_matches[1];
+        }
+        
+        if (preg_match('/fin=(\d+)/', $url, $fin_matches)) {
+            $range['fin'] = (int)$fin_matches[1];
+        }
+        
+        return $range;
+    }
+    
+    /**
+     * Genera información diagnóstica detallada
+     */
+    private function generateDiagnosticInfo($url, $response_code, $response_body) {
+        return [
+            'url_length' => strlen($url),
+            'response_code' => $response_code,
+            'body_length' => strlen($response_body),
+            'body_md5' => md5($response_body),
+            'is_json' => json_decode($response_body) !== null,
+            'json_error' => json_last_error_msg(),
+            'contains_table' => strpos($response_body, '"Table"') !== false,
+            'contains_error' => strpos($response_body, '"InfoError"') !== false,
+            'php_memory' => memory_get_usage(true),
+            'timestamp' => microtime(true),
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
+        ];
     }
 }
