@@ -250,6 +250,13 @@ class Sync_Manager {
 			// Obtener tamaño óptimo de lote desde opciones (actualizado por AjaxSync cuando el usuario lo selecciona)
 			$optimal_batch_size = get_option('mi_integracion_api_optimal_batch_size', 20); // Cambiado de 40 a 20 como valor por defecto
 			
+			// Validar que el tamaño del lote esté en un rango razonable
+			if ($optimal_batch_size < 5) {
+				$optimal_batch_size = 10; // Mínimo 5, pero recomendamos 10 como mínimo seguro
+			} elseif ($optimal_batch_size > 100) {
+				$optimal_batch_size = 100; // Máximo 100
+			}
+			
 			// Usar el valor óptimo seleccionado por el usuario o calculado automáticamente
 			$original_batch_size = $batch_size;
 			$batch_size = $optimal_batch_size; // Usar directamente el tamaño óptimo
@@ -258,12 +265,13 @@ class Sync_Manager {
 			if ($batch_size != $original_batch_size && class_exists('\MiIntegracionApi\Helpers\Logger')) {
 				$logger = new \MiIntegracionApi\Helpers\Logger('sync-config');
 				$logger->info(
-					sprintf('Ajustando tamaño de lote de %d a %d basado en experiencia previa',
+					sprintf('Ajustando tamaño de lote de %d a %d basado en la selección del usuario',
 						$original_batch_size, $batch_size),
 					[
 						'entity' => $entity,
 						'direction' => $direction,
-						'optimal_size_from_options' => $optimal_batch_size
+						'optimal_size_from_options' => $optimal_batch_size,
+						'request_batch_size' => isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : 'no_especificado'
 					]
 				);
 			}
@@ -481,6 +489,27 @@ class Sync_Manager {
 			} else {
 				// Para productos desde Verial, registrar el tamaño original para ajuste
 				$original_batch_size = $batch_size;
+				
+				// Recuperar el tamaño de lote seleccionado por el usuario (más reciente)
+				$user_selected_batch_size = get_option('mi_integracion_api_optimal_batch_size', 20);
+				
+				// Usar el tamaño seleccionado por el usuario si está disponible
+				if ($user_selected_batch_size > 0) {
+					$batch_size = $user_selected_batch_size;
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-size');
+						$logger->info(
+							sprintf('Usando tamaño de lote seleccionado por el usuario: %d', $batch_size),
+							[
+								'offset' => $offset,
+								'batch' => $current_batch,
+								'original_batch_size' => $original_batch_size,
+								'user_selected_batch_size' => $user_selected_batch_size
+							]
+						);
+					}
+				}
 				
 				// Implementación de seguridad adicional: forzar tamaño máximo de lote seguro
 				if ($batch_size > 50) {
@@ -1117,30 +1146,27 @@ class Sync_Manager {
 	 * @return array|WP_Error Resultado de la operación
 	 */
 	private function sync_products_from_verial( $offset, $limit, $filters ) {
-		// Usar el tamaño de lote seleccionado por el usuario, almacenado en las opciones
-		$optimal_batch_size = (int) get_option('mi_integracion_api_optimal_batch_size', 40);
-		$max_safe_batch_size = $optimal_batch_size; // Usar el valor seleccionado por el usuario
+		// CORRECCIÓN: Usar el tamaño de lote seleccionado por el usuario, almacenado en las opciones
+		$optimal_batch_size = (int) get_option('mi_integracion_api_optimal_batch_size', 20);
 		$original_limit = $limit;
 		
-		// Verificar si el tamaño solicitado es mucho mayor que el óptimo (más del doble)
-		if ($limit > ($optimal_batch_size * 2) && $limit > 80) {
-			// Ajustar el límite para esta ejecución, pero respetando un tamaño razonable
-			$limit = min($limit, max($optimal_batch_size, 80)); 
-			
-			// Registrar ajuste automático
-			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
-				$logger->warning(
-					sprintf('Tamaño de lote excesivamente alto (%d). Ajustando a %d',
-						$original_limit, $limit),
-					[
-						'offset' => $offset,
-						'original_limit' => $original_limit,
-						'adjusted_limit' => $limit,
-						'optimal_batch_size' => $optimal_batch_size
-					]
-				);
-			}
+		// Asegurarse de que siempre usamos el tamaño de lote seleccionado por el usuario
+		$limit = $optimal_batch_size;
+		
+		// Registrar uso de tamaño de lote para diagnóstico
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+			$logger->info(
+				sprintf('Usando tamaño de lote seleccionado: %d (recibido: %d)',
+					$limit, $original_limit),
+				[
+					'offset' => $offset,
+					'original_limit' => $original_limit,
+					'actual_limit' => $limit,
+					'optimal_batch_size_from_option' => $optimal_batch_size,
+					'request_batch_size' => isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : 'no_especificado'
+				]
+			);
 		}
 		
 		// Guardar progreso actual para recuperación
