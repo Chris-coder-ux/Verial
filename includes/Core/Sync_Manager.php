@@ -275,6 +275,58 @@ class Sync_Manager {
 					]
 				);
 			}
+			
+			// NUEVA FUNCIONALIDAD: Prevalidar rangos disponibles antes de iniciar sincronización
+			// Esto solo se hace para sincronización de productos desde Verial a WooCommerce
+			$prevalidation_enabled = apply_filters('mi_integracion_api_enable_prevalidation', true);
+			
+			if ($prevalidation_enabled && $total_items > 0) {
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+					$logger->info('Iniciando prevalidación de rangos de productos', [
+						'total_productos' => $total_items,
+						'filtros' => $filters
+					]);
+				}
+				
+				// Almacenar prevalidación en transient
+				$availability_map = $this->prevalidate_product_ranges($total_items, $batch_size, $filters);
+				
+				// Ajustar el total real basado en los productos encontrados
+				if ($availability_map['total_available'] > 0 && $availability_map['total_available'] < $total_items) {
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+						$logger->warning(
+							sprintf('Ajustando conteo de productos de %d a %d basado en prevalidación',
+								$total_items, $availability_map['total_available']),
+							[
+								'original_count' => $total_items,
+								'available_count' => $availability_map['total_available'],
+								'problematic_count' => $availability_map['total_problematic'],
+								'problematic_ranges' => $availability_map['problematic_ranges']
+							]
+						);
+					}
+					
+					// Solo si la diferencia es significativa
+					if ($availability_map['total_available'] < ($total_items * 0.9)) {
+						$total_items = $availability_map['total_available'];
+						
+						// También mostrar una notificación si hay muchos rangos problemáticos
+						if (count($availability_map['problematic_ranges']) > 0) {
+							add_action('admin_notices', function() use ($availability_map) {
+								echo '<div class="notice notice-warning is-dismissible">';
+								echo '<p><strong>' . esc_html__('Mi Integración API:', 'mi-integracion-api') . '</strong> ';
+								echo esc_html__(
+									sprintf('Se han detectado %d rangos problemáticos que podrían causar problemas durante la sincronización. Los productos en estos rangos serán omitidos.',
+										count($availability_map['problematic_ranges']))
+								);
+								echo '</p></div>';
+							});
+						}
+					}
+				}
+			}
 		}
 		
 		$total_batches = $total_items > 0 ? (int) ceil( $total_items / $batch_size ) : 0;
@@ -569,27 +621,86 @@ class Sync_Manager {
 					$error_code = $result->get_error_code();
 					$error_data = $result->get_error_data();
 					
+					// Verificar si debemos saltar el rango problemático
+					if ($error_code === 'problematic_product_range' && 
+						isset($error_data['skip_recommended']) && $error_data['skip_recommended']) {
+						
+						// Registrar decisión de omitir el rango
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-skip');
+							$logger->warning(
+								sprintf('Omitiendo rango problemático de productos %d-%d', 
+									$error_data['range'][0] ?? $offset, 
+									$error_data['range'][1] ?? ($offset + $batch_size - 1)),
+								[
+									'error_code' => $error_code,
+									'offset' => $offset,
+									'batch_size' => $batch_size,
+									'mensaje' => $result->get_error_message()
+								]
+							);
+						}
+						
+						// Avanzar al siguiente lote
+						$this->sync_status['current_sync']['current_batch']++;
+						$this->sync_status['current_sync']['items_synced'] += $batch_size;
+						$this->sync_status['current_sync']['errors']++;
+						$this->sync_status['current_sync']['last_update'] = time();
+						$this->sync_status['current_sync']['last_error'] = sprintf(
+							__('Omitido rango problemático: %s', 'mi-integracion-api'),
+							$result->get_error_message()
+						);
+						$this->save_sync_status();
+						
+						// Registrar el rango omitido para futura referencia
+						$skipped_ranges = get_option('mi_integracion_api_skipped_ranges', []);
+						$skipped_ranges[] = [
+							'inicio' => $error_data['range'][0] ?? $offset,
+							'fin' => $error_data['range'][1] ?? ($offset + $batch_size - 1),
+							'fecha' => date('Y-m-d H:i:s'),
+							'razon' => $result->get_error_message()
+						];
+						update_option('mi_integracion_api_skipped_ranges', $skipped_ranges);
+						
+						// Devolver un resultado de éxito parcial
+						return [
+							'status' => 'range_skipped',
+							'message' => sprintf(__('Rango %d-%d omitido: %s', 'mi-integracion-api'),
+								$error_data['range'][0] ?? $offset, 
+								$error_data['range'][1] ?? ($offset + $batch_size - 1),
+								$result->get_error_message()),
+							'current_batch' => $this->sync_status['current_sync']['current_batch'],
+							'total_batches' => $this->sync_status['current_sync']['total_batches'],
+							'items_synced' => $this->sync_status['current_sync']['items_synced'],
+							'total_items' => $this->sync_status['current_sync']['total_items'],
+							'percentage' => floor(($this->sync_status['current_sync']['items_synced'] / $this->sync_status['current_sync']['total_items']) * 100),
+							'skipped_range' => $error_data['range'] ?? [$offset, $offset + $batch_size - 1]
+						];
+					}
+					
 					// Verificar si debemos intentar una subdivisión automática del lote
-					if (($error_code === 'batch_too_large' || $error_code === 'empty_response') &&
+					if ((($error_code === 'batch_too_large' || $error_code === 'empty_response' || 
+						 $error_code === 'empty_response_in_problematic_range')) &&
 						isset($error_data['subdivision_recommended']) && $error_data['subdivision_recommended']) {
 						
 						// Registrar intento de subdivisión
 						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
 							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-subdivision');
 							$logger->warning(
-								'Iniciando subdivisión automática del lote debido a timeout persistente',
+								'Iniciando subdivisión automática del lote debido a respuesta vacía/timeout',
 								[
 									'error_code' => $error_code,
 									'offset' => $offset,
 									'original_batch_size' => $batch_size,
-									'suggested_size' => $error_data['suggested_size'] ?? floor($batch_size / 2)
+									'suggested_size' => $error_data['suggested_size'] ?? floor($batch_size / 2),
+									'message' => $result->get_error_message()
 								]
 							);
 						}
 						
 						// Calcular nuevo tamaño de lote reducido
 						$new_batch_size = $error_data['suggested_size'] ?? floor($batch_size / 2);
-						if ($new_batch_size < 10) $new_batch_size = 10; // Mínimo 10 elementos
+						if ($new_batch_size < 1) $new_batch_size = 1; // Mínimo 1 elemento para rangos problemáticos
 						
 						// Crear un nuevo resultado que indique subdivisión
 						return [
@@ -1194,6 +1305,103 @@ class Sync_Manager {
 			}
 		}
 		
+		// NUEVA FUNCIONALIDAD: Verificar si este rango se ha identificado como problemático
+		// en la prevalidación
+		$availability_map = get_transient('mia_sync_product_availability_map');
+		if (is_array($availability_map) && isset($availability_map['problematic_ranges'])) {
+			$is_problematic_range = false;
+			
+			// Comprobar si el rango actual está dentro de algún rango problemático
+			foreach ($availability_map['problematic_ranges'] as $problematic_range) {
+				if (
+					($inicio >= $problematic_range[0] && $inicio <= $problematic_range[1]) ||
+					($fin >= $problematic_range[0] && $fin <= $problematic_range[1]) ||
+					($problematic_range[0] >= $inicio && $problematic_range[0] <= $fin)
+				) {
+					$is_problematic_range = true;
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+						$logger->warning(
+							sprintf('Lote actual %d-%d está en un rango problemático conocido %d-%d, intentando subdividir.',
+								$inicio, $fin, $problematic_range[0], $problematic_range[1])
+						);
+					}
+					
+					// Si el lote ya es muy pequeño, simplemente saltarlo con un resultado vacío
+					if ($batch_size <= 5) {
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+							$logger->info(
+								sprintf('Saltando lote pequeño en rango problemático: %d-%d', $inicio, $fin)
+							);
+						}
+						
+						// Devolver un resultado vacío pero exitoso
+						return [
+							'count' => 0,
+							'errors' => [],
+							'skipped' => true,
+							'reason' => 'problematic_range',
+							'range' => [$inicio, $fin]
+						];
+					}
+					
+					// Si el lote es más grande, intentar subdividirlo
+					$half_size = (int)($batch_size / 2);
+					$mid_point = $inicio + $half_size - 1;
+					
+					// Procesar la primera mitad
+					$first_half = $this->sync_products_from_verial($offset, $half_size, $filters);
+					
+					// Si hay error en la primera mitad, intentar con tamaños aún más pequeños
+					if (is_wp_error($first_half)) {
+						// Seguir subdividiendo
+						$quarter_size = (int)($half_size / 2);
+						if ($quarter_size < 2) $quarter_size = 2;
+						
+						$first_half = $this->sync_products_from_verial($offset, $quarter_size, $filters);
+						$second_quarter = $this->sync_products_from_verial($offset + $quarter_size, $quarter_size, $filters);
+						
+						// Combinar resultados
+						if (!is_wp_error($first_half) && !is_wp_error($second_quarter)) {
+							$first_half['count'] += $second_quarter['count'];
+							$first_half['errors'] = array_merge($first_half['errors'], $second_quarter['errors']);
+						}
+					}
+					
+					// Procesar la segunda mitad
+					$second_half = $this->sync_products_from_verial($offset + $half_size, $limit - $half_size, $filters);
+					
+					// Combinar resultados
+					if (!is_wp_error($first_half) && !is_wp_error($second_half)) {
+						return [
+							'count' => $first_half['count'] + $second_half['count'],
+							'errors' => array_merge($first_half['errors'], $second_half['errors']),
+							'subdivided' => true,
+						];
+					} else if (!is_wp_error($first_half)) {
+						return $first_half;
+					} else if (!is_wp_error($second_half)) {
+						return $second_half;
+					} else {
+						// Ambos intentos fallaron, devolver un error específico
+						return new \WP_Error(
+							'problematic_range',
+							sprintf(__('El rango %d-%d no puede ser procesado debido a un problema conocido en la API.', 'mi-integracion-api'), 
+								$inicio, $fin),
+							[
+								'rango' => [$inicio, $fin],
+								'problematic_range' => $problematic_range,
+								'first_half_error' => $first_half->get_error_message(),
+								'second_half_error' => $second_half->get_error_message()
+							]
+						);
+					}
+				}
+			}
+		}
+		
 		// Asegurarnos de que los parámetros estén correctamente formateados y sean consistentes
 		// IMPORTANTE: Para GET, el parámetro de sesión debe ser 'x' para V1.8, NO 'sesionwcf' según documentación v1.8
 		$params = array(
@@ -1301,6 +1509,56 @@ class Sync_Manager {
 					]
 				);
 			}
+			
+			// ---- MEJORA: Analizar si estamos en un caso de rango problemático específico ----
+			// Ciertos rangos de productos parecen causar problemas consistentemente (ej. 2500-2510)
+			$error_code = $response->get_error_code();
+			$is_known_problematic_range = ($inicio >= 2500 && $inicio <= 2600);
+			
+			if ($error_code === 'http_request_failed' && $is_known_problematic_range) {
+				// Intentar una estrategia diferente para rangos problemáticos conocidos
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-problematic-range');
+					$logger->warning(
+						sprintf('Detectado rango problemático conocido: %d-%d. Recomendando subdivisión.',
+							$inicio, $fin),
+						[
+							'error_code' => $error_code,
+							'error_message' => $response->get_error_message(),
+							'params' => $params
+						]
+					);
+				}
+				
+				// Si el lote ya es mínimo (<=5 productos), informar del problema específico
+				if (($fin - $inicio + 1) <= 5) {
+					return new \WP_Error(
+						'problematic_product_range',
+						sprintf(__('Los productos en el rango %d-%d no pueden sincronizarse debido a un error conocido en la API de Verial. Intente sincronizar productos individuales para este rango.', 'mi-integracion-api'), 
+							$inicio, $fin),
+						[
+							'original_error' => $response->get_error_message(),
+							'params' => $params,
+							'range' => [$inicio, $fin],
+							'skip_recommended' => true  // Indica que se podría saltar este rango
+						]
+					);
+				} else {
+					// Recomendar subdivisión para intentar sincronizar productos individuales
+					return new \WP_Error(
+						'batch_too_large',
+						sprintf(__('Rango problemático detectado (%d-%d). Se intentará sincronizar productos individuales.', 'mi-integracion-api'),
+							$inicio, $fin),
+						[
+							'subdivision_recommended' => true,
+							'original_range' => [$inicio, $fin],
+							'suggested_size' => 1,  // Intentar sincronizar productos individuales
+							'params' => $params
+						]
+					);
+				}
+			}
+			
 			return $response;
 		}
 
@@ -1332,8 +1590,122 @@ class Sync_Manager {
 				);
 			}
 			
+			// --- MEJORA: Detectar rangos específicos problemáticos ---
+			$is_known_problematic_range = ($inicio >= 2500 && $inicio <= 2600);
+			
+			if ($is_known_problematic_range) {
+				// Específicamente para el rango problemático que hemos identificado
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-problematic-range');
+					$logger->warning(
+						sprintf('Respuesta vacía en rango problemático conocido: %d-%d. Implementando estrategia especial.',
+							$inicio, $fin),
+						[
+							'batch_size' => $fin - $inicio + 1,
+							'retry_count' => $retry_count
+						]
+					);
+				}
+				
+				// Intentar un diagnóstico para verificar si podemos acceder a productos individuales
+				// Solo hacerlo si estamos en un lote pequeño para no saturar la API
+				if (($fin - $inicio + 1) <= 5) {
+					$diagnostic_success = false;
+					
+					// Intentar acceder a SKUs específicos de este rango para diagnóstico
+					try {
+						// Intento de diagnóstico: verificar si podemos acceder a los productos por SKU
+						$diag_logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-diagnostic');
+						$diag_logger->info('Iniciando diagnóstico para rango problemático', [
+							'inicio' => $inicio,
+							'fin' => $fin
+						]);
+						
+						// Buscar SKUs que correspondan a este rango
+						global $wpdb;
+						$sku_query = $wpdb->prepare(
+							"SELECT meta_value FROM {$wpdb->postmeta} 
+							 WHERE meta_key = '_sku' 
+							 AND post_id IN (
+								SELECT ID FROM {$wpdb->posts} 
+								WHERE post_type = 'product' AND post_status = 'publish'
+							 ) LIMIT 5"
+						);
+						$skus = $wpdb->get_col($sku_query);
+						
+						if (!empty($skus)) {
+							// Intentar obtener estos productos por SKU en lugar de por rango
+							$diagnostic_params = [
+								'sku' => $skus[0], // Intentar con el primer SKU
+								'x' => $this->api_connector->get_session_number()
+							];
+							
+							$diag_logger->info('Intentando obtener producto por SKU', [
+								'sku' => $skus[0],
+								'params' => $diagnostic_params
+							]);
+							
+							// Usar opciones especiales para este intento de diagnóstico
+							$diag_options = [
+								'timeout' => 30,
+								'diagnostics' => true,
+								'trace_request' => true
+							];
+							
+							$diag_response = $this->api_connector->get('GetArticulosBySKU', $diagnostic_params, $diag_options);
+							
+							if (!is_wp_error($diag_response) && !empty($diag_response)) {
+								$diagnostic_success = true;
+								$diag_logger->info('Diagnóstico exitoso: se pueden obtener productos por SKU', [
+									'sku_response' => is_array($diag_response) ? count($diag_response) : 'no es array'
+								]);
+							} else {
+								$diag_logger->warning('Diagnóstico fallido: no se pueden obtener productos por SKU', [
+									'error' => is_wp_error($diag_response) ? $diag_response->get_error_message() : 'respuesta vacía'
+								]);
+							}
+						}
+					} catch (\Exception $e) {
+						// Ignorar errores de diagnóstico, solo estamos recopilando información
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-diagnostic');
+							$logger->error('Error en diagnóstico: ' . $e->getMessage());
+						}
+					}
+					
+					// Si el lote ya es muy pequeño y aún falla, recomendar omitir
+					return new \WP_Error(
+						'problematic_product_range',
+						sprintf(__('Los productos en el rango %d-%d consistentemente devuelven respuestas vacías desde la API de Verial. Se recomienda omitir este rango y sincronizar productos individualmente por SKU.', 'mi-integracion-api'), 
+							$inicio, $fin),
+						[
+							'params' => $params,
+							'range' => [$inicio, $fin],
+							'skip_recommended' => true,
+							'status_code' => $status_code,
+							'diagnostic_success' => $diagnostic_success,
+							'alternative_method' => 'GetArticulosBySKU'
+						]
+					);
+				}
+				
+				// Subdividir en lotes muy pequeños para intentar identificar productos individuales problemáticos
+				return new \WP_Error(
+					'empty_response_in_problematic_range',
+					sprintf(__('Respuesta vacía en rango problemático conocido (%d-%d). Intentando subdivisión agresiva.', 'mi-integracion-api'),
+						$inicio, $fin),
+					[
+						'subdivision_recommended' => true,
+						'original_range' => [$inicio, $fin],
+						'suggested_size' => 2, // Intentar con lotes muy pequeños
+						'params' => $params,
+						'status_code' => $status_code
+					]
+				);
+			}
+			
 			// Verificar si debemos intentar una subdivisión automática del lote
-			if (($fin - $inicio + 1) > 20 && $retry_count >= $max_retries) {
+			if (($fin - $inicio + 1) > 5 && $retry_count >= $max_retries) {
 				// Registrar intento de subdivisión
 				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
 					$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-subdivision');
@@ -1341,7 +1713,8 @@ class Sync_Manager {
 						'Intentando subdividir lote para evitar timeout',
 						[
 							'lote_original' => [$inicio, $fin],
-							'tamaño' => $fin - $inicio + 1
+							'tamaño' => $fin - $inicio + 1,
+							'nueva_estrategia' => 'subdivisión_agresiva'
 						]
 					);
 				}
@@ -1460,10 +1833,12 @@ class Sync_Manager {
 					[
 						'codigo' => $data['InfoError']['Codigo'],
 						'params' => $params,
-						'response_status' => $status_code,
-						'response_message' => wp_remote_retrieve_response_message($response),
-						'response_headers' => wp_remote_retrieve_headers($response),
-						'api_url' => $api_url
+						'response_status' => $api_url,
+						'retry_count' => $retry_count,
+						'batch_size' => $fin - $inicio + 1,
+						'memory_usage' => memory_get_usage(true),
+						'peak_memory' => memory_get_peak_usage(true),
+						'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
 					]
 				);
 			}
@@ -2097,7 +2472,7 @@ class Sync_Manager {
 		global $wpdb;
 
 		$run_id = $this->sync_status['current_sync']['run_id'] ?? 'unknown';
-		$sku = $item_data['ReferenciaBarras'] ?? $item_data['Id'] ?? $item_data['CodigoArticulo'] ?? 'no-sku';
+		$sku = $item_data['ReferenciaBarras'] ?? $item_data['Id'] ?? 'no-sku';
 
 		$table_name = $wpdb->prefix . Installer::SYNC_ERRORS_TABLE;
 
@@ -2875,5 +3250,160 @@ class Sync_Manager {
 			'analysis' => $performance_metrics,
 			'raw_data_count' => count($batch_times)
 		];
+	}
+	
+	/**
+	 * Verifica la disponibilidad de rangos de productos en Verial antes de la sincronización
+	 * Esta función prueba bloques más grandes para identificar rápidamente qué rangos existen
+	 * y cuáles son problemáticos.
+	 *
+	 * @param int $total_items Total de items reportados por GetNumArticulosWS
+	 * @param int $batch_size Tamaño del lote para pruebas
+	 * @param array $filters Filtros aplicados
+	 * @return array Mapa de rangos disponibles y problemáticos
+	 */
+	private function prevalidate_product_ranges($total_items, $batch_size, $filters = []) {
+		// Inicializar resultado
+		$result = [
+			'available_ranges' => [],
+			'problematic_ranges' => [],
+			'empty_ranges' => [],
+			'total_available' => 0,
+			'total_problematic' => 0,
+		];
+		
+		// Determinar el tamaño de bloque para pruebas rápidas
+		// Usamos bloques más grandes para la prevalidación para reducir el número de llamadas
+		$test_block_size = max(100, $batch_size * 5);
+		
+		// Calcular número de bloques necesarios para cubrir todos los items
+		$total_blocks = ceil($total_items / $test_block_size);
+		
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+			$logger->info(
+				sprintf('Iniciando prevalidación de %d bloques con tamaño %d para %d productos',
+					$total_blocks, $test_block_size, $total_items),
+				['filters' => $filters]
+			);
+		}
+		
+		// Ejecutar prueba para cada bloque grande
+		for ($block = 0; $block < $total_blocks; $block++) {
+			$inicio = ($block * $test_block_size) + 1; // API Verial comienza en 1
+			$fin = min(($block + 1) * $test_block_size, $total_items);
+			
+			// Crear parámetros de solicitud
+			$params = [
+				'inicio' => $inicio,
+				'fin' => $fin,
+				'x' => $this->api_connector->get_session_number(),
+			];
+			
+			// Añadir filtros de fecha/hora si existen
+			if (!empty($filters['modified_after'])) {
+				$params['fecha'] = date('Y-m-d', $filters['modified_after']);
+				if (!empty($filters['modified_after_time'])) {
+					$params['hora'] = $filters['modified_after_time'];
+				} else {
+					$params['hora'] = date('H:i:s', $filters['modified_after']);
+				}
+			}
+			
+			// Registrar prueba de bloque
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+				$logger->debug(
+					sprintf('Probando bloque %d/%d (rango %d-%d)',
+						$block + 1, $total_blocks, $inicio, $fin),
+					['params' => $params]
+				);
+			}
+			
+			// Hacer solicitud con timeout reducido para la prueba
+			$api_options = [
+				'timeout' => 30,
+				'wp_args' => ['timeout' => 30]
+			];
+			
+			$response = $this->api_connector->get('GetArticulosWS', $params, $api_options);
+			
+			if (is_wp_error($response)) {
+				// Rango problemático
+				$result['problematic_ranges'][] = [$inicio, $fin];
+				$result['total_problematic'] += ($fin - $inicio + 1);
+				
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+					$logger->warning(
+						sprintf('Bloque problemático detectado: %d-%d', $inicio, $fin),
+						[
+							'error' => $response->get_error_message(),
+							'code' => $response->get_error_code(),
+							'data' => $response->get_error_data()
+						]
+					);
+				}
+			} else {
+				// Analizar respuesta
+				$body = wp_remote_retrieve_body($response);
+				$data = json_decode($body, true);
+				
+				// Verificar errores específicos de API Verial
+				if (isset($data['InfoError']) && isset($data['InfoError']['Codigo']) && $data['InfoError']['Codigo'] != 0) {
+					$result['problematic_ranges'][] = [$inicio, $fin];
+					$result['total_problematic'] += ($fin - $inicio + 1);
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+						$logger->warning(
+							sprintf('Bloque con error de API: %d-%d (Código %d: %s)',
+								$inicio, $fin, 
+								$data['InfoError']['Codigo'],
+								$data['InfoError']['Descripcion'] ?? 'Sin descripción'
+							)
+						);
+					}
+				}
+				// Verificar si hay datos reales
+				else if (!isset($data['Articulos']) || !is_array($data['Articulos']) || count($data['Articulos']) == 0) {
+					$result['empty_ranges'][] = [$inicio, $fin];
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+						$logger->info(
+							sprintf('Bloque vacío detectado: %d-%d', $inicio, $fin)
+						);
+					}
+				} else {
+					// Rango disponible con productos
+					$result['available_ranges'][] = [$inicio, $fin];
+					$result['total_available'] += count($data['Articulos']);
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+						$logger->info(
+							sprintf('Bloque disponible: %d-%d con %d productos',
+								$inicio, $fin, count($data['Articulos']))
+						);
+					}
+				}
+			}
+		}
+		
+		// Almacenar el mapa de disponibilidad para uso en la sincronización
+		set_transient('mia_sync_product_availability_map', $result, 3600); // 1 hora
+		
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+			$logger->info('Prevalidación completada', [
+				'available_blocks' => count($result['available_ranges']),
+				'problematic_blocks' => count($result['problematic_ranges']),
+				'empty_blocks' => count($result['empty_ranges']),
+				'total_available' => $result['total_available'],
+			]);
+		}
+		
+		return $result;
 	}
 }
