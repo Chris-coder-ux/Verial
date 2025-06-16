@@ -50,12 +50,26 @@ class MapProduct {
 	 * o un array vacío si los datos de entrada son inválidos (ej. falta SKU).
 	 */
 	public static function verial_to_wc( array $verial_product, array $extra_fields = array(), array $batch_cache = [] ): array {
-	 if (
-	 	! function_exists( 'wc_format_decimal' ) ||
-	 	! function_exists( 'wc_stock_amount' )
+		if (
+			! function_exists( 'wc_format_decimal' ) ||
+			! function_exists( 'wc_stock_amount' )
 		) {
 			return array();
 		}
+
+		// Validación completa del array de entrada
+		if (empty($verial_product) || !is_array($verial_product)) {
+			if ( class_exists( 'MiIntegracionApi\\helpers\\Logger' ) ) {
+				Logger::error(
+					'[MapProduct] Intento de mapear producto con datos de Verial vacíos o inválidos.',
+					array('context' => 'mia-mapper')
+				);
+			}
+			return array(
+				'error' => 'Datos de producto Verial vacíos o inválidos',
+			);
+		}
+
 		// Detección automática de la clave SKU
 		$sku = '';
 		$config_manager = Config_Manager::get_instance();
@@ -97,65 +111,200 @@ class MapProduct {
 			);
 		}
 
-		// Mapeo de campos principales. Se usan valores por defecto si el campo no existe en $verial_product.
+		// Mapeo de campos principales con validación robusta
+		// Se usan valores por defecto si el campo no existe en $verial_product o tiene un tipo incorrecto
 		$mapped = array(
 			'sku'          => sanitize_text_field( $sku ),
-			'name'         => isset( $verial_product['Nombre'] ) && is_string( $verial_product['Nombre'] ) ? sanitize_text_field( $verial_product['Nombre'] ) : ( isset( $verial_product['Descripcion'] ) && is_string( $verial_product['Descripcion'] ) ? sanitize_text_field( $verial_product['Descripcion'] ) : '' ),
-			'price'        => isset( $verial_product['PrecioVenta'] ) && is_numeric( $verial_product['PrecioVenta'] ) ? wc_format_decimal( $verial_product['PrecioVenta'] ) : ( isset( $verial_product['Precio'] ) && is_numeric( $verial_product['Precio'] ) ? wc_format_decimal( $verial_product['Precio'] ) : 0.00 ),
-			'stock'        => isset( $verial_product['Stock'] ) && is_numeric( $verial_product['Stock'] ) ? wc_stock_amount( $verial_product['Stock'] ) : null,
-			'manage_stock' => isset( $verial_product['Stock'] ),
+			'name'         => isset( $verial_product['Nombre'] ) && is_string( $verial_product['Nombre'] ) 
+				? sanitize_text_field( $verial_product['Nombre'] ) 
+				: ( isset( $verial_product['Descripcion'] ) && is_string( $verial_product['Descripcion'] ) 
+					? sanitize_text_field( $verial_product['Descripcion'] ) 
+					: 'Producto ' . $sku ),
+			'price'        => isset( $verial_product['PrecioVenta'] ) && is_numeric( $verial_product['PrecioVenta'] ) 
+				? wc_format_decimal( $verial_product['PrecioVenta'] ) 
+				: ( isset( $verial_product['Precio'] ) && is_numeric( $verial_product['Precio'] ) 
+					? wc_format_decimal( $verial_product['Precio'] ) 
+					: 0.00 ),
+			'stock'        => isset( $verial_product['Stock'] ) && is_numeric( $verial_product['Stock'] ) 
+				? wc_stock_amount( $verial_product['Stock'] ) 
+				: null,
+			'manage_stock' => isset( $verial_product['Stock'] ) && is_numeric( $verial_product['Stock'] ),
 			'category_ids' => array(),
+			'_verial_product_id' => isset( $verial_product['Id'] ) && is_scalar( $verial_product['Id'] )
+				? sanitize_text_field( (string) $verial_product['Id'] )
+				: $sku, // Usar SKU como fallback si no hay Id
 		);
 
-		// Lógica para mapear categorías de Verial a WooCommerce
+		// Lógica para mapear categorías de Verial a WooCommerce con validación reforzada
 		$verial_category_fields_to_check = array( 'ID_Categoria', 'ID_CategoriaWeb1', 'ID_CategoriaWeb2', 'ID_CategoriaWeb3', 'ID_CategoriaWeb4' );
-		$processed_verial_cat_ids        = array();
+		$processed_verial_cat_ids = array();
+		
+		// Verificar si tenemos cache de mapeo de categorías disponible
+		$category_mappings = [];
+		if (isset($batch_cache['category_mappings']) && is_array($batch_cache['category_mappings'])) {
+			$category_mappings = $batch_cache['category_mappings'];
+		}
 
+		// Registrar categorías encontradas para diagnóstico
+		$categories_found = [];
+		
 		foreach ( $verial_category_fields_to_check as $verial_cat_field ) {
-			if ( ! empty( $verial_product[ $verial_cat_field ] ) ) {
-				$verial_cat_id = is_scalar( $verial_product[ $verial_cat_field ] ) ? intval( $verial_product[ $verial_cat_field ] ) : 0;
-				if ( $verial_cat_id > 0 && ! in_array( $verial_cat_id, $processed_verial_cat_ids ) ) {
-					$cat_name = isset( $verial_product['NombreCategoriaPrincipal'] ) && is_string( $verial_product['NombreCategoriaPrincipal'] )
-						? $verial_product['NombreCategoriaPrincipal']
-						: ( isset( $verial_product['NombreCategoria'] ) && is_string( $verial_product['NombreCategoria'] ) ? $verial_product['NombreCategoria'] : '' );
-					$term_id  = self::get_or_create_wc_category_from_verial_id(
+			if ( isset($verial_product[$verial_cat_field]) && is_scalar($verial_product[$verial_cat_field]) ) {
+				$verial_cat_id = intval($verial_product[$verial_cat_field]);
+				
+				if ( $verial_cat_id > 0 && ! in_array( $verial_cat_id, $processed_verial_cat_ids, true ) ) {
+					// Intentar obtener el nombre de la categoría con validación robusta
+					$cat_name = '';
+					
+					// Buscar en diferentes campos posibles para el nombre de la categoría
+					$cat_name_fields = ['NombreCategoriaPrincipal', 'NombreCategoria', $verial_cat_field . '_Nombre'];
+					foreach ($cat_name_fields as $name_field) {
+						if (isset($verial_product[$name_field]) && is_string($verial_product[$name_field])) {
+							$cat_name = $verial_product[$name_field];
+							break;
+						}
+					}
+					
+					// Si no encontramos nombre, usar un valor genérico basado en el ID
+					if (empty($cat_name)) {
+						$cat_name = 'Categoría ' . $verial_cat_id;
+					}
+					
+					$categories_found[] = [
+						'field' => $verial_cat_field,
+						'id' => $verial_cat_id,
+						'name' => $cat_name
+					];
+					
+					$term_id = self::get_or_create_wc_category_from_verial_id(
 						$verial_cat_id,
 						$cat_name,
 						'product_cat',
-						$batch_cache['category_mappings'] ?? []
+						$category_mappings
 					);
+					
 					if ( $term_id ) {
-						$mapped['category_ids'][]   = $term_id;
+						$mapped['category_ids'][] = $term_id;
 						$processed_verial_cat_ids[] = $verial_cat_id;
 					}
 				}
 			}
 		}
+		
 		// Si no se pudieron mapear IDs, y Verial envía un nombre de categoría genérico:
-		if ( empty( $mapped['category_ids'] ) && ! empty( $verial_product['NombreCategoria'] ) && is_string( $verial_product['NombreCategoria'] ) ) {
-			$term_id = self::get_or_create_wc_category_from_verial_id( 0, $verial_product['NombreCategoria'], 'product_cat', $batch_cache['category_mappings'] ?? [] );
-			if ( $term_id ) {
-				$mapped['category_ids'][] = $term_id;
+		if ( empty( $mapped['category_ids'] ) ) {
+			// Intentar con "NombreCategoria" si existe
+			if ( !empty( $verial_product['NombreCategoria'] ) && is_string( $verial_product['NombreCategoria'] ) ) {
+				$term_id = self::get_or_create_wc_category_from_verial_id(
+					0, 
+					$verial_product['NombreCategoria'], 
+					'product_cat', 
+					$category_mappings
+				);
+				
+				if ( $term_id ) {
+					$mapped['category_ids'][] = $term_id;
+				}
+			} 
+			// Si aún no hay categorías, asignar a una categoría por defecto
+			else if ( empty( $mapped['category_ids'] ) ) {
+				// Intentar obtener categoría "Sin clasificar" o crearla
+				$uncategorized_term = get_term_by('slug', 'uncategorized', 'product_cat');
+				if ($uncategorized_term) {
+					$mapped['category_ids'][] = $uncategorized_term->term_id;
+				}
 			}
 		}
 
+		// Registrar diagnóstico de categorías si no se encontraron
+		if (empty($mapped['category_ids']) && class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			Logger::warning(
+				'[MapProduct] No se pudieron mapear categorías para el producto ' . $sku,
+				array(
+					'context' => 'mia-mapper',
+					'categorias_encontradas' => $categories_found,
+					'producto_id' => $sku
+				)
+			);
+		}
+
 		// Eliminar duplicados si se añadieron varios IDs
-		if ( ! empty( $mapped['category_ids'] ) ) {
+		if ( !empty( $mapped['category_ids'] ) ) {
 			$mapped['category_ids'] = array_values( array_unique( $mapped['category_ids'] ) );
 		}
 
-		// Mapeo de atributos: Asumiendo que 'Atributos' es un array en $verial_product con datos de atributos
-		if ( isset( $verial_product['Atributos'] ) && is_array( $verial_product['Atributos'] ) ) {
-			$mapped['attributes'] = array();
-			foreach ( $verial_product['Atributos'] as $atributo ) {
-				if ( ! is_array( $atributo ) ) {
-					continue;
+		// Mapeo de atributos con validación reforzada
+		$mapped['attributes'] = array();
+		
+		if (isset($verial_product['Atributos'])) {
+			// Verificar si el campo Atributos es realmente un array
+			if (is_array($verial_product['Atributos'])) {
+				foreach ($verial_product['Atributos'] as $indice => $atributo) {
+					// Validar que el atributo sea un array con estructura válida
+					if (!is_array($atributo)) {
+						if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+							Logger::debug(
+								'[MapProduct] Atributo de producto no es un array válido',
+								array(
+									'context' => 'mia-mapper',
+									'sku' => $sku,
+									'indice' => $indice,
+									'tipo' => gettype($atributo)
+								)
+							);
+						}
+						continue;
+					}
+					
+					// Extraer nombres de atributo con validación defensiva
+					$nombre = '';
+					$valor = '';
+					
+					// Intentar primero campo 'nombre', luego 'name' si existe
+					if (isset($atributo['nombre']) && is_string($atributo['nombre'])) {
+						$nombre = $atributo['nombre'];
+					} elseif (isset($atributo['name']) && is_string($atributo['name'])) {
+						$nombre = $atributo['name'];
+					}
+					
+					// Intentar primero campo 'valor', luego 'value' si existe
+					if (isset($atributo['valor']) && is_string($atributo['valor'])) {
+						$valor = $atributo['valor'];
+					} elseif (isset($atributo['value']) && is_string($atributo['value'])) {
+						$valor = $atributo['value'];
+					}
+					
+					// Si no tenemos nombre o valor, omitimos este atributo
+					if (empty($nombre)) {
+						if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+							Logger::debug(
+								'[MapProduct] Atributo sin nombre encontrado',
+								array(
+									'context' => 'mia-mapper',
+									'sku' => $sku,
+									'indice' => $indice,
+									'atributo' => $atributo
+								)
+							);
+						}
+						continue;
+					}
+					
+					// Añadir atributo validado a la lista
+					$mapped['attributes'][] = array(
+						'name'   => sanitize_text_field($nombre),
+						'option' => sanitize_text_field($valor ?: ''), // Valor vacío si no existe
+					);
 				}
-				$nombre                 = isset( $atributo['nombre'] ) && is_string( $atributo['nombre'] ) ? $atributo['nombre'] : '';
-				$valor                  = isset( $atributo['valor'] ) && is_string( $atributo['valor'] ) ? $atributo['valor'] : '';
-				$mapped['attributes'][] = array(
-					'name'   => sanitize_text_field( $nombre ),
-					'option' => sanitize_text_field( $valor ),
+			} else if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+				// Registrar warning si el campo existe pero no es un array
+				Logger::warning(
+					'[MapProduct] Campo Atributos no es un array',
+					array(
+						'context' => 'mia-mapper',
+						'sku' => $sku,
+						'tipo' => gettype($verial_product['Atributos'])
+					)
 				);
 			}
 		}
@@ -168,110 +317,339 @@ class MapProduct {
 			);
 		}
 
-		// --- SOPORTE BÁSICO PARA PRODUCTOS VARIABLES Y VARIACIONES ---
-		// Detectar si el producto es variable (Verial debe enviar un campo 'TipoProducto' o similar, o un array 'Variaciones')
-		$is_variable    = isset( $verial_product['TipoProducto'] ) && $verial_product['TipoProducto'] === 'variable';
-		$has_variations = isset( $verial_product['Variaciones'] ) && is_array( $verial_product['Variaciones'] ) && count( $verial_product['Variaciones'] ) > 0;
-		if ( $is_variable || $has_variations ) {
-			$mapped['type']       = 'variable';
+		// --- SOPORTE ROBUSTO PARA PRODUCTOS VARIABLES Y VARIACIONES ---
+		// Detectar si el producto es variable con validación defensiva
+		$is_variable = false;
+		$has_variations = false;
+		
+		// Verificar TipoProducto para productos variables
+		if (isset($verial_product['TipoProducto']) && is_string($verial_product['TipoProducto'])) {
+			$is_variable = ($verial_product['TipoProducto'] === 'variable');
+		}
+		
+		// Verificar si hay variaciones y son un array válido
+		if (isset($verial_product['Variaciones']) && is_array($verial_product['Variaciones']) && !empty($verial_product['Variaciones'])) {
+			$has_variations = true;
+		}
+		
+		if ($is_variable || $has_variations) {
+			$mapped['type'] = 'variable';
 			$mapped['variations'] = array();
-			// Mapear atributos globales (para el producto padre)
-			if ( isset( $verial_product['Atributos'] ) && is_array( $verial_product['Atributos'] ) ) {
+			
+			// Mapear atributos globales con validación robusta
+			if (isset($verial_product['Atributos']) && is_array($verial_product['Atributos'])) {
+				// La lista de atributos ya fue creada antes, ahora la adaptamos para producto variable
 				$mapped['attributes'] = array();
-				foreach ( $verial_product['Atributos'] as $atributo ) {
-					if ( ! is_array( $atributo ) ) {
+				
+				foreach ($verial_product['Atributos'] as $indice => $atributo) {
+					if (!is_array($atributo)) {
 						continue;
 					}
-					$nombre = isset( $atributo['nombre'] ) ? sanitize_text_field( $atributo['nombre'] ) : '';
-					// Soporte multivalor: 'valores' puede ser array de opciones
-					if ( isset( $atributo['valores'] ) && is_array( $atributo['valores'] ) ) {
-						$mapped['attributes'][] = array(
-							'name'      => $nombre,
-							'options'   => array_map( 'sanitize_text_field', $atributo['valores'] ),
-							'variation' => true,
-						);
-					} else {
-						$valor                  = isset( $atributo['valor'] ) ? sanitize_text_field( $atributo['valor'] ) : '';
-						$mapped['attributes'][] = array(
-							'name'   => $nombre,
-							'option' => $valor,
-						);
+					
+					// Extraer nombre con validación defensiva
+					$nombre = '';
+					if (isset($atributo['nombre']) && is_string($atributo['nombre'])) {
+						$nombre = sanitize_text_field($atributo['nombre']);
+					} elseif (isset($atributo['name']) && is_string($atributo['name'])) {
+						$nombre = sanitize_text_field($atributo['name']);
+					}
+					
+					if (empty($nombre)) {
+						continue;
+					}
+					
+					// Soporte para atributos multivalor
+					if (isset($atributo['valores']) && is_array($atributo['valores'])) {
+						$opciones = array_map('sanitize_text_field', array_filter($atributo['valores'], 'is_scalar'));
+						
+						if (!empty($opciones)) {
+							$mapped['attributes'][] = array(
+								'name'      => $nombre,
+								'options'   => $opciones,
+								'variation' => true,
+								'visible'   => true,
+							);
+						}
+					} 
+					// Soporte para atributo de valor único
+					else {
+						$valor = '';
+						if (isset($atributo['valor']) && is_string($atributo['valor'])) {
+							$valor = sanitize_text_field($atributo['valor']);
+						} elseif (isset($atributo['value']) && is_string($atributo['value'])) {
+							$valor = sanitize_text_field($atributo['value']);
+						}
+						
+						if (!empty($nombre)) {
+							$mapped['attributes'][] = array(
+								'name'      => $nombre,
+								'option'    => $valor,
+								'variation' => !empty($valor),
+								'visible'   => true,
+							);
+						}
 					}
 				}
 			}
-			// Mapear variaciones
-			foreach ( $verial_product['Variaciones'] as $var ) {
-				if ( ! is_array( $var ) ) {
-					continue;
+			
+			// Mapear variaciones con validación robusta
+			if ($has_variations) {
+				foreach ($verial_product['Variaciones'] as $indice => $var) {
+					// Validar que la variación es un array con estructura válida
+					if (!is_array($var)) {
+						if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+							Logger::debug(
+								'[MapProduct] Variación no es un array válido',
+								array(
+									'context' => 'mia-mapper',
+									'sku' => $sku,
+									'indice_variacion' => $indice,
+									'tipo' => gettype($var)
+								)
+							);
+						}
+						continue;
+					}
+					
+					// Determinar SKU para la variación
+					$var_sku = '';
+					$sku_fields = ['ReferenciaBarras', 'Codigo', 'sku'];
+					
+					foreach ($sku_fields as $field) {
+						if (isset($var[$field]) && is_scalar($var[$field]) && !empty($var[$field])) {
+							$var_sku = sanitize_text_field((string)$var[$field]);
+							break;
+						}
+					}
+					
+					// Si no hay SKU, usar SKU del padre con sufijo
+					if (empty($var_sku)) {
+						$var_sku = $sku . '-var-' . ($indice + 1);
+					}
+					
+					$var_map = array(
+						'sku'        => $var_sku,
+						'price'      => isset($var['PrecioVenta']) && is_numeric($var['PrecioVenta']) 
+							? wc_format_decimal($var['PrecioVenta']) 
+							: (isset($var['Precio']) && is_numeric($var['Precio']) 
+								? wc_format_decimal($var['Precio']) 
+								: 0.00),
+						'stock'      => isset($var['Stock']) && is_numeric($var['Stock']) 
+							? wc_stock_amount($var['Stock']) 
+							: null,
+						'attributes' => array(),
+					);
+					
+					// Mapear atributos de la variación con validación robusta
+					if (isset($var['Atributos']) && is_array($var['Atributos'])) {
+						foreach ($var['Atributos'] as $attr_indice => $attr) {
+							if (!is_array($attr)) {
+								continue;
+							}
+							
+							// Extraer nombre y valor con validación
+							$nombre = '';
+							$valor = '';
+							
+							if (isset($attr['nombre']) && is_string($attr['nombre'])) {
+								$nombre = sanitize_text_field($attr['nombre']);
+							} elseif (isset($attr['name']) && is_string($attr['name'])) {
+								$nombre = sanitize_text_field($attr['name']);
+							}
+							
+							if (isset($attr['valor']) && is_string($attr['valor'])) {
+								$valor = sanitize_text_field($attr['valor']);
+							} elseif (isset($attr['value']) && is_string($attr['value'])) {
+								$valor = sanitize_text_field($attr['value']);
+							}
+							
+							if (!empty($nombre)) {
+								$var_map['attributes'][] = array(
+									'name'   => $nombre,
+									'option' => $valor ?: '',
+								);
+							}
+						}
+					}
+					
+					// Solo agregar variaciones que tengan al menos un atributo
+					if (!empty($var_map['attributes'])) {
+						$mapped['variations'][] = $var_map;
+					} else if (!empty($var_sku) && $var_sku !== $sku) {
+						// Si no tiene atributos pero sí un SKU diferente, agregar con atributo ficticio
+						// para evitar que WooCommerce la rechace
+						$var_map['attributes'][] = array(
+							'name'   => 'Tipo',
+							'option' => 'Variante ' . ($indice + 1),
+						);
+						$mapped['variations'][] = $var_map;
+						
+						// Asegurar que el atributo también exista en el producto padre
+						$parent_attr_exists = false;
+						foreach ($mapped['attributes'] as $attr) {
+							if ($attr['name'] === 'Tipo') {
+								$parent_attr_exists = true;
+								break;
+							}
+						}
+						
+						if (!$parent_attr_exists) {
+							$mapped['attributes'][] = array(
+								'name'      => 'Tipo',
+								'options'   => ['Variante ' . ($indice + 1)],
+								'variation' => true,
+								'visible'   => true,
+							);
+						}
+					}
 				}
-				$var_map = array(
-					'sku'        => isset( $var['ReferenciaBarras'] ) ? sanitize_text_field( $var['ReferenciaBarras'] ) : '',
-					'price'      => isset( $var['PrecioVenta'] ) && is_numeric( $var['PrecioVenta'] ) ? wc_format_decimal( $var['PrecioVenta'] ) : 0.00,
-					'stock'      => isset( $var['Stock'] ) && is_numeric( $var['Stock'] ) ? wc_stock_amount( $var['Stock'] ) : null,
-					'attributes' => array(),
+				
+				// Si después de todo el procesamiento no hay variaciones válidas, revertir a producto simple
+				if (empty($mapped['variations'])) {
+					$mapped['type'] = 'simple';
+					unset($mapped['variations']);
+				}
+			}
+		}
+
+		// --- ATRIBUTOS COMPLEJOS Y BUNDLES con validación robusta ---
+		if (isset($verial_product['AtributosComplejos'])) {
+			if (is_array($verial_product['AtributosComplejos'])) {
+				$mapped['complex_attributes'] = array();
+				
+				foreach ($verial_product['AtributosComplejos'] as $indice => $atributo) {
+					if (!is_array($atributo)) {
+						continue;
+					}
+					
+					// Extraer datos con validación robusta
+					$nombre = isset($atributo['nombre']) && is_string($atributo['nombre']) 
+						? sanitize_text_field($atributo['nombre']) 
+						: '';
+					
+					$tipo = isset($atributo['tipo']) && is_string($atributo['tipo']) 
+						? sanitize_text_field($atributo['tipo']) 
+						: 'select';
+					
+					$dependencias = isset($atributo['dependencias']) && is_array($atributo['dependencias']) 
+						? $atributo['dependencias'] 
+						: array();
+					
+					$valores = isset($atributo['valores']) && is_array($atributo['valores']) 
+						? array_filter($atributo['valores'], 'is_scalar') 
+						: array();
+					
+					// Solo agregar atributos con nombre y valores válidos
+					if (!empty($nombre) && !empty($valores)) {
+						$mapped['complex_attributes'][] = array(
+							'name'         => $nombre,
+							'type'         => $tipo, // select, color, image, multiselect, etc.
+							'values'       => array_map('sanitize_text_field', $valores),
+							'dependencies' => $dependencias, // array de dependencias entre atributos
+						);
+					}
+				}
+				
+				// Si no hay atributos complejos válidos, no incluir esta sección
+				if (empty($mapped['complex_attributes'])) {
+					unset($mapped['complex_attributes']);
+				}
+			} else if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+				// Registrar warning si el campo existe pero no es un array
+				Logger::warning(
+					'[MapProduct] Campo AtributosComplejos no es un array',
+					array(
+						'context' => 'mia-mapper',
+						'sku' => $sku,
+						'tipo' => gettype($verial_product['AtributosComplejos'])
+					)
 				);
-				// Mapear atributos de la variación
-				if ( isset( $var['Atributos'] ) && is_array( $var['Atributos'] ) ) {
-					foreach ( $var['Atributos'] as $attr ) {
-						if ( ! is_array( $attr ) ) {
+			}
+		}
+		
+		// Soporte robusto para bundles o agrupaciones de productos
+		if (isset($verial_product['Bundle'])) {
+			if (is_array($verial_product['Bundle'])) {
+				$productos_bundle = array();
+				
+				// Verificar si existe el campo "productos" en el bundle
+				if (isset($verial_product['Bundle']['productos']) && is_array($verial_product['Bundle']['productos'])) {
+					foreach ($verial_product['Bundle']['productos'] as $indice => $prod) {
+						// Validación robusta del producto bundle
+						if (!is_array($prod)) {
 							continue;
 						}
-						$nombre                  = isset( $attr['nombre'] ) ? sanitize_text_field( $attr['nombre'] ) : '';
-						$valor                   = isset( $attr['valor'] ) ? sanitize_text_field( $attr['valor'] ) : '';
-						$var_map['attributes'][] = array(
-							'name'   => $nombre,
-							'option' => $valor,
-						);
+						
+						// Determinar SKU del producto bundle
+						$sku_hijo = '';
+						if (!empty($prod['sku']) && is_scalar($prod['sku'])) {
+							$sku_hijo = sanitize_text_field((string)$prod['sku']);
+						} elseif (!empty($prod['ReferenciaBarras']) && is_scalar($prod['ReferenciaBarras'])) {
+							$sku_hijo = sanitize_text_field((string)$prod['ReferenciaBarras']);
+						} elseif (!empty($prod['Id']) && is_scalar($prod['Id'])) {
+							$sku_hijo = sanitize_text_field((string)$prod['Id']);
+						}
+						
+						// Solo agregar productos con SKU válido
+						if (!empty($sku_hijo)) {
+							$cantidad = (isset($prod['cantidad']) && is_numeric($prod['cantidad'])) 
+								? abs(intval($prod['cantidad'])) 
+								: 1;
+							
+							// Asegurar que la cantidad es al menos 1
+							if ($cantidad < 1) {
+								$cantidad = 1;
+							}
+							
+							$productos_bundle[] = array(
+								'sku'      => $sku_hijo,
+								'cantidad' => $cantidad,
+							);
+						}
 					}
 				}
-				$mapped['variations'][] = $var_map;
-			}
-		}
-
-		// --- ATRIBUTOS COMPLEJOS Y BUNDLES ---
-		// Ejemplo: atributos complejos (selectores dependientes, color, imagen, multivalor avanzado)
-		if ( isset( $verial_product['AtributosComplejos'] ) && is_array( $verial_product['AtributosComplejos'] ) ) {
-			$mapped['complex_attributes'] = array();
-			foreach ( $verial_product['AtributosComplejos'] as $atributo ) {
-				if ( ! is_array( $atributo ) ) {
-					continue;
+				
+				// Solo incluir sección bundle si hay productos válidos
+				if (!empty($productos_bundle)) {
+					$mapped['bundle'] = array(
+						'nombre'    => isset($verial_product['Bundle']['nombre']) && is_string($verial_product['Bundle']['nombre'])
+							? sanitize_text_field($verial_product['Bundle']['nombre'])
+							: 'Bundle ' . $sku,
+						'productos' => $productos_bundle,
+					);
 				}
-				$nombre                         = isset( $atributo['nombre'] ) ? sanitize_text_field( $atributo['nombre'] ) : '';
-				$tipo                           = isset( $atributo['tipo'] ) ? sanitize_text_field( $atributo['tipo'] ) : 'select';
-				$dependencias                   = isset( $atributo['dependencias'] ) && is_array( $atributo['dependencias'] ) ? $atributo['dependencias'] : array();
-				$valores                        = isset( $atributo['valores'] ) && is_array( $atributo['valores'] ) ? $atributo['valores'] : array();
-				$mapped['complex_attributes'][] = array(
-					'name'         => $nombre,
-					'type'         => $tipo, // select, color, image, multiselect, etc.
-					'values'       => array_map( 'sanitize_text_field', $valores ),
-					'dependencies' => $dependencias, // array de dependencias entre atributos
+			} else if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+				// Registrar warning si el campo existe pero no es un array
+				Logger::warning(
+					'[MapProduct] Campo Bundle no es un array',
+					array(
+						'context' => 'mia-mapper',
+						'sku' => $sku,
+						'tipo' => gettype($verial_product['Bundle'])
+					)
 				);
 			}
 		}
-		// Soporte robusto para bundles o agrupaciones de productos
-		if ( isset( $verial_product['Bundle'] ) && is_array( $verial_product['Bundle'] ) ) {
-			$productos_bundle = array();
-			if ( isset( $verial_product['Bundle']['productos'] ) && is_array( $verial_product['Bundle']['productos'] ) ) {
-				foreach ( $verial_product['Bundle']['productos'] as $prod ) {
-					if ( ! is_array( $prod ) || empty( $prod['sku'] ) || ! is_scalar( $prod['sku'] ) ) {
-						continue;
-					}
-					$sku_hijo           = sanitize_text_field( $prod['sku'] );
-					$cantidad           = ( isset( $prod['cantidad'] ) && is_numeric( $prod['cantidad'] ) ) ? (int) $prod['cantidad'] : 1;
-					$productos_bundle[] = array(
-						'sku'      => $sku_hijo,
-						'cantidad' => $cantidad,
-					);
-				}
-			}
-			$mapped['bundle'] = array(
-				'nombre'    => isset( $verial_product['Bundle']['nombre'] ) ? sanitize_text_field( $verial_product['Bundle']['nombre'] ) : '',
-				'productos' => $productos_bundle,
-			);
-		}
 
+		// Registrar metadatos de Verial para diagnóstico y trazabilidad
+		if (!isset($mapped['meta_data'])) {
+			$mapped['meta_data'] = array();
+		}
+		
+		// Siempre almacenar el ID de Verial como metadato para trazabilidad
+		$verial_id = isset($verial_product['Id']) && is_scalar($verial_product['Id']) 
+			? (string)$verial_product['Id'] 
+			: (isset($verial_product['ReferenciaBarras']) && is_scalar($verial_product['ReferenciaBarras']) 
+				? (string)$verial_product['ReferenciaBarras'] 
+				: $sku);
+				
+		$mapped['meta_data'][] = array(
+			'key'   => '_verial_product_id',
+			'value' => sanitize_text_field($verial_id),
+		);
+		
 		// Fusionar con campos extra, permitiendo que $extra_fields sobrescriba los mapeados por defecto.
-		return array_merge( $mapped, $extra_fields );
+		return array_merge($mapped, $extra_fields);
 	}
 
 	/**

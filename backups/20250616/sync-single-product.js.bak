@@ -1,0 +1,790 @@
+/**
+ * JavaScript para la página de sincronización individual de productos
+ *
+ * Este script maneja:
+ * - Validación del formulario
+ * - Autocompletado de productos
+ * - Carga de categorías y fabricantes
+ * - Envío del formulario de sincronización
+ */
+
+// Verificar que jQuery esté disponible
+(function(window) {
+    if (typeof jQuery === 'undefined') {
+        console.error('[ERROR CRÍTICO] jQuery no está disponible. Intentando cargar jQuery...');
+        
+        // Intentar cargar jQuery desde WordPress
+        var script = document.createElement('script');
+        script.src = '/wp-includes/js/jquery/jquery.min.js';
+        script.onload = function() {
+            console.log('jQuery cargado correctamente. Reiniciando script...');
+            initSyncScript(window.jQuery);
+        };
+        script.onerror = function() {
+            console.error('No se pudo cargar jQuery automáticamente. Por favor, recarga la página.');
+            alert('Error: No se pudo cargar jQuery. Por favor, recarga la página o contacta al administrador.');
+        };
+        document.head.appendChild(script);
+    } else {
+        console.log('jQuery detectado correctamente. Inicializando script...');
+        jQuery(document).ready(function($) {
+            initSyncScript($);
+        });
+    }
+})(window);
+
+function initSyncScript($) {
+    console.log('[INFO] Script de sincronización individual cargado');
+    console.log('[INFO] jQuery version:', $.fn.jquery);
+    console.log('[INFO] ¿URL AJAX disponible?', typeof ajaxurl !== 'undefined');
+    
+    /**
+     * Función para obtener el nonce de seguridad de múltiples fuentes posibles
+     * Garantiza compatibilidad entre páginas y contextos diferentes
+     */
+    function getNonceValue() {
+        // 0. Nuevo: Intentar obtener del objeto localizado
+        if (typeof miSyncSingleProduct !== 'undefined' && miSyncSingleProduct.nonce) {
+            console.log('[DEBUG] Usando nonce de objeto localizado miSyncSingleProduct');
+            return miSyncSingleProduct.nonce;
+        }
+        
+        // 1. Buscar en elementos con name="_ajax_nonce" (fuente principal)
+        let ajaxNonce = $('input[name="_ajax_nonce"]').val();
+        if (ajaxNonce) {
+            console.log('[DEBUG] Usando nonce de input[name="_ajax_nonce"]');
+            return ajaxNonce;
+        }
+        
+        // 2. Intentar obtener del objeto global miIntegracionApiDashboard
+        if (typeof miIntegracionApiDashboard !== 'undefined' && miIntegracionApiDashboard.nonce) {
+            console.log('[DEBUG] Usando nonce de miIntegracionApiDashboard');
+            return miIntegracionApiDashboard.nonce;
+        }
+        
+        // 3. Buscar en otros campos de nonce comunes de WordPress
+        const possibleNonceFields = ['_wpnonce', 'security', 'nonce'];
+        for (let fieldName of possibleNonceFields) {
+            let nonceValue = $(`input[name="${fieldName}"]`).val();
+            if (nonceValue) {
+                console.log(`[DEBUG] Usando nonce de input[name="${fieldName}"]`);
+                return nonceValue;
+            }
+        }
+        
+        // 4. Buscar en datos de elementos con atributo data-nonce 
+        let dataNonce = $('[data-nonce]').first().data('nonce');
+        if (dataNonce) {
+            console.log('[DEBUG] Usando nonce de elemento con data-nonce');
+            return dataNonce;
+        }
+        
+        console.error('[ERROR] No se pudo encontrar un nonce válido en ninguna fuente');
+        return null;
+    }
+    
+    // Referencias a los elementos del formulario
+    const $form = $('#mi-sync-single-product-form');
+    const $skuInput = $('#sku');
+    const $nombreInput = $('#nombre');
+    const $categoriaSelect = $('#categoria');
+    const $fabricanteSelect = $('#fabricante');
+    const $syncButton = $('#sync-button');
+    const $unlockButton = $('#unlock-sync-button');
+    const $spinner = $('.spinner');
+    const $resultContainer = $('#sync-result');
+    
+    // Cargar categorías y fabricantes al cargar la página
+    initSelects();
+    
+    // Configurar autocompletado para SKU y nombre
+    setupAutocomplete();
+    
+    // Manejar envío del formulario
+    $form.on('submit', function(e) {
+        e.preventDefault();
+        syncProduct();
+    });
+    
+    // Manejar botón de desbloqueo
+    $unlockButton.on('click', function(e) {
+        e.preventDefault();
+        unlockSync();
+    });
+    
+    /**
+     * Inicializa los selects de categoría y fabricante
+     */
+    function initSelects() {
+        console.log('Inicializando selectores...');
+        console.log('Nonce disponible:', $('input[name="_ajax_nonce"]').length > 0);
+        console.log('Valor del nonce:', getNonceValue());
+        console.log('URL AJAX:', ajaxurl);
+        
+        // Obtener categorías
+        console.log('[DEBUG] Enviando petición para obtener categorías');
+        $.ajax({
+            url: ajaxurl,
+            method: 'POST',
+            data: {
+                action: 'mi_sync_get_categorias',
+                _ajax_nonce: getNonceValue(),
+                nonce: getNonceValue(),
+                _wpnonce: getNonceValue()
+            },
+            beforeSend: function(xhr) {
+                console.log('[DEBUG] Antes de enviar petición de categorías:');
+                console.log('- URL:', ajaxurl);
+                console.log('- Action:', 'mi_sync_get_categorias');
+                console.log('- Nonce:', getNonceValue());
+            },
+            success: function(response) {
+                console.log('[DEBUG] Respuesta categorías completa:', response);
+                try {
+                    console.log('[DEBUG] Categorías recibidas:', response.data?.categories);
+                    console.log('[DEBUG] Tipo de datos recibido:', typeof response.data?.categories);
+                    console.log('[DEBUG] ¿Es objeto?', $.isPlainObject(response.data?.categories));
+                    console.log('[DEBUG] ¿Es array?', Array.isArray(response.data?.categories));
+                    
+                    // Intentar poblar el select incluso si no hay datos completos
+                    if (response.success && response.data) {
+                        populateSelect($categoriaSelect, response.data.categories || {});
+                    } else {
+                        console.error('[ERROR] Error al cargar categorías:', response);
+                        console.error('[ERROR] Success:', response.success);
+                        console.error('[ERROR] Data exist:', !!response.data);
+                        
+                        // Crear categoría de emergencia para que la interfaz funcione
+                        populateSelect($categoriaSelect, {'0': 'Categoría por defecto'});
+                        
+                        // Solo mostrar error si realmente falló la petición
+                        if (!response.success) {
+                            const mensaje = response.data?.message || 'Error al cargar categorías';
+                            console.error('[ERROR] Mensaje de error:', mensaje);
+                            
+                            // Mostrar mensaje menos intrusivo
+                            if ($('#categorias-error-message').length === 0) {
+                                $categoriaSelect.after(
+                                    $('<p id="categorias-error-message" class="description" style="color:red;">')
+                                        .text('Error al cargar categorías: ' + mensaje)
+                                );
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('[ERROR] Excepción al procesar respuesta de categorías:', error);
+                    // Asegurar que el select tenga al menos un valor
+                    populateSelect($categoriaSelect, {'0': 'Categoría por defecto'});
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('[ERROR] Error AJAX al cargar categorías:', status, error);
+                console.log('[ERROR] Status code:', xhr.status);
+                console.log('[ERROR] Respuesta completa:', xhr.responseText);
+                alert('Error de comunicación al cargar categorías: ' + status);
+            }
+        });
+        
+        // Obtener fabricantes
+        console.log('[DEBUG] Enviando petición para obtener fabricantes');
+        $.ajax({
+            url: ajaxurl,
+            method: 'POST',
+            data: {
+                action: 'mi_sync_get_fabricantes',
+                _ajax_nonce: getNonceValue(),
+                nonce: getNonceValue(),
+                _wpnonce: getNonceValue()
+            },
+            beforeSend: function(xhr) {
+                console.log('[DEBUG] Antes de enviar petición de fabricantes:');
+                console.log('- URL:', ajaxurl);
+                console.log('- Action:', 'mi_sync_get_fabricantes');
+                console.log('- Nonce:', getNonceValue());
+            },
+            success: function(response) {
+                console.log('[DEBUG] Respuesta fabricantes completa:', response);
+                try {
+                    // Intentar obtener datos de fabricantes de las diferentes posibles fuentes
+                    let datos = null;
+                    if (response.success && response.data) {
+                        datos = response.data.manufacturers || response.data.fabricantes || null;
+                    }
+                    
+                    console.log('[DEBUG] Fabricantes recibidos:', datos);
+                    console.log('[DEBUG] Tipo de datos recibido:', typeof datos);
+                    console.log('[DEBUG] ¿Es objeto?', $.isPlainObject(datos));
+                    console.log('[DEBUG] ¿Es array?', Array.isArray(datos));
+                    
+                    // Intentar poblar el select incluso si no hay datos completos
+                    if (datos) {
+                        populateSelect($fabricanteSelect, datos);
+                    } else {
+                        console.error('[ERROR] Error al cargar fabricantes o datos vacíos:', response);
+                        console.error('[ERROR] Success:', response.success);
+                        console.error('[ERROR] Data exist:', !!response.data);
+                        
+                        // Crear fabricante de emergencia para que la interfaz funcione
+                        populateSelect($fabricanteSelect, {'0': 'Fabricante por defecto'});
+                        
+                        // Solo mostrar error si realmente falló la petición
+                        if (!response.success) {
+                            const mensaje = response.data?.message || 'Error al cargar fabricantes';
+                            console.error('[ERROR] Mensaje de error:', mensaje);
+                            
+                            // Mostrar mensaje menos intrusivo
+                            if ($('#fabricantes-error-message').length === 0) {
+                                $fabricanteSelect.after(
+                                    $('<p id="fabricantes-error-message" class="description" style="color:red;">')
+                                        .text('Error al cargar fabricantes: ' + mensaje)
+                                );
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('[ERROR] Excepción al procesar respuesta de fabricantes:', error);
+                    // Asegurar que el select tenga al menos un valor
+                    populateSelect($fabricanteSelect, {'0': 'Fabricante por defecto'});
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('[ERROR] Error AJAX al cargar fabricantes:', status, error);
+                console.log('[ERROR] Status code:', xhr.status);
+                console.log('[ERROR] Respuesta completa:', xhr.responseText);
+            }
+        });
+    }
+    
+    /**
+     * Rellena un select con opciones
+     */
+    function populateSelect($select, items) {
+        console.log('[DEBUG] Rellenando select:', $select.attr('id'));
+        console.log('[DEBUG] Items para poblar select (original):', items);
+        
+        // Verificar si items es válido
+        if (!items) {
+            console.error('[ERROR] Items es nulo o indefinido');
+            // Mantener el valor por defecto sin mostrar error al usuario
+            return;
+        }
+        
+        // Mantener la opción por defecto
+        const defaultOption = $select.find('option').first().clone();
+        console.log('[DEBUG] Opción por defecto:', defaultOption.text());
+        $select.empty().append(defaultOption);
+        
+        // Convertir diferentes formatos de datos a formato estándar clave-valor
+        let itemsProcessed = {};
+        
+        try {
+            // Caso 1: Ya es un objeto plano con format {id: nombre}
+            if ($.isPlainObject(items) && !Array.isArray(items)) {
+                console.log('[DEBUG] Usando items como objeto plano');
+                itemsProcessed = items;
+            }
+            // Caso 2: Es un array de objetos con id/nombre
+            else if (Array.isArray(items)) {
+                console.log('[DEBUG] Convirtiendo array a objeto clave-valor');
+                items.forEach(function(item) {
+                    const id = item.id || item.Id || item.value || '';
+                    const nombre = item.nombre || item.Nombre || item.name || item.label || '';
+                    if (id && nombre) {
+                        itemsProcessed[id] = nombre;
+                    }
+                });
+            }
+            // Caso 3: Es un solo objeto con campos numerados (0,1,2...)
+            else if (typeof items === 'object') {
+                console.log('[DEBUG] Procesando objeto con estructura desconocida');
+                
+                // Intentar encontrar arrays dentro del objeto
+                let foundArray = false;
+                $.each(items, function(key, value) {
+                    if (Array.isArray(value)) {
+                        console.log('[DEBUG] Encontró array en clave:', key);
+                        foundArray = true;
+                        value.forEach(function(item) {
+                            const id = item.id || item.Id || '';
+                            const nombre = item.nombre || item.Nombre || '';
+                            if (id && nombre) {
+                                itemsProcessed[id] = nombre;
+                            }
+                        });
+                        return false; // Break del each
+                    }
+                });
+                
+                // Si no se encontró array, tratar como objeto plano
+                if (!foundArray) {
+                    itemsProcessed = items;
+                }
+            }
+            
+            console.log('[DEBUG] Items procesados:', itemsProcessed);
+            
+            // Añadir opciones al select
+            let count = 0;
+            $.each(itemsProcessed, function(id, name) {
+                if (id && name) {
+                    console.log('[DEBUG] Añadiendo opción:', id, name);
+                    $select.append($('<option>', {
+                        value: id,
+                        text: name
+                    }));
+                    count++;
+                }
+            });
+            
+            console.log('[DEBUG] Total de opciones añadidas:', count);
+            
+            if (count === 0) {
+                console.warn('[ADVERTENCIA] No se añadieron opciones al select');
+            }
+        } catch (error) {
+            console.error('[ERROR] Error al añadir opciones al select:', error);
+        }
+    }
+    
+    /**
+     * Configura el autocompletado para SKU y nombre
+     */
+    function setupAutocomplete() {
+        // Autocompletado para ID/Código de barras
+        $skuInput.autocomplete({
+            minLength: 2,
+            source: function(request, response) {
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'POST',
+                    data: {
+                        action: 'mi_search_product',
+                        _ajax_nonce: getNonceValue(),
+                        search: request.term,
+                        field: 'id' // Buscar por ID o código de barras
+                    },
+                    success: function(data) {
+                        if (data.success && data.data.products) {
+                            response(data.data.products);
+                        } else {
+                            response([]);
+                        }
+                    },
+                    error: function() {
+                        response([]);
+                    }
+                });
+            },
+            select: function(event, ui) {
+                $skuInput.val(ui.item.value);
+                // Si es seleccionado por ID o código, limpiar nombre
+                $nombreInput.val('');
+                return false;
+            }
+        }).autocomplete("instance")._renderItem = function(ul, item) {
+            return $("<li>")
+                .append("<div><strong>" + item.value + "</strong> - " + item.label + "</div>")
+                .appendTo(ul);
+        };
+        
+        // Autocompletado para nombre
+        $nombreInput.autocomplete({
+            minLength: 3,
+            source: function(request, response) {
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'POST',
+                    data: {
+                        action: 'mi_search_product',
+                        _ajax_nonce: getNonceValue(),
+                        search: request.term,
+                        field: 'name'
+                    },
+                    success: function(data) {
+                        if (data.success && data.data.products) {
+                            response(data.data.products);
+                        } else {
+                            response([]);
+                        }
+                    },
+                    error: function() {
+                        response([]);
+                    }
+                });
+            },
+            select: function(event, ui) {
+                $nombreInput.val(ui.item.label);
+                // Si se selecciona por nombre, poner el ID/código en el otro campo
+                if (ui.item.id) {
+                    $skuInput.val(ui.item.id);
+                }
+                return false;
+            }
+        });
+    }
+    
+    /**
+     * Sincroniza el producto con la información del formulario
+     */
+    function syncProduct() {
+        try {
+            console.log('[INFO] Iniciando sincronización de producto...');
+            console.log('[DEBUG] Valores del formulario:', {
+                sku: $skuInput.val(),
+                nombre: $nombreInput.val(),
+                categoria: $categoriaSelect.val(),
+                fabricante: $fabricanteSelect.val()
+            });
+            
+            // Validación básica
+            if ($skuInput.val() === '' && $nombreInput.val() === '' && 
+                $categoriaSelect.val() === '' && $fabricanteSelect.val() === '') {
+                console.warn('[ADVERTENCIA] Formulario vacío, mostrando error.');
+                showResult('error', 'Debes especificar al menos un campo de búsqueda');
+                return;
+            }
+            
+            // Mostrar indicador de carga
+            $syncButton.prop('disabled', true);
+            $spinner.css('visibility', 'visible');
+            
+            // Mostrar mensaje de procesamiento
+            showResult('info', 'Procesando solicitud de sincronización...');
+            
+            // Ocultar botón de desbloqueo al iniciar una nueva sincronización
+            $unlockButton.hide();
+            $('#unlock-explanation').remove();
+            
+            // Verificar que tengamos un ajaxurl válido
+            if (!ajaxurl) {
+                console.error('[ERROR] ajaxurl no disponible, intentando alternativa');
+                window.ajaxurl = '/wp-admin/admin-ajax.php';
+            }
+            
+            // Verificar que tengamos un nonce válido
+            let nonceValue = getNonceValue();
+            if (!nonceValue) {
+                console.error('[ERROR] No se encontró nonce válido, usando token temporal');
+                // Al menos intentar con algo
+                nonceValue = $('input[name="_wpnonce"]').val() || 'temporary_token';
+            }
+            
+            // Enviar solicitud con máxima compatibilidad
+            const ajaxData = {
+                action: 'mi_sync_single_product',
+                _ajax_nonce: nonceValue,
+                nonce: nonceValue,  // Incluir como ambos nombres por compatibilidad
+                _wpnonce: nonceValue, // Triple verificación
+                sku: $skuInput.val() || '',
+                nombre: $nombreInput.val() || '',
+                categoria: $categoriaSelect.val() || '',
+                fabricante: $fabricanteSelect.val() || '',
+                buscar: $skuInput.val() || $nombreInput.val() || '' // Parámetro adicional para búsqueda
+            };
+            
+            console.log('[DEBUG] Datos AJAX a enviar:', ajaxData);
+            
+            $.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                data: ajaxData,
+                dataType: 'json',
+                timeout: 60000, // 60 segundos timeout (aumentado para peticiones lentas)
+                success: function(response) {
+                    console.log('[DEBUG] Respuesta de sincronización completa:', response);
+                    try {
+                        if (response.success) {
+                            showResult('success', response.data.message || 'Producto sincronizado correctamente');
+                            // Ocultar botón de desbloqueo en caso de éxito
+                            $unlockButton.hide();
+                            $('#unlock-explanation').remove();
+                        } else {
+                            const mensaje = response.data?.message || 'Error al sincronizar el producto';
+                            showResult('error', mensaje);
+                            console.error('[ERROR] Error en respuesta de sincronización:', mensaje);
+                            
+                            // Añadir botón de desbloqueo si corresponde
+                            addEmergencyUnlockButton(mensaje);
+                        }
+                    } catch (innerError) {
+                        console.error('[ERROR] Error al procesar respuesta de sincronización:', innerError);
+                        showResult('error', 'Error al procesar respuesta: ' + innerError.message);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('[ERROR] Error AJAX al sincronizar:', status, error);
+                    console.log('[ERROR] Status code:', xhr.status);
+                    console.log('[ERROR] Respuesta completa:', xhr.responseText);
+                    
+                    // Si el error es 400, podría ser un problema con el nonce
+                    if (xhr.status === 400) {
+                        console.warn('[ADVERTENCIA] Error 400 detectado, posible problema con nonce - intentando recargar datos de seguridad');
+                        
+                        // Mostrar mensaje de recuperación
+                        showResult('info', 'Detectado problema de seguridad. Intentando recuperar la sesión automáticamente...');
+                        
+                        // Intentar actualizar el nonce dinámicamente
+                        $.ajax({
+                            url: ajaxurl,
+                            method: 'POST',
+                            data: {action: 'mi_refresh_nonce'},
+                            dataType: 'json',
+                            success: function(refreshResponse) {
+                                if (refreshResponse && refreshResponse.success && refreshResponse.data && refreshResponse.data.nonce) {
+                                    console.log('[INFO] Nonce actualizado correctamente, intentando nuevamente');
+                                    showResult('info', 'Sesión recuperada. Intentando nuevamente la sincronización...');
+                                    
+                                    // Actualizar el nonce en todos los elementos relevantes
+                                    const newNonce = refreshResponse.data.nonce;
+                                    $form.find('input[name="_ajax_nonce"]').val(newNonce);
+                                    $form.find('input[name="_wpnonce"]').val(newNonce);
+                                    $form.find('input[name="nonce"]').val(newNonce);
+                                    $('[data-nonce]').attr('data-nonce', newNonce);
+                                    
+                                    // Si el objeto global existe, actualizarlo también
+                                    if (typeof miSyncSingleProduct !== 'undefined') {
+                                        miSyncSingleProduct.nonce = newNonce;
+                                    }
+                                    
+                                    // Intentar nuevamente la sincronización
+                                    setTimeout(syncProduct, 1000);
+                                    return;
+                                } else {
+                                    console.error('[ERROR] No se pudo actualizar el nonce:', refreshResponse);
+                                    showResult('error', 'No se pudo recuperar la sesión. Por favor, recarga la página e intenta nuevamente.');
+                                }
+                            },
+                            error: function() {
+                                console.error('[ERROR] Falló la petición para actualizar el nonce');
+                                showResult('error', 'No se pudo recuperar la sesión. Por favor, recarga la página manualmente.');
+                            }
+                        });
+                    }
+                    
+                    // Intentar extraer mensaje de error de la respuesta si es posible
+                    let errorMsg = 'Error de comunicación: ' + status;
+                    try {
+                        const jsonResponse = JSON.parse(xhr.responseText);
+                        if (jsonResponse && jsonResponse.data && jsonResponse.data.message) {
+                            errorMsg = jsonResponse.data.message;
+                            
+                            // Verificar si es un mensaje de bloqueo para mostrar el botón de desbloqueo
+                            addEmergencyUnlockButton(errorMsg);
+                        }
+                    } catch (e) {
+                        // Ignorar error de parsing
+                    }
+                    
+                    showResult('error', errorMsg);
+                },
+                complete: function() {
+                    console.log('[INFO] Petición de sincronización completada');
+                    $syncButton.prop('disabled', false);
+                    $spinner.css('visibility', 'hidden');
+                }
+            });
+        } catch (error) {
+            console.error('[ERROR] Error en función syncProduct:', error);
+            showResult('error', 'Error interno: ' + error.message);
+            $syncButton.prop('disabled', false);
+            $spinner.css('visibility', 'hidden');
+        }
+    }
+    
+    /**
+     * Muestra el resultado de la operación
+     */
+    function showResult(type, message) {
+        if (!$resultContainer.length) {
+            $resultContainer = $('<div id="sync-result"></div>');
+            $form.after($resultContainer);
+        }
+        
+        // Mapear tipo a clase de notificación de WordPress
+        let className;
+        switch(type) {
+            case 'success':
+                className = 'notice-success';
+                break;
+            case 'error':
+                className = 'notice-error';
+                break;
+            case 'warning':
+                className = 'notice-warning';
+                break;
+            case 'info':
+            default:
+                className = 'notice-info';
+                break;
+        }
+        
+        // Crear HTML de la notificación
+        $resultContainer.html(
+            `<div class="notice ${className} is-dismissible"><p>${message}</p></div>`
+        );
+        
+        // Scroll al resultado
+        $('html, body').animate({
+            scrollTop: $resultContainer.offset().top - 50
+        }, 500);
+        
+        // Hacer que los notices sean descartables como en WP admin
+        if (window.jQuery && window.jQuery.fn.on) {
+            setTimeout(function() {
+                window.wp?.notices?.init();
+            }, 100);
+        }
+    }
+    
+    /**
+     * Añade un botón de desbloqueo de emergencia si se detecta que hay una sincronización bloqueada
+     */
+    function addEmergencyUnlockButton(errorMessage) {
+        // Solo mostramos el botón si el mensaje indica que hay un bloqueo
+        if (errorMessage && (
+            errorMessage.includes('sincronización en curso') || 
+            errorMessage.includes('Ya hay una') ||
+            errorMessage.includes('sincronización masiva') ||
+            errorMessage.includes('bloqueada') ||
+            errorMessage.includes('bloqueado')
+        )) {
+            console.log('[INFO] Detectado mensaje de bloqueo, mostrando botón de desbloqueo');
+            
+            // Mostrar el botón de desbloqueo existente y darle estilo de advertencia
+            $unlockButton.show()
+                .css({
+                    'background': '#f44336', 
+                    'color': 'white', 
+                    'border-color': '#d32f2f',
+                    'margin-top': '10px'
+                })
+                .text('Desbloquear sincronización');
+                
+            // Agregar una explicación
+            if ($('#unlock-explanation').length === 0) {
+                $unlockButton.after(
+                    $('<p id="unlock-explanation" class="description">')
+                        .text('Si la sincronización se ha quedado bloqueada, usa este botón para liberarla.')
+                        .css('margin-top', '5px')
+                );
+            }
+        } else {
+            // Si no es un error de bloqueo, asegurarse de que el botón esté oculto
+            $unlockButton.hide();
+            $('#unlock-explanation').remove();
+        }
+    }
+    
+    /**
+     * Función para desbloquear la sincronización
+     * Se usa cuando ocurre un error por bloqueo
+     */
+    function unlockSync() {
+        try {
+            // Mostrar estado de procesamiento
+            $unlockButton.prop('disabled', true);
+            $unlockButton.text('Desbloqueando...');
+            
+            // Mostrar mensaje de procesamiento
+            showResult('info', 'Intentando desbloquear la sincronización...');
+            
+            // Verificar que tengamos un nonce válido
+            const nonceValue = getNonceValue();
+            
+            // Llamar al endpoint para desbloquear
+            $.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                data: {
+                    action: 'mi_unlock_sync',
+                    _ajax_nonce: nonceValue,
+                    nonce: nonceValue,
+                    _wpnonce: nonceValue,
+                    type: 'all' // Desbloquear todos los tipos
+                },
+                success: function(response) {
+                    console.log('[INFO] Respuesta de desbloqueo:', response);
+                    
+                    if (response.success) {
+                        showResult('success', response.data?.message || 'Sincronización desbloqueada correctamente. Puedes intentar sincronizar de nuevo.');
+                        
+                        // Ocultar botón de desbloqueo y su explicación después de usarlo
+                        $unlockButton.hide();
+                        $('#unlock-explanation').remove();
+                        
+                        // Habilitar el botón de sincronización si estaba deshabilitado
+                        $syncButton.prop('disabled', false);
+                    } else {
+                        // Si falló el desbloqueo normal, intentar con el forzado
+                        showResult('warning', 'El desbloqueo normal falló. Intentando desbloqueo forzado...');
+                        
+                        // Llamar al endpoint para forzar desbloqueo
+                        $.ajax({
+                            url: ajaxurl,
+                            method: 'POST',
+                            data: {
+                                action: 'mi_force_unlock_sync',
+                                _ajax_nonce: nonceValue,
+                                nonce: nonceValue,
+                                _wpnonce: nonceValue
+                            },
+                            success: function(forceResponse) {
+                                if (forceResponse.success) {
+                                    showResult('success', forceResponse.data?.message || 'Sincronización desbloqueada forzadamente. Ya puedes sincronizar de nuevo.');
+                                    $unlockButton.hide();
+                                    $('#unlock-explanation').remove();
+                                } else {
+                                    showResult('error', forceResponse.data?.message || 'No se pudo desbloquear la sincronización');
+                                }
+                            },
+                            error: function() {
+                                showResult('error', 'Error al intentar desbloquear forzadamente');
+                            }
+                        });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('[ERROR] Error al desbloquear sincronización:', status, error);
+                    
+                    let errorMsg = 'Error de comunicación al intentar desbloquear';
+                    try {
+                        const jsonResponse = JSON.parse(xhr.responseText);
+                        if (jsonResponse && jsonResponse.data && jsonResponse.data.message) {
+                            errorMsg = jsonResponse.data.message;
+                        }
+                    } catch (e) {
+                        // Ignorar error de parsing
+                    }
+                    
+                    showResult('error', errorMsg + '. Prueba a recargar la página.');
+                },
+                complete: function() {
+                    $unlockButton.prop('disabled', false);
+                    $unlockButton.text('Desbloquear sincronización');
+                }
+            });
+        } catch (error) {
+            console.error('[ERROR] Error en función unlockSync:', error);
+            showResult('error', 'Error interno: ' + error.message);
+            $unlockButton.prop('disabled', false);
+        }
+    }
+    
+    // Verificar disponibilidad de ajaxurl con múltiples fuentes
+    if (typeof ajaxurl === 'undefined') {
+        console.warn('[ADVERTENCIA] Variable ajaxurl no disponible directamente.');
+        
+        // 1. Intentar obtener desde objeto localizado
+        if (typeof miSyncSingleProduct !== 'undefined' && miSyncSingleProduct.ajaxurl) {
+            window.ajaxurl = miSyncSingleProduct.ajaxurl;
+            console.log('[INFO] ajaxurl obtenido de miSyncSingleProduct:', window.ajaxurl);
+        } 
+        // 2. Camino predeterminado como fallback
+        else {
+            window.ajaxurl = '/wp-admin/admin-ajax.php';
+            console.log('[INFO] ajaxurl establecido por defecto a:', window.ajaxurl);
+        }
+    } else {
+        console.log('[INFO] ajaxurl ya está disponible:', ajaxurl);
+    }
+}

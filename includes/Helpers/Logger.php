@@ -250,9 +250,10 @@ class Logger implements ILogger {
         // Escribir en el archivo de log
         error_log($log_entry, 3, self::$log_file);
         
-        // Si es un error, también registrarlo en el log de errores de WordPress
-        if ($level === self::LEVEL_ERROR || $level === self::LEVEL_CRITICAL) {
-            error_log("Mi Integración API: $message" . (empty($formatted_context) ? '' : " | $formatted_context"));
+        // Enviar también al debug.log de WordPress para errores, warnings y críticos
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG && 
+            in_array($level, [self::LEVEL_ERROR, self::LEVEL_CRITICAL, self::LEVEL_WARNING, self::LEVEL_EMERGENCY, self::LEVEL_ALERT])) {
+            error_log("Mi Integración API [$level]: $message" . (empty($formatted_context) ? '' : " | $formatted_context"));
         }
         
         // Aplicar hook para integraciones externas de monitoring/logging

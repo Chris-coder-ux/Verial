@@ -1965,511 +1965,805 @@ class ApiConnector {
     }
 
     /**
-     * Verifica el estado de salud de la API
-     * 
-     * @return bool|WP_Error True si la API responde correctamente, WP_Error en caso contrario
-     */
-    public function check_api_health() {
-        try {
-            // Intentamos hacer una solicitud ligera para verificar que la API está disponible
-            // Usamos el endpoint de categorías o fabricantes que suele ser más rápido que productos
-            $endpoint = $this->endpoint . '/GetCategoriasWS';
-            $params = ['inicio' => 1, 'fin' => 1];  // Solo pedimos una categoría
-            
-            $response = $this->make_api_request($endpoint, $params);
-            
-            // Si la respuesta contiene un error específico de la API
-            if (is_array($response) && isset($response['Error']) && $response['Error'] === true) {
-                return new \WP_Error(
-                    'api_error',
-                    $response['Mensaje'] ?? 'Error devuelto por la API sin mensaje específico',
-                    $response
-                );
-            }
-            
-            // Si la respuesta es un array simple o un objeto, probablemente esté bien
-            if (is_array($response) || is_object($response)) {
-                return true;
-            }
-            
-            // Si no tenemos un formato reconocible, podría ser un problema
-            return new \WP_Error(
-                'api_unexpected_response',
-                'La API devolvió una respuesta en un formato inesperado',
-                $response
-            );
-            
-        } catch (\Exception $e) {
-            return new \WP_Error(
-                'api_exception',
-                'Error al verificar el estado de la API: ' . $e->getMessage(),
-                ['exception' => $e]
-            );
-        }
-    }
-
-    /**
      * Wrapper: Obtiene artículos de Verial.
      * @param array $params Parámetros opcionales (inicio, fin, fecha, etc.)
      * @return array|WP_Error
      */
     public function get_articulos($params = array()) {
+        // Soporta paginación: inicio, fin, fecha
         $endpoint = 'GetArticulosWS';
+        
+        // Validar parámetros
+        if (!is_array($params)) {
+            $params = array(); // Asegurar que params sea un array
+            $this->logger->log('ATENCIÓN: get_articulos recibió parámetros no válidos. Tipo: ' . gettype($params), 'warning');
+        }
+        
+        // Registrar llamada a la API
+        if (isset($this->logger)) {
+            $this->logger->log("Llamando a get_articulos con endpoint={$endpoint} y parámetros: " . print_r($params, true), 'debug');
+        }
+        
+        $response = $this->get($endpoint, $params);
+        
+        // Registrar respuesta para depuración
+        if (isset($this->logger)) {
+            if (is_wp_error($response)) {
+                $this->logger->log("Error en get_articulos: " . $response->get_error_message(), 'error');
+            } else {
+                $count = is_array($response) ? count($response) : 0;
+                $this->logger->log("Respuesta de get_articulos recibida. Tipo: " . gettype($response) . ", Elementos: {$count}", 'debug');
+            }
+        }
+        
+        return $response;
+    }
+
+    /**
+     * Wrapper: Obtiene categorías de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_categorias($params = array()) {
+        $endpoint = 'GetCategoriasWS';
         $result = $this->get($endpoint, $params);
         
         // Iniciar logger para diagnóstico
-        $logger = new \MiIntegracionApi\Helpers\Logger('api-articulos');
-        $logger->debug('Respuesta cruda API artículos', [
-            'params' => $params,
-            'tipo_resultado' => is_wp_error($result) ? 'WP_Error' : gettype($result)
+        $logger = new \MiIntegracionApi\Helpers\Logger('api-categorias');
+        $logger->debug('Respuesta cruda API categorías', [
+            'result' => $result,
+            'params' => $params
         ]);
         
-        if (is_wp_error($result)) {
-            $logger->error('Error al obtener artículos', [
-                'error_code' => $result->get_error_code(),
-                'error_mensaje' => $result->get_error_message()
-            ]);
-            return $result;
-        }
-        
-        // Normalizar la respuesta para tener un formato consistente
-        if (isset($result['Articulos']) && is_array($result['Articulos'])) {
-            $logger->info('Formato estándar con clave Articulos', [
-                'cantidad' => count($result['Articulos'])
-            ]);
-            return $result;
-        } elseif (is_array($result) && !isset($result['Articulos']) && !isset($result['InfoError'])) {
-            // Si la respuesta es un array plano de productos (formato alternativo)
-            $logger->info('Formato array plano de productos', [
-                'cantidad' => count($result)
-            ]);
-            
-            // Convertir a formato estándar
-            return [
-                'Articulos' => $result,
-                'InfoError' => ['Codigo' => 0, 'Descripcion' => '']
-            ];
-        }
-        
-        // Si hay información de error en la respuesta
-        if (isset($result['InfoError'])) {
-            if ($result['InfoError']['Codigo'] != 0) {
-                $logger->error('Error desde API Verial', [
+        // Verificar y normalizar el formato de respuesta para evitar campos vacíos
+        if (!is_wp_error($result)) {
+            if (isset($result['InfoError']['Codigo']) && $result['InfoError']['Codigo'] != 0) {
+                $logger->error('Error API en categorías', [
                     'codigo' => $result['InfoError']['Codigo'],
                     'descripcion' => $result['InfoError']['Descripcion'] ?? 'Sin descripción'
                 ]);
-                
                 return new \WP_Error(
                     'verial_api_error',
                     $result['InfoError']['Descripcion'] ?? 'Error en API de Verial',
-                    ['codigo' => $result['InfoError']['Codigo']]
+                    $result['InfoError']
                 );
             }
             
-            // Respuesta exitosa pero sin artículos
-            if (!isset($result['Articulos'])) {
-                $logger->info('Respuesta sin artículos', [
-                    'result_keys' => array_keys($result)
-                ]);
-                return [
-                    'Articulos' => [],
-                    'InfoError' => $result['InfoError']
-                ];
+            // Normalizar el formato para garantizar que la estructura sea consistente
+            $categorias_normalizadas = [];
+            
+            // Comprobar todos los formatos posibles
+            // 1. Formato estándar con clave 'Categorias'
+            if (isset($result['Categorias']) && is_array($result['Categorias'])) {
+                $logger->info('Formato de categorías encontrado: Categorias');
+                foreach ($result['Categorias'] as $categoria) {
+                    if (!isset($categoria['Id']) || !isset($categoria['Nombre']) || empty($categoria['Nombre'])) {
+                        continue;
+                    }
+                    $categorias_normalizadas[] = [
+                        'id' => $categoria['Id'],
+                        'nombre' => $categoria['Nombre'],
+                        'id_padre' => $categoria['ID_Padre'] ?? 0
+                    ];
+                }
             }
-        }
-        
-        return $result;
-    }
-
-    /**
-     * Busca un producto específicamente por su ReferenciaBarras (SKU en WooCommerce).
-     * Este método está optimizado para búsquedas rápidas por código de barras.
-     *
-     * @since 2.0.0
-     * @param string $referencia_barras El código de barras o SKU a buscar
-     * @param array $params_adicionales Parámetros adicionales opcionales
-     * @return array|WP_Error Producto encontrado o error
-     */
-    public function searchProductByReferenciaBarras($referencia_barras, $params_adicionales = []) {
-        if (empty($referencia_barras)) {
-            return new \WP_Error(
-                'param_invalid',
-                'Se requiere un código de barras válido para la búsqueda',
-                ['param' => 'referencia_barras']
-            );
-        }
-        
-        $logger = new \MiIntegracionApi\Helpers\Logger('search-product');
-        $logger->info('Buscando producto por ReferenciaBarras', [
-            'referencia' => $referencia_barras,
-            'params_adicionales' => $params_adicionales
-        ]);
-        
-        // Construir parámetros para la búsqueda específica
-        $params = array_merge(['referenciaBarras' => $referencia_barras], $params_adicionales);
-        
-        // Realizar la búsqueda usando el método general
-        $result = $this->get_articulos($params);
-        
-        if (is_wp_error($result)) {
-            return $result;
-        }
-        
-        // Procesar el resultado para extraer el producto
-        if (isset($result['Articulos']) && is_array($result['Articulos']) && !empty($result['Articulos'])) {
-            $logger->info('Producto encontrado por ReferenciaBarras', [
-                'cantidad' => count($result['Articulos']),
-                'primer_id' => isset($result['Articulos'][0]['Id']) ? $result['Articulos'][0]['Id'] : 'no_id'
-            ]);
-            
-            // Filtrar para asegurar una coincidencia exacta
-            $matches = array_filter($result['Articulos'], function($item) use ($referencia_barras) {
-                return isset($item['ReferenciaBarras']) && 
-                       strtolower((string)$item['ReferenciaBarras']) === strtolower((string)$referencia_barras);
-            });
-            
-            if (!empty($matches)) {
-                $logger->info('Coincidencia exacta encontrada', [
-                    'cantidad_exacta' => count($matches)
-                ]);
-                
-                $normalized = [
-                    'Articulos' => array_values($matches),
-                    'InfoError' => ['Codigo' => 0, 'Descripcion' => '']
-                ];
-                return $normalized;
+            // 2. Formato alternativo con clave 'CategoriasWeb'
+            else if (isset($result['CategoriasWeb']) && is_array($result['CategoriasWeb'])) {
+                $logger->info('Formato de categorías encontrado: CategoriasWeb');
+                foreach ($result['CategoriasWeb'] as $categoria) {
+                    if (!isset($categoria['Id']) || !isset($categoria['Nombre']) || empty($categoria['Nombre'])) {
+                        continue;
+                    }
+                    $categorias_normalizadas[] = [
+                        'id' => $categoria['Id'],
+                        'nombre' => $categoria['Nombre'],
+                        'id_padre' => $categoria['ID_Padre'] ?? 0
+                    ];
+                }
             }
-            
-            return $result; // Devolver todos los resultados si no hay coincidencia exacta
-        }
-        
-        $logger->info('No se encontraron productos por ReferenciaBarras', [
-            'referencia' => $referencia_barras
-        ]);
-        
-        return [
-            'Articulos' => [],
-            'InfoError' => ['Codigo' => 0, 'Descripcion' => '']
-        ];
-    }
-
-    /**
-     * Busca un producto específicamente por su código interno (Id en Verial).
-     * Este método está optimizado para búsquedas rápidas por ID numérico.
-     *
-     * @since 2.0.0
-     * @param int $codigo El ID interno del producto en Verial
-     * @param array $params_adicionales Parámetros adicionales opcionales
-     * @return array|WP_Error Producto encontrado o error
-     */
-    public function searchProductByCodigo($codigo, $params_adicionales = []) {
-        if (empty($codigo)) {
-            return new \WP_Error(
-                'param_invalid',
-                'Se requiere un código válido para la búsqueda',
-                ['param' => 'codigo']
-            );
-        }
-        
-        $logger = new \MiIntegracionApi\Helpers\Logger('search-product');
-        $logger->info('Buscando producto por Código/ID', [
-            'codigo' => $codigo,
-            'params_adicionales' => $params_adicionales
-        ]);
-        
-        // Construir parámetros para la búsqueda específica por ID
-        $params = array_merge(['id_articulo' => $codigo], $params_adicionales);
-        
-        // Realizar la búsqueda usando el método general
-        $result = $this->get_articulos($params);
-        
-        if (is_wp_error($result)) {
-            return $result;
-        }
-        
-        // Procesar el resultado para extraer el producto
-        if (isset($result['Articulos']) && is_array($result['Articulos']) && !empty($result['Articulos'])) {
-            $logger->info('Producto encontrado por Código/ID', [
-                'cantidad' => count($result['Articulos']),
-                'primer_id' => isset($result['Articulos'][0]['Id']) ? $result['Articulos'][0]['Id'] : 'no_id'
-            ]);
-            
-            // Filtrar para asegurar una coincidencia exacta por ID
-            $matches = array_filter($result['Articulos'], function($item) use ($codigo) {
-                return isset($item['Id']) && 
-                       (string)$item['Id'] === (string)$codigo;
-            });
-            
-            if (!empty($matches)) {
-                $logger->info('Coincidencia exacta por ID encontrada', [
-                    'cantidad_exacta' => count($matches)
-                ]);
-                
-                $normalized = [
-                    'Articulos' => array_values($matches),
-                    'InfoError' => ['Codigo' => 0, 'Descripcion' => '']
-                ];
-                return $normalized;
-            }
-            
-            return $result; // Devolver todos los resultados si no hay coincidencia exacta
-        }
-        
-        $logger->info('No se encontraron productos por Código/ID', [
-            'codigo' => $codigo
-        ]);
-        
-        return [
-            'Articulos' => [],
-            'InfoError' => ['Codigo' => 0, 'Descripcion' => '']
-        ];
-    }
-
-    /**
-     * Busca productos por nombre o descripción.
-     * Este método está optimizado para búsquedas por texto en campos de nombre.
-     *
-     * @since 2.0.0
-     * @param string $nombre El nombre o descripción a buscar
-     * @param array $params_adicionales Parámetros adicionales opcionales
-     * @return array|WP_Error Productos encontrados o error
-     */
-    public function searchProductByName($nombre, $params_adicionales = []) {
-        if (empty($nombre)) {
-            return new \WP_Error(
-                'param_invalid',
-                'Se requiere un nombre válido para la búsqueda',
-                ['param' => 'nombre']
-            );
-        }
-        
-        $logger = new \MiIntegracionApi\Helpers\Logger('search-product');
-        $logger->info('Buscando producto por Nombre', [
-            'nombre' => $nombre,
-            'params_adicionales' => $params_adicionales
-        ]);
-        
-        // Construir parámetros para la búsqueda por nombre
-        $params = array_merge(['buscar' => $nombre], $params_adicionales);
-        
-        // Realizar la búsqueda usando el método general
-        $result = $this->get_articulos($params);
-        
-        if (is_wp_error($result)) {
-            return $result;
-        }
-        
-        // Procesar el resultado
-        if (isset($result['Articulos']) && is_array($result['Articulos']) && !empty($result['Articulos'])) {
-            $logger->info('Productos encontrados por Nombre', [
-                'cantidad' => count($result['Articulos'])
-            ]);
-            
-            // Ordenar resultados por relevancia (coincidencia de nombre)
-            $productos = $result['Articulos'];
-            usort($productos, function($a, $b) use ($nombre) {
-                // Verificar si tienen nombre
-                $a_nombre = isset($a['Nombre']) ? strtolower($a['Nombre']) : '';
-                $b_nombre = isset($b['Nombre']) ? strtolower($b['Nombre']) : '';
-                $nombre_lower = strtolower($nombre);
-                
-                // Priorizar coincidencias exactas
-                $a_exact = $a_nombre === $nombre_lower;
-                $b_exact = $b_nombre === $nombre_lower;
-                
-                if ($a_exact && !$b_exact) return -1;
-                if (!$a_exact && $b_exact) return 1;
-                
-                // Luego priorizar las que empiezan con el término
-                $a_starts = strpos($a_nombre, $nombre_lower) === 0;
-                $b_starts = strpos($b_nombre, $nombre_lower) === 0;
-                
-                if ($a_starts && !$b_starts) return -1;
-                if (!$a_starts && $b_starts) return 1;
-                
-                // Finalmente por longitud (nombres más cortos primero)
-                return strlen($a_nombre) - strlen($b_nombre);
-            });
-            
-            $result['Articulos'] = $productos;
-            return $result;
-        }
-        
-        $logger->info('No se encontraron productos por Nombre', [
-            'nombre' => $nombre
-        ]);
-        
-        return [
-            'Articulos' => [],
-            'InfoError' => ['Codigo' => 0, 'Descripcion' => '']
-        ];
-    }
-
-    /**
-     * Busca productos utilizando múltiples filtros combinados.
-     * Este método permite búsquedas avanzadas con varios criterios.
-     *
-     * @since 2.0.0
-     * @param array $filters Arreglo asociativo de filtros (campo => valor)
-     * @param bool $usar_operador_and Si es true, todos los filtros deben coincidir (AND lógico)
-     * @return array|WP_Error Productos encontrados o error
-     */
-    public function searchProductByFilters($filters = [], $usar_operador_and = true) {
-        if (empty($filters)) {
-            return new \WP_Error(
-                'param_invalid',
-                'Se requiere al menos un filtro válido para la búsqueda',
-                ['param' => 'filters']
-            );
-        }
-        
-        $logger = new \MiIntegracionApi\Helpers\Logger('search-product');
-        $logger->info('Buscando productos con múltiples filtros', [
-            'filtros' => $filters,
-            'operador_and' => $usar_operador_and
-        ]);
-        
-        // Construir los parámetros para la API a partir de los filtros
-        $params = $filters;
-        
-        // Realizar la búsqueda usando el método general
-        $result = $this->get_articulos($params);
-        
-        if (is_wp_error($result)) {
-            return $result;
-        }
-        
-        // Si la API no permite filtrado combinado nativo, implementamos el filtrado local
-        if ($usar_operador_and && isset($result['Articulos']) && is_array($result['Articulos'])) {
-            $productos = $result['Articulos'];
-            $filtered = [];
-            
-            foreach ($productos as $producto) {
-                $match = true;
-                
-                // Verificar que cumpla con todos los criterios
-                foreach ($filters as $campo => $valor) {
-                    // Mapeo de algunos campos especiales
-                    $campo_api = $campo;
-                    if ($campo == 'sku') $campo_api = 'ReferenciaBarras';
-                    if ($campo == 'codigo' || $campo == 'id') $campo_api = 'Id';
-                    
-                    // Verificar coincidencia
-                    $tiene_campo = isset($producto[$campo_api]);
-                    $coincide = $tiene_campo && ((string)$producto[$campo_api] === (string)$valor);
-                    
-                    if (!$coincide) {
-                        $match = false;
-                        break;
+            // 3. Formato plano (la respuesta es directamente un array de categorías)
+            else if (is_array($result) && !empty($result) && !isset($result['InfoError'])) {
+                $logger->info('Formato de categorías encontrado: Array plano');
+                foreach ($result as $categoria) {
+                    if (is_array($categoria) && isset($categoria['Id']) && isset($categoria['Nombre']) && !empty($categoria['Nombre'])) {
+                        $categorias_normalizadas[] = [
+                            'id' => $categoria['Id'],
+                            'nombre' => $categoria['Nombre'],
+                            'id_padre' => $categoria['ID_Padre'] ?? 0
+                        ];
                     }
                 }
-                
-                if ($match) {
-                    $filtered[] = $producto;
+            }
+            // 4. Formato alternativo donde cada categoría es un elemento con clave numérica
+            else if (is_array($result)) {
+                $logger->info('Intentando procesar formato alternativo');
+                foreach ($result as $key => $value) {
+                    if (is_numeric($key) && is_array($value)) {
+                        if (isset($value['Id']) || isset($value['id'])) {
+                            $id = $value['Id'] ?? $value['id'] ?? '';
+                            $nombre = $value['Nombre'] ?? $value['nombre'] ?? '';
+                            if (!empty($id) && !empty($nombre)) {
+                                $categorias_normalizadas[] = [
+                                    'id' => $id,
+                                    'nombre' => $nombre,
+                                    'id_padre' => $value['ID_Padre'] ?? $value['id_padre'] ?? 0
+                                ];
+                            }
+                        }
+                    }
                 }
             }
             
-            $logger->info('Filtrado local AND aplicado', [
-                'total_original' => count($productos),
-                'total_filtered' => count($filtered)
+            $logger->info('Categorías procesadas', [
+                'total' => count($categorias_normalizadas),
+                'muestras' => array_slice($categorias_normalizadas, 0, 3)
             ]);
             
-            $result['Articulos'] = $filtered;
+            // Si llegamos aquí es porque no se encontró el formato esperado
+            if (empty($categorias_normalizadas)) {
+                $logger->warning('No se encontraron categorías en ningún formato conocido');
+                // Crear al menos una categoría genérica para evitar errores en el frontend
+                $categorias_normalizadas = [
+                    ['id' => '0', 'nombre' => '-- Sin categoría --'],
+                    ['id' => '1', 'nombre' => 'Categoría general']
+                ];
+            }
+            
+            return $categorias_normalizadas;
         }
         
         return $result;
     }
 
     /**
-     * Método estratégico que implementa una búsqueda escalonada por prioridad.
-     * Intenta diferentes métodos de búsqueda en orden de especificidad hasta encontrar resultados.
-     *
-     * @since 2.0.0
-     * @param string $sku SKU o código del producto (opcional)
-     * @param string $nombre Nombre del producto (opcional)
-     * @param array $filtros_adicionales Filtros adicionales como categoría o fabricante
-     * @return array|WP_Error Productos encontrados o error
+     * Wrapper: Obtiene fabricantes de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
      */
-    public function searchProductEscalonado($sku = '', $nombre = '', $filtros_adicionales = []) {
-        $logger = new \MiIntegracionApi\Helpers\Logger('search-escalated');
-        $logger->info('Iniciando búsqueda escalonada', [
-            'sku' => $sku,
-            'nombre' => $nombre,
-            'filtros_adicionales' => $filtros_adicionales
+    public function get_fabricantes($params = array()) {
+        $endpoint = 'GetFabricantesWS';
+        $result = $this->get($endpoint, $params);
+        
+        // Iniciar logger para diagnóstico
+        $logger = new \MiIntegracionApi\Helpers\Logger('api-fabricantes');
+        $logger->debug('Respuesta cruda API fabricantes', [
+            'result' => $result,
+            'params' => $params
         ]);
         
-        $result = null;
-        
-        // Paso 1: Si tenemos SKU/código, intentamos búsqueda exacta por este valor (alta prioridad)
-        if (!empty($sku)) {
-            $logger->info('Estrategia 1: Búsqueda por ReferenciaBarras (SKU)');
+        // Verificar y normalizar el formato de respuesta para evitar campos vacíos
+        if (!is_wp_error($result)) {
+            if (isset($result['InfoError']['Codigo']) && $result['InfoError']['Codigo'] != 0) {
+                $logger->error('Error API en fabricantes', [
+                    'codigo' => $result['InfoError']['Codigo'],
+                    'descripcion' => $result['InfoError']['Descripcion'] ?? 'Sin descripción'
+                ]);
+                return new \WP_Error(
+                    'verial_api_error',
+                    $result['InfoError']['Descripcion'] ?? 'Error en API de Verial',
+                    $result['InfoError']
+                );
+            }
             
-            // Intentar primero como código de barras (no numérico o SKU en WooCommerce)
-            if (!is_numeric($sku)) {
-                $result = $this->searchProductByReferenciaBarras($sku, $filtros_adicionales);
-                
-                // Si encontramos resultados exactos, retornar
-                if (!is_wp_error($result) && isset($result['Articulos']) && !empty($result['Articulos'])) {
-                    $logger->info('Éxito en estrategia 1: Producto encontrado por ReferenciaBarras');
-                    return $result;
+            // Normalizar el formato para garantizar que la estructura sea consistente
+            $fabricantes_normalizados = [];
+            
+            // Comprobar todos los formatos posibles
+            // 1. Formato estándar con clave 'Fabricantes'
+            if (isset($result['Fabricantes']) && is_array($result['Fabricantes'])) {
+                $logger->info('Formato de fabricantes encontrado: Fabricantes');
+                foreach ($result['Fabricantes'] as $fabricante) {
+                    if (!isset($fabricante['Id']) || !isset($fabricante['Nombre']) || empty($fabricante['Nombre'])) {
+                        continue;
+                    }
+                    $fabricantes_normalizados[] = [
+                        'id' => $fabricante['Id'],
+                        'nombre' => $fabricante['Nombre'],
+                        'tipo' => $fabricante['Tipo'] ?? 1,
+                    ];
+                }
+            }
+            // 2. Formato alternativo con clave 'FabricantesWeb'
+            else if (isset($result['FabricantesWeb']) && is_array($result['FabricantesWeb'])) {
+                $logger->info('Formato de fabricantes encontrado: FabricantesWeb');
+                foreach ($result['FabricantesWeb'] as $fabricante) {
+                    if (!isset($fabricante['Id']) || !isset($fabricante['Nombre']) || empty($fabricante['Nombre'])) {
+                        continue;
+                    }
+                    $fabricantes_normalizados[] = [
+                        'id' => $fabricante['Id'],
+                        'nombre' => $fabricante['Nombre'],
+                        'tipo' => $fabricante['Tipo'] ?? 1,
+                    ];
+                }
+            }
+            // 3. Formato plano (la respuesta es directamente un array de fabricantes)
+            else if (is_array($result) && !empty($result) && !isset($result['InfoError'])) {
+                $logger->info('Formato de fabricantes encontrado: Array plano');
+                foreach ($result as $fabricante) {
+                    if (is_array($fabricante) && isset($fabricante['Id']) && isset($fabricante['Nombre']) && !empty($fabricante['Nombre'])) {
+                        $fabricantes_normalizados[] = [
+                            'id' => $fabricante['Id'],
+                            'nombre' => $fabricante['Nombre'],
+                            'tipo' => $fabricante['Tipo'] ?? 1,
+                        ];
+                    }
+                }
+            }
+            // 4. Formato alternativo donde cada fabricante es un elemento con clave numérica
+            else if (is_array($result)) {
+                $logger->info('Intentando procesar formato alternativo');
+                foreach ($result as $key => $value) {
+                    if (is_numeric($key) && is_array($value)) {
+                        if (isset($value['Id']) || isset($value['id'])) {
+                            $id = $value['Id'] ?? $value['id'] ?? '';
+                            $nombre = $value['Nombre'] ?? $value['nombre'] ?? '';
+                            if (!empty($id) && !empty($nombre)) {
+                                $fabricantes_normalizados[] = [
+                                    'id' => $id,
+                                    'nombre' => $nombre,
+                                    'tipo' => $value['Tipo'] ?? $value['tipo'] ?? 1
+                                ];
+                            }
+                        }
+                    }
                 }
             }
             
-            // Si no tuvo éxito o es numérico, intentar como ID interno
-            $logger->info('Estrategia 2: Búsqueda por Código/ID');
-            $result = $this->searchProductByCodigo($sku, $filtros_adicionales);
+            $logger->info('Fabricantes procesados', [
+                'total' => count($fabricantes_normalizados),
+                'muestras' => array_slice($fabricantes_normalizados, 0, 3)
+            ]);
             
-            // Si encontramos resultados exactos, retornar
-            if (!is_wp_error($result) && isset($result['Articulos']) && !empty($result['Articulos'])) {
-                $logger->info('Éxito en estrategia 2: Producto encontrado por Código/ID');
-                return $result;
+            // Si llegamos aquí es porque no se encontró el formato esperado
+            if (empty($fabricantes_normalizados)) {
+                $logger->warning('No se encontraron fabricantes en ningún formato conocido');
+                // Crear al menos un fabricante genérico para evitar errores en el frontend
+                $fabricantes_normalizados = [
+                    ['id' => '0', 'nombre' => '-- Sin fabricante --'],
+                    ['id' => '1', 'nombre' => 'Fabricante general'],
+                ];
             }
             
-            // Si aún no hay resultados, intentar búsqueda general con el SKU como término
-            $logger->info('Estrategia 3: Búsqueda general con SKU como término');
-            $params_busqueda = array_merge(['buscar' => $sku], $filtros_adicionales);
-            $result = $this->get_articulos($params_busqueda);
+            return $fabricantes_normalizados;
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Wrapper: Obtiene clientes de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_clientes($params = array()) {
+        $endpoint = 'GetClientesWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene pedidos de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_pedidos($params = array()) {
+        $endpoint = 'GetPedidosWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene el stock de artículos de Verial.
+     * @param array|int $params Puede ser array de filtros o id_articulo (int)
+     * @return array|WP_Error
+     */
+    public function get_stock_articulos($params = array()) {
+        $endpoint = 'GetStockArticulosWS';
+        // Permite pasar id_articulo directamente
+        if (is_int($params)) {
+            $params = ['id_articulo' => $params];
+        }
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene condiciones de tarifa de un artículo.
+     * @param int $id_articulo
+     * @param int $id_cliente
+     * @param int|null $id_tarifa
+     * @param string|null $fecha
+     * @return array|WP_Error
+     */
+    public function get_condiciones_tarifa($id_articulo, $id_cliente = 0, $id_tarifa = null, $fecha = null) {
+        $endpoint = 'GetCondicionesTarifaWS';
+        $params = [
+            'id_articulo' => $id_articulo,
+            'id_cliente' => $id_cliente,
+        ];
+        if (!is_null($id_tarifa)) {
+            $params['id_tarifa'] = $id_tarifa;
+        }
+        if (!is_null($fecha)) {
+            $params['fecha'] = $fecha;
+        }
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene imágenes de artículos.
+     * @param array $params Parámetros opcionales (id_articulo, numpixelsladomenor, etc.)
+     * @return array|WP_Error
+     */
+    public function get_imagenes_articulos($params = array()) {
+        $endpoint = 'GetImagenesArticulosWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Prueba la conectividad con la API de Verial usando un método simple (GetPaisesWS).
+     * @return true|string Mensaje de error si falla, true si conecta correctamente.
+     */
+    public function test_connectivity() {
+        try {
+            $this->logger->info('[TEST] Iniciando prueba de conectividad completa...', [
+                'api_url' => $this->api_url,
+                'sesionwcf' => $this->sesionwcf
+            ]);
             
-            if (!is_wp_error($result) && isset($result['Articulos']) && !empty($result['Articulos'])) {
-                $logger->info('Éxito en estrategia 3: Productos encontrados con búsqueda general por SKU');
-                return $result;
-            }
-        }
-        
-        // Paso 2: Si tenemos nombre o no se encontró nada por SKU, buscar por nombre
-        if (!empty($nombre)) {
-            $logger->info('Estrategia 4: Búsqueda por Nombre');
-            $result = $this->searchProductByName($nombre, $filtros_adicionales);
+            // PASO 1: Verificar que la URL base es accesible
+            $this->logger->info('[TEST] Verificando accesibilidad de URL base...');
+            $response = $this->doRequestWithRetry('GET', $this->api_url, [
+                'timeout' => 10, // Un timeout inicial más bajo para la accesibilidad
+                'sslverify' => false, // No es necesario verificar SSL en este punto
+                'headers' => [
+                    'User-Agent' => 'Mi-Integracion-API/1.0'
+                ],
+                'retries' => 0, // No reintentar esta solicitud, solo verificar accesibilidad
+            ]);
             
-            if (!is_wp_error($result) && isset($result['Articulos']) && !empty($result['Articulos'])) {
-                $logger->info('Éxito en estrategia 4: Productos encontrados por Nombre');
-                return $result;
+            if (is_wp_error($response)) {
+                $error_msg = 'No se puede acceder a la URL base: ' . $response->get_error_message();
+                $this->logger->error('[TEST] Error de accesibilidad: ' . $error_msg);
+                return $error_msg;
             }
-        }
-        
-        // Paso 3: Si aún no hay resultados pero tenemos filtros adicionales, intentar solo con ellos
-        if (!empty($filtros_adicionales)) {
-            $logger->info('Estrategia 5: Búsqueda solo con filtros adicionales');
-            $result = $this->get_articulos($filtros_adicionales);
             
-            if (!is_wp_error($result) && isset($result['Articulos']) && !empty($result['Articulos'])) {
-                $logger->info('Éxito en estrategia 5: Productos encontrados solo con filtros adicionales');
-                return $result;
+            $response_code = wp_remote_retrieve_response_code($response);
+            if ($response_code < 200 || $response_code >= 400) {
+                $error_msg = 'URL base devuelve código de error HTTP: ' . $response_code;
+                $this->logger->error('[TEST] Error HTTP: ' . $error_msg);
+                return $error_msg;
             }
+            
+            $this->logger->info('[TEST] ✓ URL base accesible (HTTP ' . $response_code . ')');
+            
+            // PASO 2: Verificar que el número de sesión es válido con la API
+            $this->logger->info('[TEST] Verificando número de sesión con GetPaisesWS...');
+            $test_url = $this->build_api_url('GetPaisesWS') . '?x=' . urlencode($this->sesionwcf);
+            $this->logger->info('[TEST] URL de prueba: ' . $test_url);
+            
+            $api_response = $this->get('GetPaisesWS');
+            
+            // Log de respuesta para diagnóstico
+            $this->logger->info('[TEST] Respuesta de GetPaisesWS', [
+                'type' => gettype($api_response),
+                'is_wp_error' => is_wp_error($api_response),
+                'response' => $api_response
+            ]);
+            
+            if (is_wp_error($api_response)) {
+                $error_msg = 'Error en la conexión de prueba: ' . $api_response->get_error_message();
+                $this->logger->error('[TEST] Error WP_Error: ' . $error_msg);
+                return $error_msg;
+            }
+            
+            // PASO 3: Validar respuesta de la API
+            if (isset($api_response['InfoError'])) {
+                $info_error = $api_response['InfoError'];
+                
+                if (isset($info_error['Codigo']) && $info_error['Codigo'] == 0) {
+                    $this->logger->info('[TEST] ✓ Conectividad exitosa con Verial');
+                    return true;
+                } else {
+                    $error_msg = 'Error de API: ' . ($info_error['Descripcion'] ?? 'Error desconocido');
+                    $this->logger->error('[TEST] Error InfoError: ' . $error_msg, $info_error);
+                    
+                    // Proporcionar contexto adicional para errores comunes
+                    if (isset($info_error['Codigo'])) {
+                        switch ($info_error['Codigo']) {
+                            case -1:
+                                $error_msg .= ' (Posible número de sesión inválido)';
+                                break;
+                            case -2:
+                                $error_msg .= ' (Posible error de autenticación)';
+                                break;
+                            case -3:
+                                $error_msg .= ' (Posible servicio no disponible)';
+                                break;
+                        }
+                    }
+                    
+                    return $error_msg;
+                }
+            } else {
+                $error_msg = 'Respuesta inesperada de la API de Verial (sin InfoError)';
+                $this->logger->error('[TEST] ' . $error_msg, $api_response);
+                return $error_msg;
+            }
+            
+        } catch (\Throwable $e) {
+            $error_msg = 'Excepción durante prueba de conectividad: ' . $e->getMessage();
+            $this->logger->error('[TEST] ' . $error_msg, [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return $error_msg;
+        }
+    }
+
+    /**
+     * Lee la configuración desde las opciones de WordPress, compatible con ambos plugins.
+     */
+    private function load_settings() {
+        $ajustes = get_option('mi_integracion_api_ajustes', array());
+        $this->api_url = $ajustes['mia_url_base'] ?? '';
+        $this->sesionwcf = $ajustes['mia_numero_sesion'] ?? '';
+
+        // Si la URL base o el número de sesión están vacíos, lanzar una excepción
+        if (empty($this->api_url) || empty($this->sesionwcf)) {
+            throw new \Exception('La URL base o el número de sesión no están configurados correctamente. Por favor, revisa la configuración del plugin.');
+        }
+    }
+
+    /**
+     * Valida la configuración actual del conector
+     * @return array{is_valid: bool, errors: string[], config: array}
+     */
+    public function validate_configuration(): array {
+        $errors = [];
+        $config = [
+            'api_url' => $this->api_url,
+            'sesionwcf' => $this->sesionwcf,
+            'source' => $this->config_source
+        ];
+        
+        // Validar URL base
+        if (empty($this->api_url)) {
+            $errors[] = 'URL base de Verial no configurada';
+        } elseif (!filter_var($this->api_url, FILTER_VALIDATE_URL)) {
+            $errors[] = 'URL base de Verial tiene formato inválido: ' . $this->api_url;
         }
         
-        // Si llegamos aquí es porque no se encontraron resultados en ninguna estrategia
-        $logger->warning('No se encontraron productos con ninguna estrategia de búsqueda');
-        
-        // Si ya tenemos un resultado de algún intento anterior, devolverlo aunque esté vacío
-        if ($result !== null) {
-            return $result;
+        // Validar número de sesión usando método dedicado
+        $session_validation = self::validate_session_number($this->sesionwcf);
+        if (!$session_validation['is_valid']) {
+            $errors[] = $session_validation['error'];
         }
         
-        // Devolver estructura vacía estándar
+        // Validar que la fuente de configuración no sea de error
+        if ($this->config_source === 'error_fallback') {
+            $errors[] = 'Configuración cargada desde fallback de error';
+        }
+        
         return [
-            'Articulos' => [],
-            'InfoError' => ['Codigo' => 0, 'Descripcion' => 'No se encontraron productos con los criterios proporcionados']
+            'is_valid' => empty($errors),
+            'errors' => $errors,
+            'config' => $config
+        ];
+    }
+
+    /**
+     * Valida si un número de sesión es válido para Verial
+     * 
+     * @param mixed $sesionwcf Número de sesión a validar
+     * @return array Array con 'is_valid' (bool) y 'error' (string)
+     */
+    public static function validate_session_number($sesionwcf): array {
+        // Verificar que no esté vacío
+        if ($sesionwcf === null || $sesionwcf === '') {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión no puede estar vacío'
+            ];
+        }
+        
+        // Verificar que sea numérico
+        if (!is_numeric($sesionwcf)) {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión debe ser numérico, recibido: ' . gettype($sesionwcf)
+            ];
+        }
+        
+        // Convertir a entero para validaciones adicionales
+        $sesion_int = (int)$sesionwcf;
+        
+        // Verificar rango válido
+        if ($sesion_int <= 0) {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión debe ser mayor que 0, recibido: ' . $sesion_int
+            ];
+        }
+        
+        if ($sesion_int > 9999) {
+            return [
+                'is_valid' => false,
+                'error' => 'El número de sesión debe ser menor que 10000, recibido: ' . $sesion_int
+            ];
+        }
+        
+        // Si llegamos aquí, es válido
+        return [
+            'is_valid' => true,
+            'error' => ''
+        ];
+    }
+
+    /**
+     * Obtiene el número de sesión actual
+     * 
+     * @return int
+     */
+    public function get_session_number(): int {
+        return $this->sesionwcf;
+    }
+
+    /**
+     * Establece un nuevo número de sesión (con validación)
+     * 
+     * @param mixed $sesionwcf Nuevo número de sesión
+     * @throws \Exception Si el número de sesión es inválido
+     */
+    public function set_session_number($sesionwcf): void {
+        $validation = self::validate_session_number($sesionwcf);
+        
+        if (!$validation['is_valid']) {
+            throw new \Exception('Número de sesión inválido: ' . $validation['error']);
+        }
+        
+        $this->sesionwcf = (int)$sesionwcf;
+        $this->logger->info('Número de sesión actualizado', ['new_session' => $this->sesionwcf]);
+    }
+
+    /**
+     * Recarga la configuración desde WordPress
+     * @throws \Exception Si la configuración es inválida
+     */
+    public function reload_configuration(): void {
+        $this->load_configuration([]);
+    }
+
+    /**
+     * Método de prueba para demostrar el nuevo sistema de retry
+     * 
+     * @param string $test_endpoint Endpoint para probar (default: 'test-connection')
+     * @return array Resultados de la prueba incluyendo estadísticas de retry
+     */
+    public function testRetrySystem(string $test_endpoint = 'test-connection'): array {
+        $this->logger->info('[TEST] Iniciando prueba del sistema de retry robusto');
+        
+        $test_results = [];
+        
+        // Prueba 1: Solicitud GET con retry robusto
+        $this->logger->info('[TEST] Prueba 1: GET con retry robusto');
+        $start_time = microtime(true);
+        $get_result = $this->makeRequestWithRetry('GET', $test_endpoint, [], ['test' => 'retry_system']);
+        $get_time = microtime(true) - $start_time;
+        
+        $test_results['get_test'] = [
+            'success' => !is_wp_error($get_result),
+            'execution_time' => round($get_time, 3),
+            'retry_count' => $this->getLastRetryCount(),
+            'result' => is_wp_error($get_result) ? $get_result->get_error_message() : 'Success'
+        ];
+        
+        // Prueba 2: Solicitud POST con retry robusto
+        $this->logger->info('[TEST] Prueba 2: POST con retry robusto');
+        $start_time = microtime(true);
+        $post_result = $this->makeRequestWithRetry('POST', $test_endpoint, ['test_data' => 'retry_system_post']);
+        $post_time = microtime(true) - $start_time;
+        
+        $test_results['post_test'] = [
+            'success' => !is_wp_error($post_result),
+            'execution_time' => round($post_time, 3),
+            'retry_count' => $this->getLastRetryCount(),
+            'result' => is_wp_error($post_result) ? $post_result->get_error_message() : 'Success'
+        ];
+        
+        // Prueba 3: Comparación con método legacy
+        $this->logger->info('[TEST] Prueba 3: Comparación con método legacy');
+        $start_time = microtime(true);
+        $legacy_result = $this->makeRequest('GET', $test_endpoint);
+        $legacy_time = microtime(true) - $start_time;
+        
+        $test_results['legacy_comparison'] = [
+            'success' => !is_wp_error($legacy_result),
+            'execution_time' => round($legacy_time, 3),
+            'retry_count' => $this->getLastRetryCount(),
+            'result' => is_wp_error($legacy_result) ? $legacy_result->get_error_message() : 'Success'
+        ];
+        
+        // Resumen de la prueba
+        $test_results['summary'] = [
+            'total_tests' => 3,
+            'total_time' => round($get_time + $post_time + $legacy_time, 3),
+            'retry_config' => $this->getRetryConfig(),
+            'api_url' => $this->getApiUrl(),
+            'timestamp' => date('Y-m-d H:i:s')
+        ];
+        
+        $this->logger->info('[TEST] Prueba del sistema de retry completada', $test_results['summary']);
+        
+        return $test_results;
+    }
+
+    /**
+     * Realiza un diagnóstico detallado de la conexión a la API
+     * 
+     * @return array|WP_Error Resultado del diagnóstico
+     */
+    public function diagnosticarConexion() {
+        $resultado = [
+            'estado' => 'error',
+            'mensaje' => '',
+            'detalles' => [],
+            'sugerencias' => []
+        ];
+        
+        $url_base = $this->get_api_base_url();
+        $sesion = $this->getSesionWcf();
+        
+        if (empty($url_base)) {
+            $resultado['mensaje'] = 'No se ha configurado la URL base de la API de Verial';
+            $resultado['sugerencias'][] = 'Configure la URL base en Ajustes > Mi Integración API';
+            return $resultado;
+        }
+        
+        if (empty($sesion)) {
+            $resultado['mensaje'] = 'No se ha configurado el número de sesión (sesionwcf)';
+            $resultado['sugerencias'][] = 'Configure el número de sesión en Ajustes > Mi Integración API';
+            return $resultado;
+        }
+        
+        $resultado['detalles']['url_base'] = $url_base;
+        $resultado['detalles']['sesion'] = $sesion;
+        
+        // 2. Intentar conexión básica a la URL base
+        $test_url = rtrim($url_base, '/') . '/testConexion?x=' . $sesion;
+        
+        try {
+            $response = wp_remote_get($test_url, [
+                'timeout' => 15,
+                'sslverify' => false
+            ]);
+            
+            if (is_wp_error($response)) {
+                $resultado['mensaje'] = 'Error al conectar con la API: ' . $response->get_error_message();
+                $resultado['sugerencias'][] = 'Verifique que la URL base sea correcta';
+                $resultado['sugerencias'][] = 'Compruebe que su servidor puede conectarse a Internet';
+                $resultado['detalles']['error'] = $response->get_error_message();
+                return $resultado;
+            }
+            
+            $status_code = wp_remote_retrieve_response_code($response);
+            $body = wp_remote_retrieve_body($response);
+            
+            $resultado['detalles']['status_code'] = $status_code;
+            $resultado['detalles']['response_size'] = strlen($body);
+            
+            if ($status_code === 404) {
+                $resultado['mensaje'] = 'La URL de la API no existe (404)';
+                $resultado['sugerencias'][] = 'Verifique que la URL base sea correcta';
+                $resultado['sugerencias'][] = 'Confirme que la API de Verial está accesible desde su servidor';
+                return $resultado;
+            }
+            
+            if ($status_code >= 400) {
+                $resultado['mensaje'] = "Error HTTP $status_code al conectar con la API";
+                $resultado['sugerencias'][] = 'Verifique que la URL y sesión sean correctas';
+                $resultado['detalles']['response'] = substr($body, 0, 500); // Primeros 500 caracteres
+                return $resultado;
+            }
+            
+            // 3. Intentar la conexión parecida a los endpoints normales
+            $endpoint = 'test';
+            $response_api = $this->get($endpoint);
+            
+            if (is_wp_error($response_api)) {
+                $resultado['mensaje'] = 'Error al probar un endpoint de API: ' . $response_api->get_error_message();
+                $resultado['detalles']['endpoint_error'] = $response_api->get_error_message();
+                $resultado['sugerencias'][] = 'Verifique que el número de sesión sea correcto';
+                return $resultado;
+            }
+            
+            // Si llegamos aquí, la conexión parece funcionar
+            $resultado['estado'] = 'success';
+            $resultado['mensaje'] = 'Conexión establecida correctamente';
+            
+            return $resultado;
+        } catch (\Exception $e) {
+            $resultado['mensaje'] = 'Error inesperado al diagnosticar conexión: ' . $e->getMessage();
+            $resultado['detalles']['exception'] = $e->getMessage();
+            $resultado['detalles']['trace'] = $e->getTraceAsString();
+            return $resultado;
+        }
+    }
+
+    /**
+     * Devuelve información de la última solicitud para diagnósticos
+     * 
+     * @return array Información de la última solicitud
+     */
+    public function get_last_request_info() {
+        $info = [
+            'api_url' => $this->api_url ?? 'no configurada',
+            'sesionwcf' => $this->sesionwcf ?? 'no configurada',
+            'config_source' => $this->config_source ?? 'desconocido',
+            'cache_enabled' => $this->cache_enabled ?? false,
+            'cache_stats' => $this->cache_stats ?? [],
+            'ssl_settings' => [
+                'ssl_enabled' => isset($this->ssl_verify) ? ($this->ssl_verify ? 'habilitado' : 'deshabilitado') : 'no configurado',
+                'cert_path' => $this->cert_path ?? 'no configurado',
+                'ca_path' => $this->ca_path ?? 'no configurado',
+            ],
+            'last_error' => $this->last_error ?? 'ninguno'
+        ];
+        
+        return $info;
+    }
+
+    /**
+     * Analiza la estructura de una respuesta para detectar patrones
+     */
+    private function analyzeResponseStructure($response) {
+        if (!is_array($response)) {
+            return ['type' => gettype($response), 'structure' => 'no_array'];
+        }
+        
+        $structure = [
+            'keys' => array_keys($response),
+            'has_table' => isset($response['Table']),
+            'table_count' => isset($response['Table']) && is_array($response['Table']) ? count($response['Table']) : 0,
+            'has_error' => isset($response['InfoError']),
+            'total_keys' => count($response)
+        ];
+        
+        return $structure;
+    }
+    
+    /**
+     * Extrae el rango de productos de una URL
+     */
+    private function extractRangeFromUrl($url) {
+        $range = ['inicio' => null, 'fin' => null];
+        
+        if (preg_match('/inicio=(\d+)/', $url, $inicio_matches)) {
+            $range['inicio'] = (int)$inicio_matches[1];
+        }
+        
+        if (preg_match('/fin=(\d+)/', $url, $fin_matches)) {
+            $range['fin'] = (int)$fin_matches[1];
+        }
+        
+        return $range;
+    }
+    
+    /**
+     * Genera información diagnóstica detallada
+     */
+    private function generateDiagnosticInfo($url, $response_code, $response_body) {
+        return [
+            'url_length' => strlen($url),
+            'response_code' => $response_code,
+            'body_length' => strlen($response_body),
+            'body_md5' => md5($response_body),
+            'is_json' => json_decode($response_body) !== null,
+            'json_error' => json_last_error_msg(),
+            'contains_table' => strpos($response_body, '"Table"') !== false,
+            'contains_error' => strpos($response_body, '"InfoError"') !== false,
+            'php_memory' => memory_get_usage(true),
+            'timestamp' => microtime(true),
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
         ];
     }
 }

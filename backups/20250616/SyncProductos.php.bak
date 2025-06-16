@@ -337,12 +337,6 @@ class SyncProductos {
 		}
 		
 		$start_time = microtime(true);
-		$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch');
-		$logger->info('Iniciando sincronización por lotes', [
-			'fecha_desde' => $fecha_desde,
-			'batch_size' => $batch_size,
-			'filtros' => $filtros_adicionales
-		]);
 		
 		// Configurar los parámetros iniciales
 		$params = array();
@@ -360,17 +354,12 @@ class SyncProductos {
 					$params['fecha'] = $parts[0];
 					$params['hora'] = $parts[1];
 				}
-				$logger->debug('Fecha con hora detectada, usando filtros separados', [
-					'fecha' => $params['fecha'], 
-					'hora' => $params['hora'] ?? 'no_disponible'
-				]);
 			}
 		}
 		
 		// Aplicar filtros adicionales proporcionados como parámetro
 		if (is_array($filtros_adicionales) && !empty($filtros_adicionales)) {
 			$params = array_merge($params, $filtros_adicionales);
-			$logger->debug('Aplicando filtros adicionales', ['filtros' => $filtros_adicionales]);
 		}
 		
 		// Aplicar filtros adicionales configurados por hook
@@ -470,61 +459,8 @@ class SyncProductos {
 			);
 		}
 		
-		// MEJORA: Procesar los productos con callback avanzado y manejo de errores robusto
-		$result = $batcher->process($productos, $batch_size, function($producto) use ($api_connector, $logger) {
-			// VALIDACIÓN: Verificar que el producto tenga un SKU válido (ReferenciaBarras)
-			if (empty($producto['ReferenciaBarras'])) {
-				$identificador = !empty($producto['Codigo']) ? $producto['Codigo'] : __('Producto sin código', 'mi-integracion-api');
-				$logger->warning('Producto sin ReferenciaBarras/SKU detectado', [
-					'codigo' => $identificador,
-					'product_data' => array_intersect_key($producto, array_flip(['Codigo', 'Nombre', 'Descripcion']))
-				]);
-				return new \WP_Error(
-					'missing_sku',
-					sprintf(__('Error: Producto %s sin SKU (ReferenciaBarras) - Omitido', 'mi-integracion-api'), $identificador)
-				);
-			}
-			
-			try {
-				// Procesamiento con validación avanzada
-				$sku = sanitize_text_field($producto['ReferenciaBarras']);
-				
-				// Usar el nuevo método de procesamiento individual mejorado
-				$result = self::process_single_product($api_connector, $producto, $sku);
-				
-				if (is_wp_error($result)) {
-					// Registrar el error detallado
-					$logger->error(sprintf('Error al procesar producto %s: %s', $sku, $result->get_error_message()), [
-						'error_code' => $result->get_error_code(),
-						'sku' => $sku
-					]);
-					
-					// Añadir a la cola de reintentos si el error es recuperable
-					if (!in_array($result->get_error_code(), ['invalid_product', 'missing_sku'])) {
-						self::add_to_retry_queue($sku, $result->get_error_message());
-					}
-					
-					return $result;
-				}
-				
-				// Eliminar de la cola de reintentos si existe y fue exitoso
-				self::remove_from_retry_queue($sku);
-				$logger->debug(sprintf('Producto %s procesado exitosamente', $sku));
-				
-				return true;
-			} catch (\Exception $e) {
-				// Manejo de excepciones no esperadas
-				$logger->error(sprintf('Excepción al procesar producto: %s', $e->getMessage()), [
-					'trace' => $e->getTraceAsString(),
-					'producto' => $producto['ReferenciaBarras'] ?? 'desconocido'
-				]);
-				
-				return new \WP_Error(
-					'batch_processing_exception',
-					sprintf(__('Excepción: %s', 'mi-integracion-api'), $e->getMessage())
-				);
-			}
-		}, $force_restart);
+		// Procesar los productos (con posibilidad de recuperación)
+		$result = $batcher->process($productos, $batch_size, null, $force_restart);
 		
 		// Si hubo un punto de recuperación, añadir el mensaje al resultado
 		if (!empty($recovery_message)) {
@@ -554,106 +490,311 @@ class SyncProductos {
 	}
 
 	/**
-	 * Obtiene productos desde Verial de manera optimizada con manejo de errores mejorado
-	 * 
-	 * @param object $api_connector Instancia del conector API
-	 * @param array $params Parámetros para la API
-	 * @return array|WP_Error Productos obtenidos o error
+	 * Obtiene los productos de Verial de manera optimizada.
+	 * Versión mejorada para aprovechar todos los filtros disponibles en la API
+	 * según documentación oficial.
+	 *
+	 * @param object $api_connector Instancia del conector API.
+	 * @param array  $params Parámetros de filtrado.
+	 * @return array|\WP_Error Productos o error.
 	 */
-	private static function get_productos_optimizado($api_connector, $params) {
-		// Implementar estrategia de reintentos para la API
-		$max_retries = 3;
-		$retry_count = 0;
-		$delay = 2; // segundos iniciales
+	private static function get_productos_optimizado( $api_connector, $params = array() ) {
+		// Los parámetros ya deben venir optimizados
+		$optimized_params = $params;
 		
-		while ($retry_count < $max_retries) {
-			try {
-				\MiIntegracionApi\Helpers\Logger::debug(
-					'Obteniendo productos desde Verial', 
-					array('category' => 'sync-productos-api', 'params' => $params, 'intento' => $retry_count + 1)
+		// Guardar métricas para el log
+		$start_time = microtime(true);
+		$strategy_used = '';
+		$use_cache = apply_filters('mi_integracion_api_use_cache_productos', true);
+		$cache_ttl = apply_filters('mi_integracion_api_cache_ttl_productos', 300); // 5 minutos por defecto
+		
+		// Generar una clave de caché única basada en los parámetros
+		$cache_key = 'mia_productos_' . md5(json_encode($optimized_params));
+		
+		// Verificar si tenemos datos en caché
+		if ($use_cache) {
+			$cached_data = get_transient($cache_key);
+			if ($cached_data !== false) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+				$logger->debug(
+					'Productos obtenidos desde caché',
+					array(
+						'category' => 'sync-productos',
+						'count' => count($cached_data),
+						'params' => $optimized_params,
+						'cache_key' => $cache_key
+					)
 				);
-				
-				// MEJORA: Usar API de búsqueda avanzada con fallbacks
-				$productos = null;
-				
-				// 1. Primero intentar con los parámetros proporcionados
-				$productos = $api_connector->get_articulos($params);
-				
-				// 2. Si falla, intentar búsqueda escalonada por niveles
-				if (is_wp_error($productos) || empty($productos)) {
-					\MiIntegracionApi\Helpers\Logger::info(
-						'Primera búsqueda falló, intentando con estrategia escalonada', 
-						array('category' => 'sync-productos-api', 'error' => is_wp_error($productos) ? $productos->get_error_message() : 'Sin resultados')
-					);
-					
-					// Crear copias de los parámetros para diferentes estrategias
-					$simplified_params = array_diff_key($params, array_flip(['hora', 'inicio', 'fin']));
-					
-					// Mantener solo los filtros más importantes
-					$minimal_params = [];
-					if (!empty($params['fecha'])) {
-						$minimal_params['fecha'] = $params['fecha'];
-					}
-					
-					// Intentar con parámetros simplificados
-					$productos = $api_connector->get_articulos($simplified_params);
-					
-					// Si sigue fallando, intentar con parámetros mínimos
-					if (is_wp_error($productos) || empty($productos)) {
-						$productos = $api_connector->get_articulos($minimal_params);
-					}
-					
-					// Último recurso: intentar búsqueda sin filtros pero con límite
-					if (is_wp_error($productos) || empty($productos)) {
-						$productos = $api_connector->get_articulos(['inicio' => 1, 'fin' => 200]);
-					}
-				}
-				
-				// Si sigue siendo un error, incrementar contador y reintentar
-				if (is_wp_error($productos)) {
-					$retry_count++;
-					\MiIntegracionApi\Helpers\Logger::warning(
-						sprintf('Error en la API (intento %d/%d): %s', $retry_count, $max_retries, $productos->get_error_message()),
-						array('category' => 'sync-productos-api', 'error_code' => $productos->get_error_code())
-					);
-					
-					if ($retry_count >= $max_retries) {
-						return $productos; // Devolver el error después de agotar reintentos
-					}
-					
-					sleep($delay);
-					$delay *= 2; // Backoff exponencial
-					continue;
-				}
-				
-				if (!is_array($productos)) {
-					$productos = [];
-				}
-				
-				return $productos;
-			} catch (\Exception $e) {
-				$retry_count++;
-				\MiIntegracionApi\Helpers\Logger::error(
-					sprintf('Excepción al obtener productos (intento %d/%d): %s', $retry_count, $max_retries, $e->getMessage()),
-					array('category' => 'sync-productos-api', 'error' => $e->getMessage())
-				);
-				
-				if ($retry_count >= $max_retries) {
-					return new \WP_Error(
-						'api_exception',
-						sprintf(__('Error al obtener productos: %s', 'mi-integracion-api'), $e->getMessage())
-					);
-				}
-				
-				sleep($delay);
-				$delay *= 2; // Backoff exponencial
+				return $cached_data;
 			}
 		}
 		
-		// No debería llegar aquí, pero por seguridad
+		// Verificar si tenemos la clase ProductApiService para uso eficiente de la API
+		if ( class_exists( '\\MiIntegracionApi\\Helpers\\ProductApiService' ) ) {
+			$product_service = new \MiIntegracionApi\Helpers\ProductApiService( $api_connector );
+
+			// Primera estrategia: intentar obtener productos usando ProductApiService
+			try {
+				$productos = $product_service->get_articulos( $optimized_params );
+				if ( ! empty( $productos ) ) {
+					$strategy_used = 'ProductApiService';
+					$execution_time = round((microtime(true) - $start_time) * 1000, 2);
+					
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+					$logger->debug(
+						'Productos obtenidos con ProductApiService',
+						array(
+							'category' => 'sync-productos',
+							'count' => count($productos),
+							'params' => $optimized_params,
+							'tiempo_ms' => $execution_time,
+							'strategy' => $strategy_used
+						)
+					);
+					
+					// Guardar en caché si está habilitado
+					if ($use_cache && !empty($productos)) {
+						set_transient($cache_key, $productos, $cache_ttl);
+					}
+					
+					return $productos;
+				}
+			} catch (\Exception $e) {
+				\MiIntegracionApi\Helpers\Logger::warning(
+					'Error al obtener productos con ProductApiService: ' . $e->getMessage(),
+					array(
+						'category' => 'sync-productos',
+						'params' => $optimized_params,
+						'error' => $e->getMessage()
+					)
+				);
+				// Continuar con la siguiente estrategia
+			}
+		}
+
+		// Segunda estrategia (fallback): usar el método get_articulos directamente
+		if ( method_exists( $api_connector, 'get_articulos' ) ) {
+			try {
+				$productos = $api_connector->get_articulos( $optimized_params );
+				if ( ! is_wp_error( $productos ) && ! empty( $productos ) ) {
+					$strategy_used = 'ApiConnector::get_articulos';
+					$execution_time = round((microtime(true) - $start_time) * 1000, 2);
+					
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+					$logger->debug(
+						'Productos obtenidos con ApiConnector::get_articulos',
+						array(
+							'category' => 'sync-productos',
+							'count' => count($productos),
+							'params' => $optimized_params,
+							'tiempo_ms' => $execution_time,
+							'strategy' => $strategy_used
+						)
+					);
+					
+					// Guardar en caché si está habilitado
+					if ($use_cache && !empty($productos)) {
+						set_transient($cache_key, $productos, $cache_ttl);
+					}
+					
+					return $productos;
+				}
+				if ( is_wp_error( $productos ) ) {
+					\MiIntegracionApi\Helpers\Logger::warning(
+						'Error al obtener productos con ApiConnector::get_articulos: ' . $productos->get_error_message(),
+						array(
+							'category' => 'sync-productos',
+							'error_code' => $productos->get_error_code(),
+							'params' => $optimized_params
+						)
+					);
+					// No retornar el error aquí, seguir con la siguiente estrategia
+				}
+			} catch (\Exception $e) {
+				\MiIntegracionApi\Helpers\Logger::warning(
+					'Excepción al obtener productos con ApiConnector::get_articulos: ' . $e->getMessage(),
+					array(
+						'category' => 'sync-productos',
+						'params' => $optimized_params,
+						'error' => $e->getMessage()
+					)
+				);
+				// Continuar con la siguiente estrategia
+			}
+		}
+
+		// Tercera estrategia: uso directo del endpoint GetArticulosWS usando GET
+		try {
+			$response = $api_connector->get( 'GetArticulosWS', $optimized_params );
+			if ( is_wp_error( $response ) ) {
+				\MiIntegracionApi\Helpers\Logger::warning(
+					'Error al obtener productos con endpoint GetArticulosWS: ' . $response->get_error_message(),
+					array(
+						'category' => 'sync-productos',
+						'error_code' => $response->get_error_code(),
+						'params' => $optimized_params
+					)
+				);
+				return $response;
+			}
+
+			// Extraer productos del formato de respuesta
+			if ( isset( $response['Articulos'] ) && is_array( $response['Articulos'] ) ) {
+				$strategy_used = 'ApiConnector::get + Articulos';
+				$execution_time = round((microtime(true) - $start_time) * 1000, 2);
+				
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+				$logger->debug(
+					'Productos obtenidos con ApiConnector::get usando formato Articulos',
+					array(
+						'category' => 'sync-productos',
+						'count' => count($response['Articulos']),
+						'params' => $optimized_params,
+						'tiempo_ms' => $execution_time,
+						'strategy' => $strategy_used
+					)
+				);
+				
+				// Guardar en caché si está habilitado
+				if ($use_cache && !empty($response['Articulos'])) {
+					set_transient($cache_key, $response['Articulos'], $cache_ttl);
+				}
+				
+				return $response['Articulos'];
+			} elseif ( is_array( $response ) ) {
+				$strategy_used = 'ApiConnector::get + array';
+				$execution_time = round((microtime(true) - $start_time) * 1000, 2);
+				
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+				$logger->debug(
+					'Productos obtenidos con ApiConnector::get usando formato array',
+					array(
+						'category' => 'sync-productos',
+						'count' => count($response),
+						'params' => $optimized_params,
+						'tiempo_ms' => $execution_time,
+						'strategy' => $strategy_used
+					)
+				);
+				
+				// Guardar en caché si está habilitado
+				if ($use_cache && !empty($response)) {
+					set_transient($cache_key, $response, $cache_ttl);
+				}
+				
+				return $response;
+			}
+		} catch (\Exception $e) {
+			\MiIntegracionApi\Helpers\Logger::warning(
+				'Excepción al obtener productos con endpoint GetArticulosWS: ' . $e->getMessage(),
+				array(
+					'category' => 'sync-productos',
+					'params' => $optimized_params,
+					'error' => $e->getMessage()
+				)
+			);
+			// Continuar con el manejo de errores
+		}
+		
+		// Cuarta estrategia: intentar usar un método alternativo de la API GetNumArticulosWS + GetArticulosWS con paginación
+		try {
+			// Primero verificar cuántos artículos hay con los filtros actuales (sin paginación)
+			$count_params = array_diff_key($optimized_params, array_flip(['inicio', 'fin']));
+			$count_response = $api_connector->get('GetNumArticulosWS', $count_params);
+			
+			if (!is_wp_error($count_response) && isset($count_response['NumArticulos'])) {
+				$num_articulos = (int)$count_response['NumArticulos'];
+				
+				if ($num_articulos > 0) {
+					$max_per_page = apply_filters('mi_integracion_api_max_articulos_por_page', 100);
+					$all_productos = [];
+					
+					// Usar paginación para obtener todos los productos en lotes
+					for ($offset = 0; $offset < $num_articulos; $offset += $max_per_page) {
+						$page_params = $optimized_params;
+						$page_params['inicio'] = $offset + 1;
+						$page_params['fin'] = min($offset + $max_per_page, $num_articulos);
+						
+						$page_response = $api_connector->get('GetArticulosWS', $page_params);
+						
+						if (!is_wp_error($page_response)) {
+							$page_productos = isset($page_response['Articulos']) && is_array($page_response['Articulos']) 
+								? $page_response['Articulos'] 
+								: (is_array($page_response) ? $page_response : []);
+								
+							if (!empty($page_productos)) {
+								$all_productos = array_merge($all_productos, $page_productos);
+							}
+						}
+					}
+					
+					if (!empty($all_productos)) {
+						$strategy_used = 'ApiConnector::get_paginado';
+						$execution_time = round((microtime(true) - $start_time) * 1000, 2);
+						
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+						$logger->debug(
+							'Productos obtenidos con paginación',
+							array(
+								'category' => 'sync-productos',
+								'count' => count($all_productos),
+								'params' => $optimized_params,
+								'tiempo_ms' => $execution_time,
+								'strategy' => $strategy_used,
+								'total_articulos' => $num_articulos
+							)
+						);
+						
+						// Guardar en caché si está habilitado
+						if ($use_cache && !empty($all_productos)) {
+							set_transient($cache_key, $all_productos, $cache_ttl);
+						}
+						
+						return $all_productos;
+					}
+				} else {
+					// No hay productos según el contador, es un resultado válido (array vacío)
+					\MiIntegracionApi\Helpers\Logger::info(
+						'La API informa que no hay productos con los filtros aplicados (GetNumArticulosWS)',
+						array(
+							'category' => 'sync-productos',
+							'params' => $optimized_params
+						)
+					);
+					return [];
+				}
+			}
+		} catch (\Exception $e) {
+			\MiIntegracionApi\Helpers\Logger::warning(
+				'Excepción al intentar estrategia de paginación: ' . $e->getMessage(),
+				array(
+					'category' => 'sync-productos',
+					'params' => $optimized_params,
+					'error' => $e->getMessage()
+				)
+			);
+		}
+
+		// Ninguna estrategia funcionó
+		$tiempo_total = round((microtime(true) - $start_time) * 1000, 2);
+		\MiIntegracionApi\Helpers\Logger::error(
+			'No se pudieron obtener productos del API utilizando ningún método disponible',
+			array(
+				'category' => 'sync-productos',
+				'params' => $optimized_params,
+				'tiempo_ms' => $tiempo_total,
+				'estrategias_fallidas' => [
+					'ProductApiService', 
+					'ApiConnector::get_articulos', 
+					'ApiConnector::get',
+					'ApiConnector::get_paginado'
+				]
+			)
+		);
+		
 		return new \WP_Error(
-			'api_error',
-			__('Error desconocido al obtener productos después de reintentos', 'mi-integracion-api')
+			'no_products_found',
+			__( 'No se pudieron obtener productos del API utilizando ningún método disponible. Revise la configuración y los filtros aplicados.', 'mi-integracion-api' )
 		);
 	}
 	
@@ -1093,135 +1234,6 @@ class SyncProductos {
 		}
 
 		return compact( 'processed', 'error', 'msg' );
-	}
-
-	/**
-	 * Procesa un producto individual durante la sincronización
-	 * 
-	 * @param object $api_connector Instancia del conector API
-	 * @param array $producto Datos del producto
-	 * @param string $sku SKU del producto
-	 * @return bool|WP_Error True si se procesa correctamente, WP_Error en caso de error
-	 */
-	private static function process_single_product($api_connector, $producto, $sku) {
-		// VALIDACIÓN INICIAL: Verificar SKU válido
-		if (empty($sku)) {
-			return new \WP_Error(
-				'missing_sku',
-				__('El producto no tiene SKU (ReferenciaBarras)', 'mi-integracion-api')
-			);
-		}
-		
-		// Paso 1: Verificar si ya existe un producto con este SKU
-		$product_id = wc_get_product_id_by_sku($sku);
-		$product = $product_id ? wc_get_product($product_id) : null;
-		
-		// Si no existe, verificar si debemos crearlo
-		if (!$product) {
-			// Verificar si la configuración permite la creación automática
-			$create_new = apply_filters('mi_integracion_api_allow_product_creation', true);
-			
-			if (!$create_new) {
-				return new \WP_Error(
-					'product_not_found',
-					sprintf(__('No existe un producto con SKU "%s" y la creación automática está desactivada', 'mi-integracion-api'), $sku)
-				);
-			}
-			
-			// Crear nuevo producto utilizando la función de mapeo
-			try {
-				$wc_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($producto);
-				
-				// Crear producto nuevo según el tipo detectado
-				if (!empty($wc_data['type']) && $wc_data['type'] === 'variable') {
-					$product = new \WC_Product_Variable();
-				} else {
-					$product = new \WC_Product();
-				}
-				
-				// Asignar SKU
-				$product->set_sku($sku);
-				
-				// Registrar la creación
-				\MiIntegracionApi\Helpers\Logger::info(
-					sprintf('Creando nuevo producto con SKU "%s"', $sku),
-					array('category' => 'sync-productos-create')
-				);
-			} catch (\Exception $e) {
-				return new \WP_Error(
-					'product_creation_error',
-					sprintf(__('Error al crear el producto: %s', 'mi-integracion-api'), $e->getMessage())
-				);
-			}
-		}
-		
-		// PASO 2: Actualizar datos del producto
-		try {
-			// Mapear datos Verial a WooCommerce usando la clase de mapeo
-			$wc_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($producto);
-			
-			// Aplicar los datos al producto
-			if (!empty($wc_data['name'])) {
-				$product->set_name($wc_data['name']);
-			}
-			
-			if (!empty($wc_data['description'])) {
-				$product->set_description($wc_data['description']);
-			}
-			
-			if (!empty($wc_data['short_description'])) {
-				$product->set_short_description($wc_data['short_description']);
-			}
-			
-			if (isset($wc_data['price'])) {
-				$product->set_price($wc_data['price']);
-				$product->set_regular_price($wc_data['price']);
-			}
-			
-			if (isset($wc_data['sale_price'])) {
-				$product->set_sale_price($wc_data['sale_price']);
-			}
-			
-			if (isset($wc_data['stock'])) {
-				$product->set_stock_quantity($wc_data['stock']);
-				$product->set_stock_status($wc_data['stock'] > 0 ? 'instock' : 'outofstock');
-			}
-			
-			if (isset($wc_data['manage_stock'])) {
-				$product->set_manage_stock($wc_data['manage_stock']);
-			}
-			
-			// Aplicar categorías si están definidas
-			if (!empty($wc_data['categories'])) {
-				$product->set_category_ids($wc_data['categories']);
-			}
-			
-			// Guardar atributos del producto
-			if (!empty($wc_data['attributes'])) {
-				$product->set_attributes($wc_data['attributes']);
-			}
-			
-			// Guardar metadatos adicionales
-			if (!empty($wc_data['meta_data'])) {
-				foreach ($wc_data['meta_data'] as $key => $value) {
-					$product->update_meta_data($key, $value);
-				}
-			}
-			
-			// Guardar el producto
-			$product_id = $product->save();
-			
-			if (!$product_id) {
-				throw new \Exception(__('Error al guardar el producto en la base de datos', 'mi-integracion-api'));
-			}
-			
-			return true;
-		} catch (\Exception $e) {
-			return new \WP_Error(
-				'product_update_error',
-				sprintf(__('Error al actualizar el producto %s: %s', 'mi-integracion-api'), $sku, $e->getMessage())
-			);
-		}
 	}
 
 	public function sync_producto( $producto ) {

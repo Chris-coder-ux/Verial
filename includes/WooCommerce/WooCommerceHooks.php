@@ -366,9 +366,9 @@ if ( ! defined( 'ABSPATH' ) ) {
                         continue;
                     }
                     $product            = $item->get_product();
-                    $id_articulo_verial = $product ? get_post_meta( $product->get_id(), '_verial_articulo_id', true ) : null;
+                    $id_articulo_verial = $product ? get_post_meta( $product->get_id(), '_verial_product_id', true ) : null;
                     if ( empty( $id_articulo_verial ) && $product ) {
-                        \MiIntegracionApi\Helpers\Logger::warning( '[MI Hooks] Producto ID WC:' . $product->get_id() . ' (SKU: ' . $product->get_sku() . ') en pedido ' . $order_id . ' no tiene ID de Verial (_verial_articulo_id). Línea no sincronizada.', 'mia-hooks' );
+                        \MiIntegracionApi\Helpers\Logger::warning( '[MI Hooks] Producto ID WC:' . $product->get_id() . ' (SKU: ' . $product->get_sku() . ') en pedido ' . $order_id . ' no tiene ID de Verial (_verial_product_id). Línea no sincronizada.', 'mia-hooks' );
                         $omitidas[] = $item->get_name();
                         continue;
                     } elseif ( ! $product ) {

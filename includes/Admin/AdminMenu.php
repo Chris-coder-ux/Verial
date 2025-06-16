@@ -437,6 +437,7 @@ class AdminMenu {
                     
                     <form id="mi-sync-single-product-form" method="post">
                         <?php wp_nonce_field('mi_sync_single_product', '_ajax_nonce'); ?>
+                        <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('mi_sync_single_product')); ?>" />
                         
                         <table class="form-table">
                             <tr>
@@ -473,6 +474,9 @@ class AdminMenu {
                         <p class="submit">
                             <button type="submit" id="sync-button" class="button button-primary">
                                 <?php esc_html_e('Sincronizar producto', 'mi-integracion-api'); ?>
+                            </button>
+                            <button type="button" id="unlock-sync-button" class="button" style="margin-left: 10px; display: none;">
+                                <?php esc_html_e('Desbloquear sincronización', 'mi-integracion-api'); ?>
                             </button>
                             <span class="spinner" style="float:none;"></span>
                         </p>

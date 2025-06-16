@@ -57,12 +57,29 @@ class Sync_Single_Product {
 				'message' => __( 'No se pudo obtener acceso exclusivo para la sincronización. Intenta nuevamente.', 'mi-integracion-api' ),
 			);
 		}
-		
 		try {
 			/**
 			 * Obtener artículos de la API
 			 */
-			 
+			$params = array();
+			
+			// Añadir filtros si se proporcionan
+			// Observando el JSON de Verial, no hay parámetros específicos para filtrar artículos
+			// Vamos a buscar todos y filtrarlos a nivel de código después
+			
+			// Agregar parámetros de filtrado básicos
+			// La consulta básica obtiene todos los artículos
+			
+			// Loguear parámetros recibidos para diagnóstico
+			if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			    $logger->info(
+			        '[Sync_Single_Product] Iniciando sincronización con parámetros: ' . 
+			        json_encode(['sku' => $sku, 'nombre' => $nombre, 'categoria' => $categoria, 'fabricante' => $fabricante]), 
+			        ['context' => 'sync-product']
+			    );
+			}
+			
 			// Verificar si hay algún parámetro de búsqueda
 			if (empty($sku) && empty($nombre) && empty($categoria) && empty($fabricante)) {
 			    return array(
@@ -71,117 +88,209 @@ class Sync_Single_Product {
 			    );
 			}
 			
-			// Iniciar el logger para diagnóstico
+			// Construir parámetros de filtrado para la API
+			$params = [];
+			
+			// Registrar los parámetros usados para diagnóstico
 			$logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
-			$logger->info(
-			    '[Sync_Single_Product] Iniciando sincronización con parámetros: ' . 
-			    json_encode(['sku' => $sku, 'nombre' => $nombre, 'categoria' => $categoria, 'fabricante' => $fabricante]), 
-			    ['context' => 'sync-product']
-			);
 			
-			// Construir filtros adicionales para la búsqueda
-			$filtros_adicionales = [];
+			// La API de Verial no tiene filtros directos por todos los campos que necesitamos
+			// Podemos usar diferentes estrategias de búsqueda según los datos disponibles
 			
+			// Primero intentaremos la búsqueda más específica posible
+			// Si tenemos un SKU (código o ID), este es nuestro mejor identificador
+			if (!empty($sku)) {
+			    // Agregar filtro de búsqueda general que puede capturar ID y código de barras
+			    $params['buscar'] = $sku;
+			    $logger->info(
+			        '[Sync_Single_Product] Usando filtro de búsqueda general con SKU: ' . $sku, 
+			        ['context' => 'sync-product-params']
+			    );
+			    
+			    // Adicionalmente, si es un ID numérico, usarlo como id_articulo (más específico)
+			    if (is_numeric($sku)) {
+			        $params['id_articulo'] = $sku;
+			        $logger->info(
+			            '[Sync_Single_Product] Filtrando por ID numérico: ' . $sku, 
+			            ['context' => 'sync-product-params']
+			        );
+			    }
+			}
+			// Si tenemos nombre pero no SKU, buscar por nombre
+			else if (!empty($nombre)) {
+			    $params['buscar'] = $nombre;
+			    $logger->info(
+			        '[Sync_Single_Product] Filtrando por nombre: ' . $nombre, 
+			        ['context' => 'sync-product-params']
+			    );
+			}
+			
+			// Si tenemos categoría o fabricante, los usamos como filtros adicionales
 			if (!empty($categoria)) {
-			    $filtros_adicionales['ID_Categoria'] = $categoria;
+			    $params['ID_Categoria'] = $categoria;
 			    $logger->info(
-			        '[Sync_Single_Product] Añadiendo filtro de categoría: ' . $categoria, 
+			        '[Sync_Single_Product] Filtrando por categoría: ' . $categoria, 
 			        ['context' => 'sync-product-params']
 			    );
 			}
-			
 			if (!empty($fabricante)) {
-			    $filtros_adicionales['ID_Fabricante'] = $fabricante;
+			    $params['ID_Fabricante'] = $fabricante;
 			    $logger->info(
-			        '[Sync_Single_Product] Añadiendo filtro de fabricante: ' . $fabricante, 
+			        '[Sync_Single_Product] Filtrando por fabricante: ' . $fabricante, 
 			        ['context' => 'sync-product-params']
 			    );
 			}
 			
-			// Usar el nuevo método de búsqueda escalonada para tener mejores resultados
+			// 3. Obtener los productos con los filtros aplicados
+			// Nota: Para código de barras y nombre filtramos posteriormente
+			$productos = $api_connector->get_articulos($params);
+			
+			// Registrar la cantidad de parámetros usados
 			$logger->info(
-			    '[Sync_Single_Product] Ejecutando búsqueda escalonada por prioridad', 
+			    '[Sync_Single_Product] Consulta a API con ' . count($params) . ' parámetros', 
 			    ['context' => 'sync-product']
 			);
-			
-			$productos = $api_connector->searchProductEscalonado($sku, $nombre, $filtros_adicionales);
-			
-			// Verificar errores en la respuesta
-			if (is_wp_error($productos)) {
+
+			/** @phpstan-ignore-next-line */
+			if ( is_wp_error( $productos ) ) {
+				/** @phpstan-ignore-next-line */
 				$error_message = $productos->get_error_message();
-				$error_message = is_string($error_message) ? $error_message : 'Error desconocido';
-				
-				$logger->error(
-				    '[Sync_Single_Product] Error en API: ' . $error_message,
-				    ['context' => 'sync-product']
-				);
-				
+				$error_message = is_string( $error_message ) ? $error_message : 'Error desconocido';
 				return array(
 					'success' => false,
 					'message' => $error_message,
 				);
 			}
 			
-			// Depurar resumen de la respuesta
-			$logger->debug(
-			    '[Sync_Single_Product] Respuesta de API recibida',
-			    [
-			        'context' => 'sync-product',
-			        'tiene_articulos' => isset($productos['Articulos']),
-			        'cantidad' => isset($productos['Articulos']) ? count($productos['Articulos']) : 0
-			    ]
-			);
+			// Depurar respuesta completa
+			if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			    $logger->debug(
+			        '[Sync_Single_Product] Respuesta de API: ' . substr(json_encode($productos), 0, 200) . '...',
+			        ['context' => 'sync-product']
+			    );
+			}
 			
-			// Verificar que la estructura de respuesta sea válida
-			if (!is_array($productos) || empty($productos) || !isset($productos['Articulos'])) {
-				$logger->warning(
-				    '[Sync_Single_Product] Formato de respuesta inesperado o sin artículos',
-				    ['context' => 'sync-product']
-				);
-				
+			/** @phpstan-ignore-next-line */
+			if ( ! is_array( $productos ) || empty( $productos ) || !isset($productos['Articulos']) ) {
 				return array(
 					'success' => false,
-					'message' => __('No se obtuvieron productos de Verial o formato de respuesta inesperado.', 'mi-integracion-api'),
+					'message' => __( 'No se obtuvieron productos de Verial o formato de respuesta inesperado.', 'mi-integracion-api' ),
 				);
 			}
 			
-			// Extraer la lista de artículos
+			/** @var array<string, mixed>|null $producto */
+			$producto = null;
+			/** @var array<string, mixed> $articulos */
 			$articulos = $productos['Articulos'];
 			
-			// Verificar si se encontraron productos
-			if (empty($articulos)) {
-				$logger->warning(
-				    '[Sync_Single_Product] No se encontraron artículos',
+			// Depurar la cantidad de artículos encontrados
+			if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			    $logger->info(
+			        '[Sync_Single_Product] Artículos en respuesta: ' . count($articulos),
+			        ['context' => 'sync-product']
+			    );
+			}
+			
+			$logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			$candidatos = [];
+			
+			foreach ( $articulos as $p ) {
+				// Depurar cada producto evaluado para diagnóstico
+				$logger->debug(
+				    '[Sync_Single_Product] Evaluando artículo: ' . json_encode([
+				        'Id' => $p['Id'] ?? 'no-id', 
+				        'ReferenciaBarras' => $p['ReferenciaBarras'] ?? 'no-ref', 
+				        'Nombre' => $p['Nombre'] ?? 'no-nombre'
+				    ]),
 				    ['context' => 'sync-product']
 				);
 				
-				return array(
-					'success' => false,
-					'message' => __('No se encontró el producto solicitado.', 'mi-integracion-api'),
+				// Calcular puntuación para determinar el mejor candidato
+				$score = 0;
+				$match_reason = [];
+				
+				// Incrementar puntuación según coincidencias exactas (prioridad alta)
+				// Coincidencia de ID (prioridad máxima)
+				if ( !empty($sku) && is_numeric($sku) && isset($p['Id']) && ((string)$p['Id'] === (string)$sku) ) {
+					$score += 100;
+					$match_reason[] = 'ID exacto';
+				}
+				
+				// Coincidencia de código de barras (alta prioridad)
+				if ( !empty($sku) && !is_numeric($sku) && isset($p['ReferenciaBarras']) && 
+				     strtolower((string)$p['ReferenciaBarras']) === strtolower((string)$sku) ) {
+					$score += 90;
+					$match_reason[] = 'Código de barras exacto';
+				}
+				
+				// Coincidencia parcial de código (menor prioridad)
+				if ( !empty($sku) && !is_numeric($sku) && isset($p['ReferenciaBarras']) && 
+				     stripos((string)$p['ReferenciaBarras'], (string)$sku) !== false ) {
+					$score += 30;
+					$match_reason[] = 'Código de barras parcial';
+				}
+				
+				// Coincidencia de nombre (media-alta prioridad)
+				if ( !empty($nombre) && isset($p['Nombre']) && is_string($p['Nombre']) ) {
+					if (strtolower($p['Nombre']) === strtolower($nombre)) {
+						$score += 80; // Coincidencia exacta de nombre
+						$match_reason[] = 'Nombre exacto';
+					} else if (stripos($p['Nombre'], $nombre) !== false) {
+						$score += 40; // Coincidencia parcial de nombre
+						$match_reason[] = 'Nombre parcial';
+					}
+				}
+				
+				// Coincidencia de categoría si se especificó
+				if ( !empty($categoria) && isset($p['ID_Categoria']) && (string)$p['ID_Categoria'] === (string)$categoria ) {
+					$score += 20;
+					$match_reason[] = 'Categoría';
+				}
+				
+				// Coincidencia de fabricante si se especificó
+				if ( !empty($fabricante) && isset($p['ID_Fabricante']) && (string)$p['ID_Fabricante'] === (string)$fabricante ) {
+					$score += 20;
+					$match_reason[] = 'Fabricante';
+				}
+				
+				// Si hay alguna coincidencia, añadir a candidatos
+				if ($score > 0) {
+					$p['_score'] = $score;
+					$p['_match_reason'] = implode(', ', $match_reason);
+					$candidatos[] = $p;
+					
+					$logger->debug(
+					    "[Sync_Single_Product] Candidato encontrado: ID {$p['Id']} con puntuación $score. Razón: " . implode(', ', $match_reason),
+					    ['context' => 'sync-product']
+					);
+				}
+			}
+			
+			// Ordenar candidatos por puntuación (mayor a menor)
+			if (!empty($candidatos)) {
+				usort($candidatos, function($a, $b) {
+					return $b['_score'] <=> $a['_score'];
+				});
+				
+				// El mejor candidato es el primero
+				$producto = $candidatos[0];
+				
+				$logger->info(
+				    "[Sync_Single_Product] Mejor candidato seleccionado: ID {$producto['Id']}, puntuación: {$producto['_score']}, razón: {$producto['_match_reason']}",
+				    ['context' => 'sync-product']
 				);
 			}
 			
-			$logger->info(
-			    '[Sync_Single_Product] Artículos encontrados: ' . count($articulos),
-			    ['context' => 'sync-product']
-			);
-			
-			// Seleccionar el producto más relevante
-			// La búsqueda escalonada ya devuelve resultados ordenados por relevancia,
-			// así que tomamos el primero como el más relevante
-			$producto = $articulos[0];
-			
-			$logger->info(
-			    sprintf(
-			        '[Sync_Single_Product] Producto seleccionado: ID %s, ReferenciaBarras: %s, Nombre: %s',
-			        $producto['Id'] ?? 'no-id',
-			        $producto['ReferenciaBarras'] ?? 'no-ref',
-			        $producto['Nombre'] ?? 'sin-nombre'
-			    ),
-			    ['context' => 'sync-product']
-			);
-			
-			// Continuar con el procesamiento del producto
+			if ( ! $producto ) {
+				$error_message = __( 'No se encontró el producto solicitado.', 'mi-integracion-api' );
+				$error_message = is_string( $error_message ) ? $error_message : 'No se encontró el producto solicitado.';
+				return array(
+					'success' => false,
+					'message' => $error_message,
+				);
+			}
 			/** @var array<string, mixed> $wc_data */
 			$wc_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc( $producto );
 			if ( isset( $wc_data['type'] ) && $wc_data['type'] === 'variable' ) {
