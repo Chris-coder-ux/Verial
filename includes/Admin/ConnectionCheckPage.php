@@ -93,9 +93,11 @@ class ConnectionCheckPage {
 				<div id="verial-sync-tab" class="verial-tab-content" style="display:none;">
 					<h3><?php _e( 'Sincronización de productos', 'mi-integracion-api' ); ?></h3>
 					<p><?php _e( 'Accede a la página de sincronización para gestionar la importación de productos.', 'mi-integracion-api' ); ?></p>
+					<div style="margin-top: 20px;">
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=mi-sync-single-product' ) ); ?>" class="button verial-button">
 						<?php _e( 'Ir a Sincronización de Productos', 'mi-integracion-api' ); ?>
 					</a>
+				</div>
 				</div>
 			</div>
 			<!-- Opcional: sección de sincronización avanzada -->

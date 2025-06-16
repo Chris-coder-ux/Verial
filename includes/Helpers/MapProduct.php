@@ -59,13 +59,26 @@ class MapProduct {
 		// Detección automática de la clave SKU
 		$sku = '';
 		$config_manager = Config_Manager::get_instance();
+		// Priorizar los campos de la API de Verial: ReferenciaBarras e Id
 		$sku_fields_str = $config_manager->get('mia_sync_sku_fields', 'ReferenciaBarras,Id,CodigoArticulo');
 		$sku_fields = array_map('trim', explode(',', $sku_fields_str));
 
-		foreach ( $sku_fields as $key ) {
-			if ( ! empty( $verial_product[ $key ] ) && is_scalar( $verial_product[ $key ] ) ) {
-				$sku = (string) $verial_product[ $key ];
+		// Intentar primero con los campos prioritarios (ReferenciaBarras e Id)
+		$priority_fields = ['ReferenciaBarras', 'Id'];
+		foreach ($priority_fields as $key) {
+			if (!empty($verial_product[$key]) && is_scalar($verial_product[$key])) {
+				$sku = (string) $verial_product[$key];
 				break;
+			}
+		}
+		
+		// Si no encontramos con los campos prioritarios, intentar con los configurados
+		if (empty($sku)) {
+			foreach ($sku_fields as $key) {
+				if (!empty($verial_product[$key]) && is_scalar($verial_product[$key])) {
+					$sku = (string) $verial_product[$key];
+					break;
+				}
 			}
 		}
 		// Permitir personalización vía filtro

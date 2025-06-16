@@ -3,6 +3,46 @@
  * Compatible con clases antiguas (verial-) y nuevas (mi-integracion-api-)
  */
 jQuery(document).ready(function($) {
+  
+  /**
+   * Función para obtener el nonce de seguridad de múltiples fuentes posibles
+   * Garantiza compatibilidad entre páginas y contextos diferentes
+   */
+  function getNonceValue() {
+    // 1. Intentar obtener del objeto global miIntegracionApiDashboard
+    if (typeof miIntegracionApiDashboard !== 'undefined' && miIntegracionApiDashboard.nonce) {
+      console.log('Usando nonce de miIntegracionApiDashboard');
+      return miIntegracionApiDashboard.nonce;
+    }
+    
+    // 2. Buscar en elementos con name="_ajax_nonce"
+    let ajaxNonce = $('input[name="_ajax_nonce"]').val();
+    if (ajaxNonce) {
+      console.log('Usando nonce de input[name="_ajax_nonce"]');
+      return ajaxNonce;
+    }
+    
+    // 3. Buscar en otros campos de nonce comunes de WordPress
+    const possibleNonceFields = ['_wpnonce', 'security', 'nonce'];
+    for (let fieldName of possibleNonceFields) {
+      let nonceValue = $(`input[name="${fieldName}"]`).val();
+      if (nonceValue) {
+        console.log(`Usando nonce de input[name="${fieldName}"]`);
+        return nonceValue;
+      }
+    }
+    
+    // 4. Buscar en datos de elementos con atributo data-nonce 
+    let dataNonce = $('[data-nonce]').first().data('nonce');
+    if (dataNonce) {
+      console.log('Usando nonce de elemento con data-nonce');
+      return dataNonce;
+    }
+    
+    console.error('No se pudo encontrar un nonce válido en ninguna fuente');
+    return null;
+  }
+  
   // Selector compuesto para compatibilidad
   var dashboardSelector = '.mi-integracion-api-dashboard, .verial-dashboard';
   
@@ -55,9 +95,10 @@ jQuery(document).ready(function($) {
     console.log('URL AJAX:', ajaxurl);
     console.log('miIntegracionApiDashboard:', miIntegracionApiDashboard);
     
-    // Verificar si tenemos un nonce válido
-    if (!miIntegracionApiDashboard || !miIntegracionApiDashboard.nonce) {
-      console.error('Error: nonce no disponible');
+    // Verificar si tenemos un nonce válido - con múltiples opciones
+    const nonceValue = getNonceValue();
+    if (!nonceValue) {
+      console.error('Error: nonce no disponible en ninguna fuente');
       clearInterval(syncInterval);
       $syncBtn.prop('disabled', false);
       $feedback.removeClass('in-progress').text('Error: falta el token de seguridad. Por favor, recarga la página.');
@@ -70,7 +111,7 @@ jQuery(document).ready(function($) {
       type: 'POST',
       data: { 
         action: 'mia_sync_progress', 
-        nonce: miIntegracionApiDashboard.nonce 
+        nonce: getNonceValue()
       },
       success: function(response) {
         const timeStamp = new Date().toISOString();
@@ -175,7 +216,7 @@ jQuery(document).ready(function($) {
     $.post(ajaxurl, {
       action: 'mi_integracion_api_save_batch_size',
       batch_size: selectedSize,
-      nonce: miIntegracionApiDashboard.nonce
+      nonce: getNonceValue()
     }, function(response) {
       if (response.success) {
         console.log('Batch size guardado exitosamente:', selectedSize);
@@ -208,13 +249,13 @@ jQuery(document).ready(function($) {
     // Datos a enviar con logging detallado
     const ajaxData = { 
       action: 'mi_integracion_api_sync_products_batch', 
-      nonce: miIntegracionApiDashboard.nonce,
+      nonce: getNonceValue(),
       batch_size: batchSize
     };
     
     console.log('URL AJAX:', ajaxurl);
     console.log('Datos completos a enviar:', ajaxData);
-    console.log('Nonce válido:', miIntegracionApiDashboard.nonce ? 'SÍ' : 'NO');
+    console.log('Nonce válido:', getNonceValue() ? 'SÍ' : 'NO');
     
     $.ajax({
       url: ajaxurl,
@@ -252,7 +293,7 @@ jQuery(document).ready(function($) {
     
     const timeStamp = new Date().toISOString();
     console.log(`[${timeStamp}] Click en cancelar sincronización`);
-    console.log('Datos a enviar:', { action: 'mia_sync_cancel', nonce: miIntegracionApiDashboard.nonce });
+    console.log('Datos a enviar:', { action: 'mia_sync_cancel', nonce: getNonceValue() });
     
     $.ajax({
       url: ajaxurl,
@@ -260,7 +301,7 @@ jQuery(document).ready(function($) {
       dataType: 'json',
       data: { 
         action: 'mia_sync_cancel', 
-        nonce: miIntegracionApiDashboard.nonce 
+        nonce: getNonceValue()
       },
       success: function(response) {
         const timeStamp = new Date().toISOString();

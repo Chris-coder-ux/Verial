@@ -1145,6 +1145,10 @@ class SyncProductos {
 			$new_product->set_sku( $wc_data['sku'] );
 			$new_product->set_name( $wc_data['name'] );
 			$new_product->set_price( $wc_data['price'] );
+			
+			// CRÍTICO: Establecer estado y visibilidad para que aparezca en la tienda
+			$new_product->set_status( 'publish' );
+			$new_product->set_catalog_visibility( 'visible' );
 
 			if ( isset( $wc_data['regular_price'] ) ) {
 				$new_product->set_regular_price( $wc_data['regular_price'] );
@@ -1176,8 +1180,48 @@ class SyncProductos {
 
 			// Guardar el producto
 			$new_product_id = $new_product->save();
+			
+			// Log detallado del proceso de guardado
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+				if (!$new_product_id) {
+					$logger->error('Error al guardar producto en SyncProductos', [
+						'sku' => $wc_data['sku'],
+						'errors' => $new_product->get_error_data()
+					]);
+				} else {
+					$logger->info('Producto guardado exitosamente en SyncProductos', [
+						'product_id' => $new_product_id,
+						'sku' => $wc_data['sku'],
+						'status' => $new_product->get_status(),
+						'visibility' => $new_product->get_catalog_visibility()
+					]);
+				}
+			}
+			
 			update_post_meta( $new_product_id, '_verial_sync_hash', $hash_actual );
 			update_post_meta( $new_product_id, '_verial_sync_last', current_time( 'mysql' ) );
+
+			// Verificación final: confirmar que el producto existe y está publicado
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos-verify');
+				$saved_product = wc_get_product($new_product_id);
+				if ($saved_product) {
+					$logger->info('Verificación post-guardado exitosa', [
+						'product_id' => $new_product_id,
+						'sku' => $saved_product->get_sku(),
+						'name' => $saved_product->get_name(),
+						'status' => $saved_product->get_status(),
+						'visibility' => $saved_product->get_catalog_visibility(),
+						'url' => $saved_product->get_permalink()
+					]);
+				} else {
+					$logger->error('Producto no encontrado después del guardado', [
+						'product_id' => $new_product_id,
+						'sku' => $wc_data['sku']
+					]);
+				}
+			}
 
 			$processed = true;
 			/* translators: %1$s: SKU del producto */

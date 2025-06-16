@@ -19,16 +19,18 @@ class Sync_Single_Product {
 	 * @param \MiIntegracionApi\Core\ApiConnector $api_connector El conector de API
 	 * @param string                              $sku SKU del producto a sincronizar
 	 * @param string                              $nombre Nombre del producto a sincronizar
+	 * @param string                              $categoria ID de la categoría del producto (opcional)
+	 * @param string                              $fabricante ID del fabricante del producto (opcional)
 	 * @return array<string, mixed> Resultado de la sincronización con claves 'success' y 'message'
 	 */
-	public static function sync( \MiIntegracionApi\Core\ApiConnector $api_connector, string $sku = '', string $nombre = '' ): array {
+	public function sync( \MiIntegracionApi\Core\ApiConnector $api_connector, string $sku = '', string $nombre = '', string $categoria = '', string $fabricante = '' ): array {
 		if ( ! class_exists( 'WooCommerce' ) ) {
 			return array(
 				'success' => false,
 				'message' => 'WooCommerce no está activo.',
 			);
 		}
-		if ( ! MI_Sync_Lock::acquire() ) {
+		if ( ! \MiIntegracionApi\Sync\SyncLock::acquire() ) {
 			return array(
 				'success' => false,
 				'message' => __( 'Ya hay una sincronización en curso.', 'mi-integracion-api' ),
@@ -38,7 +40,78 @@ class Sync_Single_Product {
 			/**
 			 * Obtener artículos de la API
 			 */
-			$productos = $api_connector->get_articulos();
+			$params = array();
+			
+			// Añadir filtros si se proporcionan
+			// Observando el JSON de Verial, no hay parámetros específicos para filtrar artículos
+			// Vamos a buscar todos y filtrarlos a nivel de código después
+			
+			// Agregar parámetros de filtrado básicos
+			// La consulta básica obtiene todos los artículos
+			
+			// Loguear parámetros recibidos para diagnóstico
+			if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			    $logger->info(
+			        '[Sync_Single_Product] Iniciando sincronización con parámetros: ' . 
+			        json_encode(['sku' => $sku, 'nombre' => $nombre, 'categoria' => $categoria, 'fabricante' => $fabricante]), 
+			        ['context' => 'sync-product']
+			    );
+			}
+			
+			// Verificar si hay algún parámetro de búsqueda
+			if (empty($sku) && empty($nombre) && empty($categoria) && empty($fabricante)) {
+			    return array(
+			        'success' => false,
+			        'message' => __('Debes proporcionar al menos un parámetro de búsqueda.', 'mi-integracion-api'),
+			    );
+			}
+			
+			// Construir parámetros de filtrado para la API
+			$params = [];
+			
+			// Registrar los parámetros usados para diagnóstico
+			$logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			
+			// La API de Verial no tiene filtros directos por todos los campos que necesitamos
+			// Podemos usar id_articulo si tenemos un ID numérico, pero para código de barras o nombre
+			// necesitamos hacer un filtrado posterior
+			
+			// 1. Si tenemos categoría o fabricante, los usamos como filtros primarios
+			if (!empty($categoria)) {
+			    $params['ID_Categoria'] = $categoria;
+			    $logger->info(
+			        '[Sync_Single_Product] Filtrando por categoría: ' . $categoria, 
+			        ['context' => 'sync-product-params']
+			    );
+			}
+			if (!empty($fabricante)) {
+			    $params['ID_Fabricante'] = $fabricante;
+			    $logger->info(
+			        '[Sync_Single_Product] Filtrando por fabricante: ' . $fabricante, 
+			        ['context' => 'sync-product-params']
+			    );
+			}
+			
+			// 2. Si tenemos un ID numérico, lo agregamos al filtro
+			if (is_numeric($sku)) {
+			    $params['id_articulo'] = $sku;
+			    $logger->info(
+			        '[Sync_Single_Product] Filtrando por ID numérico: ' . $sku, 
+			        ['context' => 'sync-product-params']
+			    );
+			}
+			
+			// 3. Obtener los productos con los filtros aplicados
+			// Nota: Para código de barras y nombre filtramos posteriormente
+			$productos = $api_connector->get_articulos($params);
+			
+			// Registrar la cantidad de parámetros usados
+			$logger->info(
+			    '[Sync_Single_Product] Consulta a API con ' . count($params) . ' parámetros', 
+			    ['context' => 'sync-product']
+			);
+
 			/** @phpstan-ignore-next-line */
 			if ( is_wp_error( $productos ) ) {
 				/** @phpstan-ignore-next-line */
@@ -49,26 +122,128 @@ class Sync_Single_Product {
 					'message' => $error_message,
 				);
 			}
+			
+			// Depurar respuesta completa
+			if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			    $logger->debug(
+			        '[Sync_Single_Product] Respuesta de API: ' . substr(json_encode($productos), 0, 200) . '...',
+			        ['context' => 'sync-product']
+			    );
+			}
+			
 			/** @phpstan-ignore-next-line */
-			if ( ! is_array( $productos ) || empty( $productos ) ) {
+			if ( ! is_array( $productos ) || empty( $productos ) || !isset($productos['Articulos']) ) {
 				return array(
 					'success' => false,
-					'message' => __( 'No se obtuvieron productos de Verial.', 'mi-integracion-api' ),
+					'message' => __( 'No se obtuvieron productos de Verial o formato de respuesta inesperado.', 'mi-integracion-api' ),
 				);
 			}
+			
 			/** @var array<string, mixed>|null $producto */
 			$producto = null;
-			/** @var array<string, mixed> $p */
-			foreach ( $productos as $p ) {
-				if ( $sku && isset( $p['Referencia'] ) && is_string( $p['Referencia'] ) && $p['Referencia'] === $sku ) {
-					$producto = $p;
-					break;
+			/** @var array<string, mixed> $articulos */
+			$articulos = $productos['Articulos'];
+			
+			// Depurar la cantidad de artículos encontrados
+			if (class_exists('MiIntegracionApi\\helpers\\Logger')) {
+			    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			    $logger->info(
+			        '[Sync_Single_Product] Artículos en respuesta: ' . count($articulos),
+			        ['context' => 'sync-product']
+			    );
+			}
+			
+			$logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
+			$candidatos = [];
+			
+			foreach ( $articulos as $p ) {
+				// Depurar cada producto evaluado para diagnóstico
+				$logger->debug(
+				    '[Sync_Single_Product] Evaluando artículo: ' . json_encode([
+				        'Id' => $p['Id'] ?? 'no-id', 
+				        'ReferenciaBarras' => $p['ReferenciaBarras'] ?? 'no-ref', 
+				        'Nombre' => $p['Nombre'] ?? 'no-nombre'
+				    ]),
+				    ['context' => 'sync-product']
+				);
+				
+				// Calcular puntuación para determinar el mejor candidato
+				$score = 0;
+				$match_reason = [];
+				
+				// Incrementar puntuación según coincidencias exactas (prioridad alta)
+				// Coincidencia de ID (prioridad máxima)
+				if ( !empty($sku) && is_numeric($sku) && isset($p['Id']) && ((string)$p['Id'] === (string)$sku) ) {
+					$score += 100;
+					$match_reason[] = 'ID exacto';
 				}
-				if ( $nombre && isset( $p['Nombre'] ) && is_string( $p['Nombre'] ) && stripos( $p['Nombre'], $nombre ) !== false ) {
-					$producto = $p;
-					break;
+				
+				// Coincidencia de código de barras (alta prioridad)
+				if ( !empty($sku) && !is_numeric($sku) && isset($p['ReferenciaBarras']) && 
+				     strtolower((string)$p['ReferenciaBarras']) === strtolower((string)$sku) ) {
+					$score += 90;
+					$match_reason[] = 'Código de barras exacto';
+				}
+				
+				// Coincidencia parcial de código (menor prioridad)
+				if ( !empty($sku) && !is_numeric($sku) && isset($p['ReferenciaBarras']) && 
+				     stripos((string)$p['ReferenciaBarras'], (string)$sku) !== false ) {
+					$score += 30;
+					$match_reason[] = 'Código de barras parcial';
+				}
+				
+				// Coincidencia de nombre (media-alta prioridad)
+				if ( !empty($nombre) && isset($p['Nombre']) && is_string($p['Nombre']) ) {
+					if (strtolower($p['Nombre']) === strtolower($nombre)) {
+						$score += 80; // Coincidencia exacta de nombre
+						$match_reason[] = 'Nombre exacto';
+					} else if (stripos($p['Nombre'], $nombre) !== false) {
+						$score += 40; // Coincidencia parcial de nombre
+						$match_reason[] = 'Nombre parcial';
+					}
+				}
+				
+				// Coincidencia de categoría si se especificó
+				if ( !empty($categoria) && isset($p['ID_Categoria']) && (string)$p['ID_Categoria'] === (string)$categoria ) {
+					$score += 20;
+					$match_reason[] = 'Categoría';
+				}
+				
+				// Coincidencia de fabricante si se especificó
+				if ( !empty($fabricante) && isset($p['ID_Fabricante']) && (string)$p['ID_Fabricante'] === (string)$fabricante ) {
+					$score += 20;
+					$match_reason[] = 'Fabricante';
+				}
+				
+				// Si hay alguna coincidencia, añadir a candidatos
+				if ($score > 0) {
+					$p['_score'] = $score;
+					$p['_match_reason'] = implode(', ', $match_reason);
+					$candidatos[] = $p;
+					
+					$logger->debug(
+					    "[Sync_Single_Product] Candidato encontrado: ID {$p['Id']} con puntuación $score. Razón: " . implode(', ', $match_reason),
+					    ['context' => 'sync-product']
+					);
 				}
 			}
+			
+			// Ordenar candidatos por puntuación (mayor a menor)
+			if (!empty($candidatos)) {
+				usort($candidatos, function($a, $b) {
+					return $b['_score'] <=> $a['_score'];
+				});
+				
+				// El mejor candidato es el primero
+				$producto = $candidatos[0];
+				
+				$logger->info(
+				    "[Sync_Single_Product] Mejor candidato seleccionado: ID {$producto['Id']}, puntuación: {$producto['_score']}, razón: {$producto['_match_reason']}",
+				    ['context' => 'sync-product']
+				);
+			}
+			
 			if ( ! $producto ) {
 				$error_message = __( 'No se encontró el producto solicitado.', 'mi-integracion-api' );
 				$error_message = is_string( $error_message ) ? $error_message : 'No se encontró el producto solicitado.';
@@ -305,6 +480,10 @@ class Sync_Single_Product {
                         $new_product->set_sku( $sku );
                     }
 
+                    // CRÍTICO: Establecer estado y visibilidad para que aparezca en la tienda
+                    $new_product->set_status( 'publish' );
+                    $new_product->set_catalog_visibility( 'visible' );
+
                     // Establecer nombre
                     if ( isset( $wc_data['name'] ) && is_string( $wc_data['name'] ) ) {
                         $new_product->set_name( $wc_data['name'] );
@@ -494,7 +673,7 @@ class Sync_Single_Product {
 				'message' => $e->getMessage(),
 			);
 		} finally {
-			MI_Sync_Lock::release();
+			SyncLock::release();
 		}
 	}
 }

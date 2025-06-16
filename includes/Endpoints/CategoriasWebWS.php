@@ -45,7 +45,7 @@ class CategoriasWebWS extends Base {
 	 * @return bool|\WP_Error
 	 */
 	public function permissions_check( \WP_REST_Request $request ): bool|\WP_Error {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
 				esc_html__( 'No tienes permiso para ver esta información.', 'mi-integracion-api' ),

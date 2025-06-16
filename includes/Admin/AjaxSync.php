@@ -34,6 +34,8 @@ class AjaxSync {
                 'wp_ajax_mi_integracion_api_sync_clients_job_batch',
                 'wp_ajax_mi_integracion_api_save_batch_size',
                 'wp_ajax_mi_integracion_api_diagnose_range',
+                'wp_ajax_mi_integracion_api_get_skipped_ranges_stats',
+                'wp_ajax_mi_integracion_api_get_sync_recommendations',
             ]
         ], 'sync-debug');
 		add_action( 'wp_ajax_mia_sync_progress', [self::class, 'sync_progress_callback'] );
@@ -49,9 +51,12 @@ class AjaxSync {
 		add_action( 'wp_ajax_mi_sync_get_categorias', [self::class, 'get_categorias'] );
 		add_action( 'wp_ajax_mi_sync_get_fabricantes', [self::class, 'get_fabricantes'] );
 		add_action( 'wp_ajax_mi_sync_autocomplete_sku', [self::class, 'autocomplete_sku'] );
+		add_action( 'wp_ajax_mi_search_product', [self::class, 'search_product'] );
 		add_action( 'wp_ajax_mi_integracion_api_sync_clients_job_batch', [self::class, 'sync_clients_job_batch'] );
 		add_action( 'wp_ajax_mi_integracion_api_save_batch_size', [self::class, 'save_batch_size'] );
 		add_action( 'wp_ajax_mi_integracion_api_diagnose_range', [self::class, 'diagnose_range'] );
+		add_action( 'wp_ajax_mi_integracion_api_get_skipped_ranges_stats', [self::class, 'get_skipped_ranges_stats'] );
+		add_action( 'wp_ajax_mi_integracion_api_get_sync_recommendations', [self::class, 'get_sync_recommendations'] );
 		add_action( 'wp_ajax_mi_integracion_api_save_batch_size', [self::class, 'save_batch_size'] ); // Registrar nuevo handler
 	}
 
@@ -212,7 +217,8 @@ class AjaxSync {
 		set_transient('mia_sync_progress', $datos_progreso, 3600 * 6);
 		
 		// Registrar en log
-		Logger::info(
+		$logger = new Logger('sync-progress');
+		$logger->info(
 			sprintf('Progreso sincronización: %s%% - %s - Transcurrido: %s - Est. restante: %s - Artículo: %s', 
 				$porcentaje, 
 				$mensaje,
@@ -220,7 +226,7 @@ class AjaxSync {
 				$tiempo_estimado ?: 'N/A',
 				$estadisticas['articulo_actual'] ?: 'No especificado'
 			),
-			'sync-progress'
+			['category' => 'sync-progress']
 		);
 		
 		return $datos_progreso;
@@ -600,54 +606,374 @@ class AjaxSync {
 	 * Devuelve las categorías de Verial para el formulario (AJAX)
 	 */
 	public static function get_categorias() {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            error_log('[MI] Permiso denegado en get_categorias');
-            wp_send_json_error( array( 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ) );
+        // Iniciar logger para diagnóstico
+        $logger = new \MiIntegracionApi\Helpers\Logger('ajax-debug');
+        $logger->info('Iniciando get_categorias', [
+            'request' => $_REQUEST,
+            'server' => [
+                'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'],
+                'HTTP_REFERER' => $_SERVER['HTTP_REFERER'] ?? 'No disponible',
+                'REMOTE_ADDR' => $_SERVER['REMOTE_ADDR'],
+                'HTTP_USER_AGENT' => $_SERVER['HTTP_USER_AGENT'],
+            ]
+        ]);
+        
+        // Verificar nonce con múltiples posibles acciones para mayor compatibilidad
+        $nonce_valid = false;
+        
+        if (isset($_REQUEST['_ajax_nonce'])) {
+            $nonce_actions = [
+                'mi_sync_single_product',      // Acción original
+                'mi_sync_get_categorias',      // Acción enviada por el JS
+                'mi_get_categorias'            // Otra posible acción
+            ];
+            
+            foreach ($nonce_actions as $action) {
+                $valid = wp_verify_nonce($_REQUEST['_ajax_nonce'], $action);
+                $logger->debug('Verificando nonce', [
+                    'action' => $action,
+                    'nonce' => substr($_REQUEST['_ajax_nonce'], 0, 4) . '...',
+                    'valid' => $valid ? 'SÍ' : 'NO'
+                ]);
+                if ($valid) {
+                    $nonce_valid = true;
+                    break;
+                }
+            }
+        } else {
+            $logger->error('No se recibió nonce en la petición');
         }
-        if ( ! class_exists( '\MiIntegracionApi\Core\ApiConnector' ) ) {
+        
+        if (!$nonce_valid) {
+            $logger->error('Nonce inválido en get_categorias', [
+                'request' => $_REQUEST,
+                'nonce_recibido' => $_REQUEST['_ajax_nonce'] ?? 'No proporcionado'
+            ]);
+            wp_send_json_error(array('message' => __('Verificación de seguridad fallida. Recarga la página e intenta nuevamente.', 'mi-integracion-api')));
+            return;
+        }
+        
+        $logger->info('Nonce validado correctamente');
+        
+        if (!current_user_can('manage_options')) {
+            $logger->error('Permiso denegado en get_categorias', [
+                'user_id' => get_current_user_id(),
+                'capabilities' => get_userdata(get_current_user_id())->allcaps
+            ]);
+            wp_send_json_error(array('message' => __('No tienes permisos suficientes.', 'mi-integracion-api')));
+            return;
+        }
+        $logger->info('Permisos validados correctamente');
+        if (!class_exists('\MiIntegracionApi\Core\ApiConnector')) {
+            $logger->info('Cargando clase ApiConnector');
             require_once dirname(__DIR__) . '/Core/ApiConnector.php';
         }
-        $api_connector = new \MiIntegracionApi\Core\ApiConnector();
-        $categorias = $api_connector->get_categorias();
-        error_log('[MI] Respuesta cruda get_categorias: ' . print_r($categorias, true));
-        if ( is_wp_error($categorias) ) {
-            error_log('[MI] Error al obtener categorías: ' . $categorias->get_error_message());
-            wp_send_json_error( array( 'message' => $categorias->get_error_message() ) );
-        }
-        $categorias_list = [];
-        if (is_array($categorias) && isset($categorias['Categorias']) && is_array($categorias['Categorias'])) {
-            foreach ($categorias['Categorias'] as $cat) {
-                $categorias_list[] = [
-                    'id' => $cat['Id'] ?? $cat['id'] ?? '',
-                    'nombre' => $cat['Nombre'] ?? $cat['nombre'] ?? '',
-                ];
+        
+        try {
+            $api_connector = new \MiIntegracionApi\Core\ApiConnector();
+            $logger->info('Instancia de ApiConnector creada correctamente');
+            
+            $logger->info('Obteniendo categorías...');
+            $categorias = $api_connector->get_categorias();
+            
+            $logger->debug('Respuesta cruda de get_categorias', [
+                'tipo' => gettype($categorias),
+                'es_wp_error' => is_wp_error($categorias) ? 'SÍ' : 'NO',
+                'contenido' => $categorias
+            ]);
+            
+            if (is_wp_error($categorias)) {
+                $logger->error('Error al obtener categorías', [
+                    'message' => $categorias->get_error_message(),
+                    'code' => $categorias->get_error_code(),
+                    'data' => $categorias->get_error_data()
+                ]);
+                wp_send_json_error(['message' => $categorias->get_error_message()]);
+                return;
             }
+            
+            $categorias_list = [];
+            
+            if (is_array($categorias) && isset($categorias['Categorias']) && is_array($categorias['Categorias'])) {
+                $logger->info('Procesando lista de categorías', ['count' => count($categorias['Categorias'])]);
+                
+                foreach ($categorias['Categorias'] as $i => $cat) {
+                    $id = $cat['Id'] ?? $cat['id'] ?? '';
+                    $nombre = $cat['Nombre'] ?? $cat['nombre'] ?? '';
+                    
+                    if (!empty($id) && !empty($nombre)) {
+                        $categorias_list[$id] = $nombre; // Formato para selects: id => nombre
+                        
+                        if ($i < 3 || $i > count($categorias['Categorias']) - 4) {
+                            $logger->debug('Categoría procesada', [
+                                'indice' => $i, 
+                                'id' => $id, 
+                                'nombre' => $nombre
+                            ]);
+                        }
+                    } else {
+                        $logger->warning('Categoría con datos incompletos', [
+                            'indice' => $i,
+                            'datos' => $cat
+                        ]);
+                    }
+                }
+            } else {
+                $logger->error('Formato de categorías inesperado', [
+                    'es_array' => is_array($categorias) ? 'SÍ' : 'NO',
+                    'tiene_categorias' => isset($categorias['Categorias']) ? 'SÍ' : 'NO',
+                    'categorias_es_array' => isset($categorias['Categorias']) && is_array($categorias['Categorias']) ? 'SÍ' : 'NO'
+                ]);
+            }
+            
+            if (empty($categorias_list)) {
+                $logger->warning('No se encontraron categorías válidas en la respuesta');
+            } else {
+                $logger->info('Categorías procesadas correctamente', ['count' => count($categorias_list)]);
+            }
+            
+            // Obtener fabricantes
+            $fabricantes_list = [];
+            
+            if (method_exists($api_connector, 'get_fabricantes')) {
+                $logger->info('Obteniendo fabricantes...');
+                $fabricantes = $api_connector->get_fabricantes();
+                
+                $logger->debug('Respuesta cruda de get_fabricantes', [
+                    'tipo' => gettype($fabricantes),
+                    'es_wp_error' => is_wp_error($fabricantes) ? 'SÍ' : 'NO',
+                    'contenido' => $fabricantes
+                ]);
+                
+                if (!is_wp_error($fabricantes) && is_array($fabricantes)) {
+                    $logger->info('Procesando lista de fabricantes', ['count' => count($fabricantes)]);
+                    
+                    foreach ($fabricantes as $i => $fab) {
+                        $id = $fab['id'] ?? $fab['Id'] ?? '';
+                        $nombre = $fab['nombre'] ?? $fab['Nombre'] ?? '';
+                        
+                        if (!empty($id) && !empty($nombre)) {
+                            $fabricantes_list[$id] = $nombre; // Formato para selects: id => nombre
+                            
+                            if ($i < 3 || $i > count($fabricantes) - 4) {
+                                $logger->debug('Fabricante procesado', [
+                                    'indice' => $i, 
+                                    'id' => $id, 
+                                    'nombre' => $nombre
+                                ]);
+                            }
+                        } else {
+                            $logger->warning('Fabricante con datos incompletos', [
+                                'indice' => $i,
+                                'datos' => $fab
+                            ]);
+                        }
+                    }
+                } else {
+                    $logger->error('Error al obtener fabricantes o formato incorrecto', [
+                        'es_error' => is_wp_error($fabricantes) ? 'SÍ' : 'NO',
+                        'es_array' => is_array($fabricantes) ? 'SÍ' : 'NO'
+                    ]);
+                }
+            } else {
+                $logger->warning('El método get_fabricantes no existe en ApiConnector');
+            }
+        } catch (\Exception $e) {
+            $logger->error('Excepción al procesar categorías/fabricantes', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            wp_send_json_error(['message' => 'Error interno: ' . $e->getMessage()]);
+            return;
         }
-        if (empty($categorias_list)) {
-            error_log('[MI] No se encontraron categorías válidas en la respuesta.');
+        
+        $logger->info('Datos preparados para enviar al frontend', [
+            'categorias_count' => count($categorias_list),
+            'fabricantes_count' => count($fabricantes_list)
+        ]);
+        
+        // Muestra algunos ejemplos para verificar el formato
+        if (!empty($categorias_list)) {
+            $logger->debug('Ejemplo de categorías', array_slice($categorias_list, 0, 3, true));
         }
-        wp_send_json_success( array( 'categorias' => $categorias_list ) );
+        if (!empty($fabricantes_list)) {
+            $logger->debug('Ejemplo de fabricantes', array_slice($fabricantes_list, 0, 3, true));
+        }
+        
+        $response_data = [
+            'categories'    => $categorias_list,
+            'manufacturers' => $fabricantes_list,
+        ];
+        
+        $logger->debug('JSON a enviar', [
+            'data' => $response_data,
+            'json' => json_encode($response_data)
+        ]);
+        
+        wp_send_json_success($response_data);
     }
 
     /**
      * Devuelve los fabricantes de Verial para el formulario (AJAX)
      */
     public static function get_fabricantes() {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            error_log('[MI] Permiso denegado en get_fabricantes');
-            wp_send_json_error( array( 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ) );
-        }
-        if ( ! class_exists( '\MiIntegracionApi\Core\ApiConnector' ) ) {
-            require_once dirname(__DIR__) . '/Core/ApiConnector.php';
-        }
-        $api_connector = new \MiIntegracionApi\Core\ApiConnector();
-        if (method_exists($api_connector, 'get_fabricantes')) {
-            $fabricantes = $api_connector->get_fabricantes();
+        // Iniciar logger para diagnóstico
+        $logger = new \MiIntegracionApi\Helpers\Logger('ajax-debug');
+        $logger->info('Iniciando get_fabricantes', [
+            'request' => $_REQUEST,
+            'server' => [
+                'REQUEST_METHOD' => $_SERVER['REQUEST_METHOD'],
+                'HTTP_REFERER' => $_SERVER['HTTP_REFERER'] ?? 'No disponible',
+                'REMOTE_ADDR' => $_SERVER['REMOTE_ADDR'],
+                'HTTP_USER_AGENT' => $_SERVER['HTTP_USER_AGENT'],
+            ]
+        ]);
+        
+        // Verificar nonce con múltiples posibles acciones para mayor compatibilidad
+        $nonce_valid = false;
+        
+        if (isset($_REQUEST['_ajax_nonce'])) {
+            $nonce_actions = [
+                'mi_sync_single_product',      // Acción original
+                'mi_sync_get_fabricantes',     // Acción enviada por el JS
+                'mi_get_fabricantes'           // Otra posible acción
+            ];
+            
+            foreach ($nonce_actions as $action) {
+                $valid = wp_verify_nonce($_REQUEST['_ajax_nonce'], $action);
+                $logger->debug('Verificando nonce', [
+                    'action' => $action,
+                    'nonce' => substr($_REQUEST['_ajax_nonce'], 0, 4) . '...',
+                    'valid' => $valid ? 'SÍ' : 'NO'
+                ]);
+                if ($valid) {
+                    $nonce_valid = true;
+                    break;
+                }
+            }
         } else {
-            $fabricantes = [];
-            error_log('[MI] El método get_fabricantes no existe en ApiConnector');
+            $logger->error('No se recibió nonce en la petición');
         }
-        error_log('[MI] Respuesta cruda get_fabricantes: ' . print_r($fabricantes, true));
+        
+        if (!$nonce_valid) {
+            $logger->error('Nonce inválido en get_fabricantes', [
+                'request' => $_REQUEST,
+                'nonce_recibido' => $_REQUEST['_ajax_nonce'] ?? 'No proporcionado'
+            ]);
+            wp_send_json_error(array('message' => __('Verificación de seguridad fallida. Recarga la página e intenta nuevamente.', 'mi-integracion-api')));
+            return;
+        }
+        
+        $logger->info('Nonce validado correctamente');
+        
+        if (!current_user_can('manage_options')) {
+            $logger->error('Permiso denegado en get_fabricantes', [
+                'user_id' => get_current_user_id(),
+                'capabilities' => get_userdata(get_current_user_id())->allcaps
+            ]);
+            wp_send_json_error(array('message' => __('No tienes permisos suficientes.', 'mi-integracion-api')));
+            return;
+        }
+        
+        $logger->info('Permisos validados correctamente');
+        
+        try {
+            if (!class_exists('\MiIntegracionApi\Core\ApiConnector')) {
+                $logger->info('Cargando clase ApiConnector');
+                require_once dirname(__DIR__) . '/Core/ApiConnector.php';
+            }
+            
+            $api_connector = new \MiIntegracionApi\Core\ApiConnector();
+            $logger->info('Instancia de ApiConnector creada correctamente');
+            
+            if (method_exists($api_connector, 'get_fabricantes')) {
+                $logger->info('Obteniendo fabricantes...');
+                $fabricantes = $api_connector->get_fabricantes();
+                
+                $logger->debug('Respuesta cruda de get_fabricantes', [
+                    'tipo' => gettype($fabricantes),
+                    'es_wp_error' => is_wp_error($fabricantes) ? 'SÍ' : 'NO',
+                    'contenido' => $fabricantes
+                ]);
+            } else {
+                $logger->error('El método get_fabricantes no existe en ApiConnector');
+                $fabricantes = [];
+            }
+            
+            if (is_wp_error($fabricantes)) {
+                $logger->error('Error al obtener fabricantes', [
+                    'message' => $fabricantes->get_error_message(),
+                    'code' => $fabricantes->get_error_code(),
+                    'data' => $fabricantes->get_error_data()
+                ]);
+                wp_send_json_error(['message' => $fabricantes->get_error_message()]);
+                return;
+            }
+            
+            $fabricantes_list = [];
+            
+            if (is_array($fabricantes)) {
+                $logger->info('Procesando lista de fabricantes', ['count' => count($fabricantes)]);
+                
+                foreach ($fabricantes as $i => $fab) {
+                    $id = $fab['id'] ?? $fab['Id'] ?? '';
+                    $nombre = $fab['nombre'] ?? $fab['Nombre'] ?? '';
+                    
+                    if (!empty($id) && !empty($nombre)) {
+                        $fabricantes_list[$id] = $nombre;
+                        
+                        if ($i < 3 || $i > count($fabricantes) - 4) {
+                            $logger->debug('Fabricante procesado', [
+                                'indice' => $i, 
+                                'id' => $id, 
+                                'nombre' => $nombre
+                            ]);
+                        }
+                    } else {
+                        $logger->warning('Fabricante con datos incompletos', [
+                            'indice' => $i,
+                            'datos' => $fab
+                        ]);
+                    }
+                }
+            } else {
+                $logger->error('Formato de fabricantes inesperado', [
+                    'es_array' => is_array($fabricantes) ? 'SÍ' : 'NO',
+                    'tipo' => gettype($fabricantes)
+                ]);
+            }
+            
+            if (empty($fabricantes_list)) {
+                $logger->warning('No se encontraron fabricantes válidos en la respuesta');
+            } else {
+                $logger->info('Fabricantes procesados correctamente', ['count' => count($fabricantes_list)]);
+            }
+            
+            $logger->debug('Enviando respuesta', [
+                'manufacturers_count' => count($fabricantes_list)
+            ]);
+            
+            // Mostrar algunos ejemplos para verificar el formato
+            if (!empty($fabricantes_list)) {
+                $logger->debug('Ejemplo de fabricantes', array_slice($fabricantes_list, 0, 3, true));
+            }
+            
+            // Enviar respuesta estandarizada
+            wp_send_json_success([
+                'manufacturers' => $fabricantes_list
+            ]);
+            
+        } catch (\Exception $e) {
+            $logger->error('Excepción al procesar fabricantes', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            wp_send_json_error(['message' => 'Error interno: ' . $e->getMessage()]);
+        }
         if ( is_wp_error($fabricantes) ) {
             error_log('[MI] Error al obtener fabricantes: ' . $fabricantes->get_error_message());
             wp_send_json_error( array( 'message' => $fabricantes->get_error_message() ) );
@@ -662,7 +988,8 @@ class AjaxSync {
                 ];
             }
         }
-        wp_send_json_success( array( 'fabricantes' => $fabricantes_list ) );
+        error_log('[MI] Fabricantes disponibles para frontend: ' . count($fabricantes_list));
+        wp_send_json_success( array( 'manufacturers' => $fabricantes_list ) );
     }
 
 	/**
@@ -684,14 +1011,30 @@ class AjaxSync {
         $results = array();
         if (is_array($productos) && isset($productos['Articulos']) && is_array($productos['Articulos'])) {
             foreach ($productos['Articulos'] as $p) {
-                if (
-                    (isset($p['ReferenciaBarras']) && stripos($p['ReferenciaBarras'], $term) !== false) ||
-                    (isset($p['Nombre']) && stripos($p['Nombre'], $term) !== false)
-                ) {
+                // Buscar en Id (numérico)
+                if (isset($p['Id']) && stripos((string)$p['Id'], $term) !== false) {
+                    $results[] = array(
+                        'id' => $p['Id'],
+                        'label' => 'ID: ' . $p['Id'] . ' - ' . ($p['Nombre'] ?? ''),
+                        'value' => $p['Id'],
+                    );
+                }
+                // Buscar en ReferenciaBarras (código de barras)
+                else if (isset($p['ReferenciaBarras']) && stripos($p['ReferenciaBarras'], $term) !== false) {
                     $results[] = array(
                         'id' => $p['ReferenciaBarras'],
-                        'label' => $p['ReferenciaBarras'] . ' - ' . ($p['Nombre'] ?? ''),
+                        'label' => 'Ref: ' . $p['ReferenciaBarras'] . ' - ' . ($p['Nombre'] ?? ''),
                         'value' => $p['ReferenciaBarras'],
+                    );
+                }
+                // Buscar en Nombre como alternativa
+                else if (isset($p['Nombre']) && stripos($p['Nombre'], $term) !== false) {
+                    // Si el producto tiene tanto Id como ReferenciaBarras, priorizamos ReferenciaBarras
+                    $id_value = isset($p['ReferenciaBarras']) ? $p['ReferenciaBarras'] : (isset($p['Id']) ? $p['Id'] : '');
+                    $results[] = array(
+                        'id' => $id_value,
+                        'label' => ($p['Nombre'] ?? '') . ' (' . $id_value . ')',
+                        'value' => $id_value,
                     );
                 }
             }
@@ -886,11 +1229,12 @@ class AjaxSync {
 	private static function get_articulos_with_fallback($progress) {
 		// Sistema de diagnóstico para analizar cómo estamos obteniendo los nombres
 		$diagnostic = [];
+		$logger = new Logger('sync-article');
 		
 		// Estrategia 1: Usar directamente el campo articulo_actual si está disponible
 		if (!empty($progress['estadisticas']['articulo_actual'])) {
 			$diagnostic['source'] = 'estadisticas.articulo_actual';
-			Logger::debug('Nombre de artículo obtenido directamente de estadisticas.articulo_actual', [
+			$logger->debug('Nombre de artículo obtenido directamente de estadisticas.articulo_actual', [
 				'nombre' => $progress['estadisticas']['articulo_actual']
 			]);
 			return $progress['estadisticas']['articulo_actual'];
@@ -899,7 +1243,7 @@ class AjaxSync {
 		// Estrategia 2: Revisar si hay current_article en el progreso (usado por el JS)
 		if (!empty($progress['current_article'])) {
 			$diagnostic['source'] = 'progress.current_article';
-			Logger::debug('Nombre de artículo obtenido de progress.current_article', [
+			$logger->debug('Nombre de artículo obtenido de progress.current_article', [
 				'nombre' => $progress['current_article']
 			]);
 			return $progress['current_article'];
@@ -914,7 +1258,7 @@ class AjaxSync {
 					$nombre = trim(end($partes));
 					if (!empty($nombre)) {
 						$diagnostic['source'] = 'mensaje_con_dos_puntos';
-						Logger::debug('Nombre de artículo extraído de mensaje después de ":"', [
+						$logger->debug('Nombre de artículo extraído de mensaje después de ":"', [
 							'mensaje' => $progress['mensaje'],
 							'nombre_extraido' => $nombre
 						]);
@@ -935,7 +1279,7 @@ class AjaxSync {
 					if (!empty($matches[1])) {
 						$nombre = trim($matches[1]);
 						$diagnostic['source'] = 'regex_' . $index;
-						Logger::debug('Nombre de artículo extraído con regex', [
+						$logger->debug('Nombre de artículo extraído con regex', [
 							'patron' => $patron,
 							'mensaje' => $progress['mensaje'],
 							'nombre_extraido' => $nombre
@@ -956,7 +1300,7 @@ class AjaxSync {
 			foreach ($posibles_campos as $campo) {
 				if (!empty($progress['estadisticas'][$campo])) {
 					$diagnostic['source'] = 'estadisticas.' . $campo;
-					Logger::debug('Nombre de artículo obtenido de campo alternativo', [
+					$logger->debug('Nombre de artículo obtenido de campo alternativo', [
 						'campo' => $campo,
 						'nombre' => $progress['estadisticas'][$campo]
 					]);
@@ -969,14 +1313,14 @@ class AjaxSync {
 		$ultimo_producto = get_transient('mia_last_product');
 		if (!empty($ultimo_producto)) {
 			$diagnostic['source'] = 'transient_ultimo_producto';
-			Logger::debug('Usando último producto procesado como fallback', [
+			$logger->debug('Usando último producto procesado como fallback', [
 				'ultimo_producto' => $ultimo_producto
 			]);
 			return $ultimo_producto . ' ' . __('(último conocido)', 'mi-integracion-api');
 		}
 		
 		// No se encontró nombre
-		Logger::debug('No se pudo determinar el nombre del artículo', [
+		$logger->debug('No se pudo determinar el nombre del artículo', [
 			'progress' => $progress,
 			'diagnostic' => $diagnostic
 		]);
@@ -1327,5 +1671,238 @@ class AjaxSync {
 				'message' => __('Error al ejecutar diagnóstico: ', 'mi-integracion-api') . $e->getMessage()
 			]);
 		}
+	}
+
+	// Handler para obtener estadísticas de rangos saltados
+	public static function get_skipped_ranges_stats() {
+		// Validar nonce y permisos
+		check_ajax_referer( MiIntegracionApi_NONCE_PREFIX . 'dashboard', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ], 403 );
+		}
+
+		try {
+			// Obtener instancia del Sync Manager
+			if (!class_exists('\MiIntegracionApi\Core\Sync_Manager')) {
+				require_once dirname(__DIR__) . '/Core/Sync_Manager.php';
+			}
+			
+			$sync_manager = \MiIntegracionApi\Core\Sync_Manager::get_instance();
+			$stats = $sync_manager->get_skipped_ranges_statistics();
+
+			wp_send_json_success([
+				'message' => __('Estadísticas obtenidas exitosamente', 'mi-integracion-api'),
+				'stats' => $stats
+			]);
+
+		} catch (\Exception $e) {
+			wp_send_json_error([
+				'message' => __('Error al obtener estadísticas: ', 'mi-integracion-api') . $e->getMessage()
+			]);
+		}
+	}
+
+	/**
+	 * Obtiene recomendaciones de optimización basadas en el historial de timeouts
+	 */
+	public static function get_sync_recommendations() {
+		check_ajax_referer(MiIntegracionApi_NONCE_PREFIX . 'dashboard', 'nonce');
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => __('No tienes permisos suficientes.', 'mi-integracion-api')], 403);
+		}
+
+		try {
+			$timeout_history = get_option('mia_timeout_history', []);
+			$current_batch_size = get_option('mi_integracion_api_batch_size', 20);
+			
+			$recommendations = [];
+			$problematic_ranges = [];
+			$suggested_batch_size = $current_batch_size;
+			
+			// Analizar historial de timeouts
+			foreach ($timeout_history as $range_key => $data) {
+				$timeout_ratio = $data['timeout_count'] / max(1, $data['success_count'] + $data['timeout_count']);
+				
+				if ($timeout_ratio > 0.5) { // Más del 50% de fallos
+					$problematic_ranges[] = [
+						'range' => $range_key,
+						'timeout_count' => $data['timeout_count'],
+						'success_count' => $data['success_count'],
+						'timeout_ratio' => round($timeout_ratio * 100, 1),
+						'last_successful_size' => $data['last_successful_size']
+					];
+					
+					// Ajustar tamaño de lote recomendado basado en el último éxito
+					if ($data['last_successful_size'] && $data['last_successful_size'] < $suggested_batch_size) {
+						$suggested_batch_size = $data['last_successful_size'];
+					}
+				}
+			}
+			
+			// Generar recomendaciones específicas
+			if (!empty($problematic_ranges)) {
+				$recommendations[] = [
+					'type' => 'batch_size',
+					'priority' => 'high',
+					'message' => sprintf(
+						__('Se detectaron %d rangos problemáticos. Se recomienda reducir el tamaño de lote a %d productos.', 'mi-integracion-api'),
+						count($problematic_ranges),
+						$suggested_batch_size
+					),
+					'action' => 'reduce_batch_size',
+					'value' => $suggested_batch_size
+				];
+			}
+			
+			if ($current_batch_size > 20 && !empty($problematic_ranges)) {
+				$recommendations[] = [
+					'type' => 'performance',
+					'priority' => 'medium',
+					'message' => __('El tamaño de lote actual es alto. Considere reducirlo para mejorar la estabilidad.', 'mi-integracion-api'),
+					'action' => 'optimize_batch_size',
+					'value' => min(20, $suggested_batch_size)
+				];
+			}
+			
+			// Recomendaciones de horario basadas en datos
+			$recommendations[] = [
+				'type' => 'timing',
+				'priority' => 'low',
+				'message' => __('Para mejores resultados, ejecute sincronizaciones durante horas de menor tráfico.', 'mi-integracion-api'),
+				'action' => 'schedule_sync',
+				'value' => 'off_peak_hours'
+			];
+
+			wp_send_json_success([
+				'current_batch_size' => $current_batch_size,
+				'suggested_batch_size' => $suggested_batch_size,
+				'problematic_ranges' => $problematic_ranges,
+				'recommendations' => $recommendations,
+				'total_ranges_analyzed' => count($timeout_history)
+			]);
+
+		} catch (\Exception $e) {
+			wp_send_json_error([
+				'message' => __('Error al obtener recomendaciones: ', 'mi-integracion-api') . $e->getMessage()
+			]);
+		}
+	}
+
+	/**
+	 * Busca productos para autocompletado (AJAX)
+	 * 
+	 * @since 1.1.0
+	 * @return void
+	 */
+	public static function search_product() {
+		// Verificar nonce con múltiples posibles acciones
+		$nonce_valid = false;
+		
+		if (isset($_REQUEST['_ajax_nonce'])) {
+			$nonce_actions = [
+				'mi_sync_single_product',  // Acción original
+				'mi_search_product'        // Acción enviada por JS
+			];
+			
+			foreach ($nonce_actions as $action) {
+				if (wp_verify_nonce($_REQUEST['_ajax_nonce'], $action)) {
+					$nonce_valid = true;
+					break;
+				}
+			}
+		}
+		
+		if (!$nonce_valid) {
+			error_log('[MI] Nonce inválido en search_product: ' . json_encode($_REQUEST));
+			wp_send_json_error(['message' => __('Verificación de seguridad fallida. Recarga la página e intenta nuevamente.', 'mi-integracion-api')]);
+			return;
+		}
+		
+		if (!current_user_can('manage_options')) {
+			wp_send_json_error(['message' => __('No tienes permisos suficientes.', 'mi-integracion-api')]);
+			return;
+		}
+		
+		$search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+		$field = isset($_POST['field']) ? sanitize_text_field($_POST['field']) : 'name';
+		
+		if (empty($search)) {
+			wp_send_json_error(['message' => __('Término de búsqueda vacío.', 'mi-integracion-api')]);
+			return;
+		}
+		
+		if (!class_exists('\MiIntegracionApi\Core\ApiConnector')) {
+			require_once dirname(__DIR__) . '/Core/ApiConnector.php';
+		}
+		
+		$api_connector = new \MiIntegracionApi\Core\ApiConnector();
+		$productos = $api_connector->get_articulos();
+		
+		if (is_wp_error($productos)) {
+			wp_send_json_error([
+				'message' => __('Error al obtener productos de Verial.', 'mi-integracion-api'),
+				'error' => $productos->get_error_message()
+			]);
+			return;
+		}
+		
+		// Verificar estructura de la respuesta
+		if (!isset($productos['Articulos']) || !is_array($productos['Articulos'])) {
+			wp_send_json_error(['message' => __('Formato de respuesta inesperado de Verial.', 'mi-integracion-api')]);
+			return;
+		}
+		
+		$articulos = $productos['Articulos'];
+		$results = [];
+		
+		// Limitar resultados para autocompletado
+		$max_results = 15;
+		$count = 0;
+		
+		foreach ($articulos as $articulo) {
+			$match = false;
+			
+			// Buscar por ID o código de barras
+			if ($field === 'id') {
+				// Buscar en ID y ReferenciaBarras
+				if (
+					(isset($articulo['Id']) && stripos($articulo['Id'], $search) !== false) ||
+					(isset($articulo['ReferenciaBarras']) && stripos($articulo['ReferenciaBarras'], $search) !== false)
+				) {
+					$match = true;
+					
+					// Decidir qué valor mostrar como principal (ID o código de barras)
+					$display_value = isset($articulo['ReferenciaBarras']) && !empty($articulo['ReferenciaBarras']) 
+						? $articulo['ReferenciaBarras'] 
+						: $articulo['Id'];
+					
+					$results[] = [
+						'label' => isset($articulo['Nombre']) ? $articulo['Nombre'] : __('Sin nombre', 'mi-integracion-api'),
+						'value' => $display_value,
+						'id' => $articulo['Id'] ?? ''
+					];
+				}
+			} 
+			// Buscar por nombre
+			else {
+				if (isset($articulo['Nombre']) && stripos($articulo['Nombre'], $search) !== false) {
+					$match = true;
+					$results[] = [
+						'label' => $articulo['Nombre'],
+						'value' => $articulo['Nombre'],
+						'id' => $articulo['Id'] ?? ''
+					];
+				}
+			}
+			
+			if ($match && ++$count >= $max_results) {
+				break;
+			}
+		}
+		
+		wp_send_json_success([
+			'products' => $results,
+			'count' => count($results)
+		]);
 	}
 }

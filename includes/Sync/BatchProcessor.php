@@ -79,6 +79,11 @@ class BatchProcessor
     private $recovery_state = [];
 
     /**
+     * @var Logger Instancia del logger
+     */
+    private $logger;
+
+    /**
      * Constructor
      *
      * @param object|null $api_connector
@@ -97,6 +102,7 @@ class BatchProcessor
         $this->admin_email = get_option('admin_email');
         $this->entity_name = ''; // Por defecto vacío, debe ser establecido
         $this->filters = [];
+        $this->logger = new Logger('batch-processor');
     }
     
     /**
@@ -138,7 +144,8 @@ class BatchProcessor
         $this->is_resuming = !empty($this->recovery_state);
         
         if ($this->is_resuming) {
-            Logger::info("Reanudando sincronización de {$this->entity_name} desde el lote #{$this->recovery_state['last_batch']}", [
+            $logger = new \MiIntegracionApi\Helpers\Logger("sync-recovery-{$this->entity_name}");
+            $logger->info("Reanudando sincronización de {$this->entity_name} desde el lote #{$this->recovery_state['last_batch']}", [
                 'processed' => $this->recovery_state['processed'] ?? 0,
                 'total' => $this->recovery_state['total'] ?? 0,
                 'category' => "sync-recovery-{$this->entity_name}"
@@ -202,7 +209,7 @@ class BatchProcessor
                 $processed
             );
             
-            Logger::info("Reanudando sincronización", [
+            $this->logger->info("Reanudando sincronización", [
                 'entity' => $this->entity_name,
                 'last_batch' => $last_batch,
                 'processed' => $processed,
@@ -246,7 +253,7 @@ class BatchProcessor
             if ($this->is_cancelled()) {
                 $cancelled = true;
                 $log[] = "Procesamiento cancelado externamente en el lote #$batch_num.";
-                Logger::warning('Procesamiento cancelado externamente', ['batch' => $batch_num]);
+                $this->logger->warning('Procesamiento cancelado externamente', ['batch' => $batch_num]);
                 break;
             }
 
@@ -271,7 +278,7 @@ class BatchProcessor
                         $batch_errors++;
                         $batch_failed[] = $producto;
                         $batch_log[] = $e->getMessage();
-                        Logger::warning('Error recuperable en producto', [
+                        $this->logger->warning('Error recuperable en producto', [
                             'batch' => $batch_num,
                             'error' => $e->getMessage(),
                             'retries' => $retries
@@ -285,7 +292,7 @@ class BatchProcessor
                         $batch_errors++;
                         $batch_failed[] = $producto;
                         $batch_log[] = 'Error crítico: ' . $e->getMessage();
-                        Logger::error('Error crítico en producto', [
+                        $this->logger->error('Error crítico en producto', [
                             'batch' => $batch_num,
                             'error' => $e->getMessage()
                         ]);
@@ -296,14 +303,14 @@ class BatchProcessor
                 // Timeout por lote
                 if ((microtime(true) - $batch_start) > $this->timeout) {
                     $batch_log[] = 'Timeout alcanzado en el lote #' . $batch_num;
-                    Logger::warning('Timeout alcanzado en lote', ['batch' => $batch_num]);
+                    $this->logger->warning('Timeout alcanzado en lote', ['batch' => $batch_num]);
                     break;
                 }
                 // Control de memoria
                 if ($this->memory_limit_mb > 0 && (memory_get_usage() / 1024 / 1024) > $this->memory_limit_mb) {
                     $memory_exceeded = true;
                     $batch_log[] = 'Límite de memoria superado en el lote #' . $batch_num;
-                    Logger::error('Límite de memoria superado', ['batch' => $batch_num]);
+                    $this->logger->error('Límite de memoria superado', ['batch' => $batch_num]);
                     break;
                 }
             }
@@ -343,7 +350,7 @@ class BatchProcessor
         }
 
         $duration = round(microtime(true) - $start_time, 2);
-        Logger::info('Procesamiento por lotes finalizado', [
+        $this->logger->info('Procesamiento por lotes finalizado', [
             'total' => $total,
             'procesados' => $processed,
             'errores' => $errors,
@@ -360,7 +367,7 @@ class BatchProcessor
             // También limpiar punto de recuperación si todo salió bien
             if (!empty($this->entity_name)) {
                 \MiIntegracionApi\Sync\SyncRecovery::clear_recovery_state($this->entity_name);
-                Logger::info("Punto de recuperación eliminado tras finalización exitosa", [
+                $this->logger->info("Punto de recuperación eliminado tras finalización exitosa", [
                     'entity' => $this->entity_name
                 ]);
             }
@@ -378,7 +385,7 @@ class BatchProcessor
             ];
             
             \MiIntegracionApi\Sync\SyncRecovery::save_recovery_state($this->entity_name, $final_state);
-            Logger::info("Punto de recuperación guardado para reanudar más tarde", [
+            $this->logger->info("Punto de recuperación guardado para reanudar más tarde", [
                 'entity' => $this->entity_name,
                 'status' => $final_state['status']
             ]);

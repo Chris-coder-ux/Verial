@@ -226,6 +226,16 @@ class AdminMenu {
             array( $this, "display_hpos_test_page" )
         );
 
+        // Agregar página de sincronización individual
+        add_submenu_page(
+            $this->menu_id,
+            __( "Sincronización Individual", "mi-integracion-api" ),
+            __( "Sincronización Individual", "mi-integracion-api" ),
+            "manage_options",
+            "mi-sync-single-product",
+            array( $this, "display_sync_single_product_page" )
+        );
+
         add_submenu_page(
             $this->menu_id,
             __( "Mapeo", "mi-integracion-api" ),
@@ -399,6 +409,198 @@ class AdminMenu {
     	} else {
     		$this->render_page( "sync-errors" );
     	}
+    }
+    
+    /**
+     * Muestra la página de sincronización individual de productos.
+     * 
+     * @since 1.1.0
+     */
+    public function display_sync_single_product_page() {
+        // Verificar que WooCommerce esté activo
+        if (!class_exists('WooCommerce')) {
+            echo '<div class="notice notice-error"><p>' . 
+                __('Esta funcionalidad requiere que WooCommerce esté activo.', 'mi-integracion-api') . 
+                '</p></div>';
+            return;
+        }
+        
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html__('Sincronización Individual de Productos', 'mi-integracion-api'); ?></h1>
+            
+            <div class="card" style="max-width: 800px;">
+                <h2><?php esc_html_e('Sincronizar un solo producto', 'mi-integracion-api'); ?></h2>
+                
+                <div>
+                    <p><?php esc_html_e('Busca un producto por SKU o nombre para sincronizarlo individualmente desde Verial a WooCommerce.', 'mi-integracion-api'); ?></p>
+                    
+                    <form id="mi-sync-single-product-form" method="post">
+                        <?php wp_nonce_field('mi_sync_single_product', '_ajax_nonce'); ?>
+                        
+                        <table class="form-table">
+                            <tr>
+                                <th scope="row"><label for="sku"><?php esc_html_e('ID o Código de Barras', 'mi-integracion-api'); ?></label></th>
+                                <td>
+                                    <input type="text" id="sku" name="sku" class="regular-text" placeholder="<?php esc_attr_e('ID numérico o ReferenciaBarras', 'mi-integracion-api'); ?>">
+                                    <p class="description"><?php esc_html_e('Introduce el ID numérico o el código de barras (ReferenciaBarras) del producto en Verial', 'mi-integracion-api'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="nombre"><?php esc_html_e('Nombre del producto', 'mi-integracion-api'); ?></label></th>
+                                <td>
+                                    <input type="text" id="nombre" name="nombre" class="regular-text" placeholder="<?php esc_attr_e('O introduce el nombre para búsqueda parcial', 'mi-integracion-api'); ?>">
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="categoria"><?php esc_html_e('Categoría (opcional)', 'mi-integracion-api'); ?></label></th>
+                                <td>
+                                    <select id="categoria" name="categoria" class="regular-text">
+                                        <option value=""><?php esc_html_e('-- Seleccionar categoría --', 'mi-integracion-api'); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="fabricante"><?php esc_html_e('Fabricante (opcional)', 'mi-integracion-api'); ?></label></th>
+                                <td>
+                                    <select id="fabricante" name="fabricante" class="regular-text">
+                                        <option value=""><?php esc_html_e('-- Seleccionar fabricante --', 'mi-integracion-api'); ?></option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                        
+                        <p class="submit">
+                            <button type="submit" id="sync-button" class="button button-primary">
+                                <?php esc_html_e('Sincronizar producto', 'mi-integracion-api'); ?>
+                            </button>
+                            <span class="spinner" style="float:none;"></span>
+                        </p>
+                    </form>
+                    
+                    <div id="sync-result" class="hidden notice">
+                        <p></p>
+                    </div>
+                    
+                    <p class="description">
+                        <?php esc_html_e('Puedes buscar por ID numérico, código de barras (ReferenciaBarras) o por nombre (búsqueda parcial). Si ambos campos se rellenan, se prioriza el ID/ReferenciaBarras.', 'mi-integracion-api'); ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                // Cargar categorías y fabricantes al cargar la página
+                $.ajax({
+                    url: ajaxurl,
+                    data: {
+                        action: 'mi_sync_get_categorias',
+                        _ajax_nonce: '<?php echo wp_create_nonce('mi_sync_get_categorias'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // Llenar select de categorías
+                            if (response.data && response.data.categories) {
+                                $.each(response.data.categories, function(i, cat) {
+                                    $('#categoria').append($('<option>', {
+                                        value: cat.id,
+                                        text: cat.nombre
+                                    }));
+                                });
+                            }
+                            
+                            // Llenar select de fabricantes
+                            if (response.data && response.data.manufacturers) {
+                                $.each(response.data.manufacturers, function(i, fab) {
+                                    $('#fabricante').append($('<option>', {
+                                        value: fab.id,
+                                        text: fab.nombre
+                                    }));
+                                });
+                            }
+                        }
+                    }
+                });
+                
+                // Autocompletar SKU
+                $('#sku').autocomplete({
+                    source: function(request, response) {
+                        $.ajax({
+                            url: ajaxurl,
+                            dataType: "json",
+                            data: {
+                                action: 'mi_sync_autocomplete_sku',
+                                term: request.term
+                            },
+                            success: function(data) {
+                                response(data.data);
+                            }
+                        });
+                    },
+                    minLength: 2
+                });
+                
+                // Manejar envío del formulario
+                $('#mi-sync-single-product-form').on('submit', function(e) {
+                    e.preventDefault();
+                    
+                    var $button = $('#sync-button');
+                    var $spinner = $('.spinner');
+                    var $result = $('#sync-result');
+                    
+                    // Validar que al menos un campo esté lleno
+                    var sku = $('#sku').val().trim();
+                    var nombre = $('#nombre').val().trim();
+                    
+                    if (sku === '' && nombre === '') {
+                        $result.removeClass('hidden notice-success').addClass('notice-error').show();
+                        $result.find('p').html('<?php esc_html_e('Debes introducir al menos un SKU o nombre de producto.', 'mi-integracion-api'); ?>');
+                        return false;
+                    }
+                    
+                    // Mostrar spinner y desactivar botón
+                    $button.prop('disabled', true);
+                    $spinner.addClass('is-active');
+                    $result.hide();
+                    
+                    // Enviar solicitud AJAX
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'mi_sync_single_product',
+                            _ajax_nonce: $('#_ajax_nonce').val(),
+                            sku: sku,
+                            nombre: nombre,
+                            categoria: $('#categoria').val(),
+                            fabricante: $('#fabricante').val()
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                $result.removeClass('hidden notice-error').addClass('notice-success');
+                                $result.find('p').html(response.data.message);
+                            } else {
+                                $result.removeClass('hidden notice-success').addClass('notice-error');
+                                $result.find('p').html(response.data.message || '<?php esc_html_e('Error al sincronizar el producto.', 'mi-integracion-api'); ?>');
+                            }
+                        },
+                        error: function() {
+                            $result.removeClass('hidden notice-success').addClass('notice-error');
+                            $result.find('p').html('<?php esc_html_e('Error de comunicación con el servidor.', 'mi-integracion-api'); ?>');
+                        },
+                        complete: function() {
+                            $button.prop('disabled', false);
+                            $spinner.removeClass('is-active');
+                            $result.show();
+                        }
+                    });
+                    
+                    return false;
+                });
+            });
+        </script>
+        <?php
     }
    
     /**
@@ -575,6 +777,45 @@ class AdminMenu {
                 true
             );
             $this->logger->info('Enqueued hpos-test.js');
+        }
+
+        // Script para la página de sincronización individual
+        if ( $hook_suffix === 'mi-integracion-api_page_mi-sync-single-product' ) {
+            wp_enqueue_script('jquery-ui-autocomplete');
+            wp_enqueue_style(
+                'jquery-ui-style',
+                '//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css',
+                array(),
+                '1.12.1'
+            );
+            
+            wp_register_script(
+                'mi-integracion-api-sync-single-product',
+                $this->assets_url . 'js/sync-single-product.js',
+                array('jquery', 'jquery-ui-autocomplete'),
+                MiIntegracionApi_VERSION,
+                true
+            );
+            
+            // Asegurarnos que ajaxurl y nonce estén disponibles
+            wp_localize_script(
+                'mi-integracion-api-sync-single-product',
+                'miSyncSingleProduct',
+                array(
+                    'ajaxurl' => admin_url('admin-ajax.php'),
+                    'nonce' => wp_create_nonce('mi_sync_single_product'),
+                    'debug' => defined('WP_DEBUG') && WP_DEBUG,
+                    'i18n' => array(
+                        'errorLoadingCategories' => __('Error al cargar categorías', 'mi-integracion-api'),
+                        'errorLoadingManufacturers' => __('Error al cargar fabricantes', 'mi-integracion-api'),
+                        'noResults' => __('No se encontraron resultados', 'mi-integracion-api'),
+                        'searchMinLength' => __('Escribe al menos 2 caracteres', 'mi-integracion-api')
+                    )
+                )
+            );
+            
+            wp_enqueue_script('mi-integracion-api-sync-single-product');
+            $this->logger->info('Enqueued sync-single-product.js with localized data');
         }
 
         // Script para la página de mapeo

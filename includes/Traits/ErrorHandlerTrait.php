@@ -11,7 +11,8 @@ trait ErrorHandlerTrait {
      */
     protected function log_error($message, $context = []) {
         if (class_exists('MiIntegracionApi\\Helpers\\Logger')) {
-            Logger::error($message, $context, 'auditoria');
+            $logger = new Logger('auditoria');
+            $logger->error($message, $context);
         }
     }
 

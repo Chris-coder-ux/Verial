@@ -1442,8 +1442,59 @@ class ApiConnector {
                 return new \WP_Error('circuit_breaker_open', 'El circuito está abierto, la solicitud no puede ser procesada');
             }
 
-            // Actualizar timeout en args
+            // Actualizar timeout en args con estrategia más agresiva
             $args['timeout'] = $timeout;
+            
+            // ESTRATEGIA ANTI-TIMEOUT: Configuraciones adicionales para rangos problemáticos
+            if (strpos($url, 'GetArticulosWS') !== false) {
+                // Extraer rangos para detectar si es problemático
+                preg_match('/inicio=(\d+)/', $url, $inicio_matches);
+                preg_match('/fin=(\d+)/', $url, $fin_matches);
+                
+                if (!empty($inicio_matches[1]) && !empty($fin_matches[1])) {
+                    $inicio = (int)$inicio_matches[1];
+                    $fin = (int)$fin_matches[1];
+                    
+                    // Aplicar configuraciones especiales para rangos problemáticos
+                    $problematic_ranges = [
+                        [3801, 4000], [3901, 4000], [2601, 2700], [2801, 2900], 
+                        [3101, 3200], [3301, 3400], [3501, 3600], [3701, 3800]
+                    ];
+                    
+                    $is_problematic = false;
+                    foreach ($problematic_ranges as $range) {
+                        if ($inicio >= $range[0] && $inicio <= $range[1]) {
+                            $is_problematic = true;
+                            break;
+                        }
+                    }
+                    
+                    if ($is_problematic) {
+                        // Configuraciones especiales para rangos problemáticos
+                        $args['timeout'] = max(120, $timeout * 2); // Timeout mucho más largo
+                        $args['httpversion'] = '1.0'; // Usar HTTP 1.0 más simple
+                        $args['stream'] = false; // Desactivar streaming
+                        $args['compress'] = false; // Desactivar compresión
+                        $args['decompress'] = false; // Desactivar descompresión
+                        
+                        if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+                            $logger = new \MiIntegracionApi\Helpers\Logger('api-connector-problematic');
+                            $logger->info(
+                                sprintf('Aplicando configuración especial para rango problemático %d-%d', $inicio, $fin),
+                                [
+                                    'timeout_original' => $timeout,
+                                    'timeout_ajustado' => $args['timeout'],
+                                    'configuraciones_especiales' => [
+                                        'httpversion' => '1.0',
+                                        'stream' => false,
+                                        'compress' => false
+                                    ]
+                                ]
+                            );
+                        }
+                    }
+                }
+            }
             
             // Realizar la solicitud y capturar información detallada
             $request_start_time = microtime(true);

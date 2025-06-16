@@ -612,6 +612,17 @@ class Sync_Manager {
 				if ($is_problematic_range) {
 					// Saltar este lote y continuar con el siguiente
 					$this->sync_status['current_sync']['current_offset'] = $offset + $batch_size;
+					
+					// Registrar el salto en las estadísticas
+					if (!isset($this->sync_status['current_sync']['skipped_ranges'])) {
+						$this->sync_status['current_sync']['skipped_ranges'] = [];
+					}
+					$this->sync_status['current_sync']['skipped_ranges'][] = [
+						'range' => [$current_start, $current_end],
+						'reason' => 'known_problematic_range',
+						'timestamp' => current_time('mysql')
+					];
+					
 					$this->save_sync_status();
 					
 					// Simular un resultado exitoso para continuar
@@ -620,11 +631,24 @@ class Sync_Manager {
 						'products_processed' => 0,
 						'products_skipped' => $batch_size,
 						'message' => sprintf('Rango problemático saltado: %d-%d', $current_start, $current_end),
-						'next_offset' => $offset + $batch_size
+						'next_offset' => $offset + $batch_size,
+						'skipped_reason' => 'known_problematic_range'
 					];
 					
-					// Actualizar progreso
-					$this->update_sync_progress($this->sync_status['current_sync']['entity']);
+					// Actualizar progreso usando el método correcto
+					if (class_exists('\MiIntegracionApi\Admin\AjaxSync')) {
+						\MiIntegracionApi\Admin\AjaxSync::store_sync_progress(
+							0, // El porcentaje se calculará automáticamente
+							sprintf('Rango problemático saltado: %d-%d', $current_start, $current_end),
+							[
+								'articulo_actual' => sprintf('Rango %d-%d', $current_start, $current_end),
+								'sku' => 'SKIPPED_RANGE',
+								'procesados' => $this->sync_status['current_sync']['items_synced'],
+								'errores' => $this->sync_status['current_sync']['errors'],
+								'total' => $this->sync_status['current_sync']['total_items']
+							]
+						);
+					}
 					
 					return $result;
 				}
@@ -1490,19 +1514,21 @@ class Sync_Manager {
 			);
 		}
 		
-		while ($retry_count < $max_retries) {
-			// Intentar obtener productos con opciones avanzadas para diagnóstico
-			$api_options = [
-				'timeout' => 45,                 // Tiempo de espera extendido para catálogos grandes
-				'diagnostics' => true,           // Habilitar información de diagnóstico en respuesta de error
-				'trace_request' => true,         // Rastrear detalles completos de la solicitud HTTP
-				'retry_transient_errors' => true, // Reintentar automáticamente errores transitorios
-				'wp_args' => [                   // Argumentos directos para wp_remote_request
-					'timeout' => 45,             // Configurar el mismo timeout en los argumentos de WordPress
-					'httpversion' => '1.1',      // Usar HTTP 1.1 para mejor compatibilidad
-					'blocking' => true           // Esperar a que se complete la solicitud
-				]
-			];
+		while ($retry_count < $max_retries) {		// Intentar obtener productos con opciones avanzadas para diagnóstico
+		$api_options = [
+			'timeout' => 90,                 // Timeout más agresivo para rangos problemáticos
+			'diagnostics' => true,           // Habilitar información de diagnóstico en respuesta de error
+			'trace_request' => true,         // Rastrear detalles completos de la solicitud HTTP
+			'retry_transient_errors' => true, // Reintentar automáticamente errores transitorios
+			'wp_args' => [                   // Argumentos directos para wp_remote_request
+				'timeout' => 90,             // Configurar el mismo timeout en los argumentos de WordPress
+				'httpversion' => '1.1',      // Usar HTTP 1.1 para mejor compatibilidad
+				'blocking' => true,          // Esperar a que se complete la solicitud
+				'sslverify' => false,        // Desactivar verificación SSL temporalmente
+				'redirection' => 5,          // Permitir hasta 5 redirecciones
+				'user-agent' => 'Mi-Integracion-API/1.0'
+			]
+		];
 			
 			// Configurar backoff más agresivo para este lote específico
 			if ($retry_count > 0) {
@@ -1770,175 +1796,69 @@ class Sync_Manager {
 				);
 			}
 			
-			// --- MEJORA: Detectar rangos específicos problemáticos ---
-			$is_known_problematic_range = ($inicio >= 2500 && $inicio <= 2600);
-			
-			if ($is_known_problematic_range) {
-				// Específicamente para el rango problemático que hemos identificado
+			// ESTRATEGIA AUTOMÁTICA: Si es timeout persistente, activar manejador de emergencia
+			if ($diagnostic_result['data']['cause'] === 'undetermined_timeout' && ($fin - $inicio + 1) > 1) {
 				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-					$logger = new \MiIntegracionApi\Helpers\Logger('sync-problematic-range');
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-emergency');
 					$logger->warning(
-						sprintf('Respuesta vacía en rango problemático conocido: %d-%d. Implementando estrategia especial.',
-							$inicio, $fin),
+						sprintf('Activando manejador de emergencia para rango persistentemente problemático %d-%d', $inicio, $fin),
 						[
-							'batch_size' => $fin - $inicio + 1,
-							'retry_count' => $retry_count
+							'diagnostic_result' => $diagnostic_result['data'],
+							'timeout_count' => $retry_count,
+							'emergency_mode' => 'activated'
 						]
 					);
 				}
 				
-				// Intentar un diagnóstico para verificar si podemos acceder a productos individuales
-				// Solo hacerlo si estamos en un lote pequeño para no saturar la API
-				if (($fin - $inicio + 1) <= 5) {
-					$diagnostic_success = false;
-					
-					// Intentar acceder a SKUs específicos de este rango para diagnóstico
-					try {
-						// Intento de diagnóstico: verificar si podemos acceder a los productos por SKU
-						$diag_logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-diagnostic');
-						$diag_logger->info('Iniciando diagnóstico para rango problemático', [
-							'inicio' => $inicio,
-							'fin' => $fin
-						]);
-						
-						// Buscar SKUs que correspondan a este rango
-						global $wpdb;
-						$sku_query = $wpdb->prepare(
-							"SELECT meta_value FROM {$wpdb->postmeta} 
-							 WHERE meta_key = '_sku' 
-							 AND post_id IN (
-								SELECT ID FROM {$wpdb->posts} 
-								WHERE post_type = 'product' AND post_status = 'publish'
-							 ) LIMIT 5"
-						);
-						$skus = $wpdb->get_col($sku_query);
-						
-						if (!empty($skus)) {
-							// Intentar obtener estos productos por SKU en lugar de por rango
-							$diagnostic_params = [
-								'sku' => $skus[0], // Intentar con el primer SKU
-								'x' => $this->api_connector->get_session_number()
-							];
-							
-							$diag_logger->info('Intentando obtener producto por SKU', [
-								'sku' => $skus[0],
-								'params' => $diagnostic_params
-							]);
-							
-							// Usar opciones especiales para este intento de diagnóstico
-							$diag_options = [
-								'timeout' => 30,
-								'diagnostics' => true,
-								'trace_request' => true
-							];
-							
-							$diag_response = $this->api_connector->get('GetArticulosBySKU', $diagnostic_params, $diag_options);
-							
-							if (!is_wp_error($diag_response) && !empty($diag_response)) {
-								$diagnostic_success = true;
-								$diag_logger->info('Diagnóstico exitoso: se pueden obtener productos por SKU', [
-									'sku_response' => is_array($diag_response) ? count($diag_response) : 'no es array'
-								]);
-							} else {
-								$diag_logger->warning('Diagnóstico fallido: no se pueden obtener productos por SKU', [
-									'error' => is_wp_error($diag_response) ? $diag_response->get_error_message() : 'respuesta vacía'
-								]);
-							}
-						}
-					} catch (\Exception $e) {
-						// Ignorar errores de diagnóstico, solo estamos recopilando información
-						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-diagnostic');
-							$logger->error('Error en diagnóstico: ' . $e->getMessage());
-						}
-					}
-					
-					// Si el lote ya es muy pequeño y aún falla, recomendar omitir
-					return new \WP_Error(
-						'problematic_product_range',
-						sprintf(__('Los productos en el rango %d-%d consistentemente devuelven respuestas vacías desde la API de Verial. Se recomienda omitir este rango y sincronizar productos individualmente por SKU.', 'mi-integracion-api'), 
-							$inicio, $fin),
-						[
-							'params' => $params,
-							'range' => [$inicio, $fin],
-							'skip_recommended' => true,
-							'status_code' => $status_code,
-							'diagnostic_success' => $diagnostic_success,
-							'alternative_method' => 'GetArticulosBySKU'
-						]
-					);
-				}
-				
-				// Subdividir en lotes muy pequeños para intentar identificar productos individuales problemáticos
-				return new \WP_Error(
-					'empty_response_in_problematic_range',
-					sprintf(__('Respuesta vacía en rango problemático conocido (%d-%d). Intentando subdivisión agresiva.', 'mi-integracion-api'),
-						$inicio, $fin),
-					[
-						'subdivision_recommended' => true,
-						'original_range' => [$inicio, $fin],
-						'suggested_size' => 2, // Intentar con lotes muy pequeños
-						'params' => $params,
-						'status_code' => $status_code
-					]
-				);
+				// Usar el manejador de emergencia
+				return $this->emergency_timeout_handler($inicio, $fin, $filters);
 			}
 			
-			// Verificar si debemos intentar una subdivisión automática del lote
-			if (($fin - $inicio + 1) > 5 && $retry_count >= $max_retries) {
-				// Registrar intento de subdivisión
+			// Si todo falla, usar la división automática como respaldo
+			if ($diagnostic_result['data']['cause'] === 'undetermined_timeout' && ($fin - $inicio + 1) > 1) {
+				$mid_point = $inicio + floor(($fin - $inicio) / 2);
+				
 				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-					$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-subdivision');
-					$logger->warning(
-						'Intentando subdividir lote para evitar timeout',
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-auto-split');
+					$logger->info(
+						sprintf('Dividiendo automáticamente el rango %d-%d en sub-rangos', $inicio, $fin),
 						[
-							'lote_original' => [$inicio, $fin],
-							'tamaño' => $fin - $inicio + 1,
-							'nueva_estrategia' => 'subdivisión_agresiva'
+							'rango_original' => [$inicio, $fin],
+							'primer_sub_rango' => [$inicio, $mid_point],
+							'segundo_sub_rango' => [$mid_point + 1, $fin],
+							'razon' => 'timeout_persistente'
 						]
 					);
 				}
 				
-				// Crear un error especial que indique necesidad de subdivisión
-				return new \WP_Error(
-					'batch_too_large',
-					__('Timeout persistente. Se recomienda subdividir este lote en unidades más pequeñas.', 'mi-integracion-api'),
-					[
-						'subdivision_recommended' => true,
-						'original_range' => [$inicio, $fin],
-						'suggested_size' => max(10, floor(($fin - $inicio + 1) / 2)),
-						'params' => $params,
-						'status_code' => $status_code
-					]
-				);
+				// Intentar procesar la primera mitad
+				$first_half_result = $this->sync_products_from_verial_range($inicio, $mid_point, $filters);
+				
+				// Intentar procesar la segunda mitad
+				$second_half_result = $this->sync_products_from_verial_range($mid_point + 1, $fin, $filters);
+				
+				// Combinar resultados
+				if (!is_wp_error($first_half_result) && !is_wp_error($second_half_result)) {
+					return [
+						'count' => $first_half_result['count'] + $second_half_result['count'],
+						'errors' => $first_half_result['errors'] + $second_half_result['errors'],
+						'batch' => [$inicio, $fin],
+						'auto_split' => true,
+						'sub_ranges' => [
+							[$inicio, $mid_point],
+							[$mid_point + 1, $fin]
+						]
+					];
+				}
 			}
 			
-			// Mensaje de error según el tamaño del lote
-			if (($fin - $inicio + 1) > 35) {
-				$error_message = sprintf(
-					__('Posible timeout para lote grande (%d-%d). Considere reducir el tamaño de lote a 30 o menos.', 'mi-integracion-api'),
-					$inicio, $fin
-				);
-			} else if ($status_code >= 400) {
-				$error_message = sprintf(
-					__('Error HTTP %d del servidor. Verifique la configuración de API y conexión.', 'mi-integracion-api'),
-					$status_code
-				);
-			} else {
-				$error_message = __('Respuesta vacía del servidor. Posible timeout o error de conexión. Intente con un lote más pequeño.', 'mi-integracion-api');
-			}
+			// DIAGNÓSTICO INTELIGENTE: Analizar la causa del timeout
+			$diagnostic_result = $this->diagnose_timeout_cause($inicio, $fin, $params, $retry_count);
 			
 			return new \WP_Error(
 				'empty_response',
-				$error_message,
-				[
-					'params' => $params,
-					'status_code' => $status_code,
-					'api_url' => $api_url,
-					'batch_size' => $fin - $inicio + 1,
-					'memory_usage' => memory_get_usage(true),
-					'retry_count' => $retry_count
-				]
+				$diagnostic_result['message'],
+				$diagnostic_result['data']
 			);
 		}
 		
@@ -1970,8 +1890,7 @@ class Sync_Manager {
 						'body_end' => strlen($body) > 100 ? substr($body, -100) : 'n/a',
 						'params' => $params,
 						'response_length' => strlen($body),
-						'response_status' => $status_code,
-						'api_url' => $api_url,
+						'response_status' => $api_url,
 						'truncated_response' => $truncated_response,
 						'memory_usage' => memory_get_usage(true),
 						'memory_limit' => ini_get('memory_limit')
@@ -2268,6 +2187,17 @@ class Sync_Manager {
 				$result = $this->create_or_update_wc_product( $wc_product_data, $batch_cache );
 
 				if ( is_wp_error( $result ) ) {
+					// Log detallado del error
+					if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-product-error');
+						$logger->error('Error al crear/actualizar producto', [
+							'sku' => $wc_product_data['sku'] ?? 'unknown',
+							'error_code' => $result->get_error_code(),
+							'error_message' => $result->get_error_message(),
+							'error_data' => $result->get_error_data()
+						]);
+					}
+					
 					$this->log_sync_error(
 						$verial_product,
 						$result->get_error_code(),
@@ -2277,6 +2207,18 @@ class Sync_Manager {
 				} else {
 					$processed++;
 					$success_ids[] = $verial_product['ReferenciaBarras'] ?? $verial_product['Id'];
+					
+					// Log de éxito con detalles del producto creado/actualizado
+					if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-product-success');
+						$logger->info('Producto procesado exitosamente', [
+							'sku' => $wc_product_data['sku'] ?? 'unknown',
+							'product_id' => $result->get_id(),
+							'name' => $result->get_name(),
+							'status' => $result->get_status(),
+							'url' => $result->get_permalink()
+						]);
+					}
 				}
 			} catch (\Throwable $e) {
 				// Capturar cualquier excepción durante el procesamiento para evitar interrumpir el lote completo
@@ -2352,11 +2294,108 @@ class Sync_Manager {
 			);
 		}
 
+		// Registrar resultado para optimización futura del tamaño de lote
+		$batch_size = $fin - $inicio + 1;
+		$success = ($processed > 0 && $transaction_successful);
+		$this->record_sync_result($inicio, $fin, $batch_size, $success, $errors > 0 ? 'processing_error' : null);
+
 		return array(
 			'count'  => $processed,
 			'errors' => $errors,
 			'batch'  => [$inicio, $fin],
 		);
+	}
+	
+	/**
+	 * Versión simplificada de sync_products_from_verial para sub-rangos
+	 * 
+	 * @param int $inicio
+	 * @param int $fin  
+	 * @param array $filters
+	 * @return array|WP_Error
+	 */
+	private function sync_products_from_verial_range($inicio, $fin, $filters = []) {
+		// Parámetros básicos para el sub-rango
+		$params = [
+			'inicio' => $inicio,
+			'fin' => $fin,
+			'x' => $this->api_connector->get_session_number(),
+		];
+		
+		// Aplicar filtros si existen
+		if (!empty($filters['modified_after'])) {
+			$params['fecha'] = date('Y-m-d', $filters['modified_after']);
+			if (!empty($filters['modified_after_time'])) {
+				$params['hora'] = $filters['modified_after_time'];
+			}
+		}
+		
+		// Configuración con timeout más largo para sub-rangos
+		$api_options = [
+			'timeout' => 120,
+			'wp_args' => [
+				'timeout' => 120,
+				'blocking' => true,
+				'sslverify' => false
+			]
+		];
+		
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-sub-range');
+			$logger->info(
+				sprintf('Procesando sub-rango %d-%d', $inicio, $fin),
+				['params' => $params]
+			);
+		}
+		
+		// Realizar solicitud
+		$response = $this->api_connector->get('GetArticulosWS', $params, $api_options);
+		
+		if (is_wp_error($response)) {
+			return $response;
+		}
+		
+		$body = wp_remote_retrieve_body($response);
+		if (empty($body)) {
+			return new \WP_Error(
+				'empty_sub_range_response',
+				sprintf(__('Sub-rango %d-%d también devuelve respuesta vacía', 'mi-integracion-api'), $inicio, $fin)
+			);
+		}
+		
+		$data = json_decode($body, true);
+		if (json_last_error() !== JSON_ERROR_NONE || empty($data['Articulos'])) {
+			return [
+				'count' => 0,
+				'errors' => 0,
+				'batch' => [$inicio, $fin]
+			];
+		}
+		
+		// Procesar productos simplificado
+		$processed = 0;
+		$errors = 0;
+		
+		foreach ($data['Articulos'] as $verial_product) {
+			try {
+				$wc_product_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($verial_product);
+				$result = $this->create_or_update_wc_product($wc_product_data);
+				
+				if (is_wp_error($result)) {
+					$errors++;
+				} else {
+					$processed++;
+				}
+			} catch (\Exception $e) {
+				$errors++;
+			}
+		}
+		
+		return [
+			'count' => $processed,
+			'errors' => $errors,
+			'batch' => [$inicio, $fin]
+		];
 	}
 	
 	/**
@@ -2609,8 +2648,23 @@ class Sync_Manager {
 				);
 			}
 		} else {
-			// Crear nuevo producto
-			$product = new \WC_Product();
+			// Crear nuevo producto simple
+			$product = new \WC_Product_Simple();
+			// CRÍTICO: Establecer el estado como 'publish' para que aparezca en la tienda
+			$product->set_status( 'publish' );
+			$product->set_catalog_visibility( 'visible' );
+			
+			// Log de creación de nuevo producto
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('product-creation');
+				$logger->info('Creando nuevo producto WooCommerce', [
+					'sku' => $product_data['sku'] ?? 'unknown',
+					'name' => $product_data['name'] ?? 'unknown',
+					'status' => 'publish',
+					'visibility' => 'visible',
+					'type' => 'simple'
+				]);
+			}
 		}
 
 		// Actualizar datos del producto
@@ -2636,6 +2690,26 @@ class Sync_Manager {
 		// Guardar producto
 		$product_id = $product->save();
 
+		// Log detallado del guardado del producto
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('product-creation');
+			if (!$product_id) {
+				$logger->error('Error al guardar producto WooCommerce', [
+					'sku' => $product_data['sku'] ?? 'unknown',
+					'name' => $product_data['name'] ?? 'unknown',
+					'errors' => $product->get_error_data()
+				]);
+			} else {
+				$logger->info('Producto WooCommerce guardado exitosamente', [
+					'product_id' => $product_id,
+					'sku' => $product_data['sku'] ?? 'unknown',
+					'name' => $product_data['name'] ?? 'unknown',
+					'status' => $product->get_status(),
+					'visibility' => $product->get_catalog_visibility()
+				]);
+			}
+		}
+
 		if ( ! $product_id ) {
 			return new \WP_Error(
 				'save_failed',
@@ -2647,11 +2721,11 @@ class Sync_Manager {
 	}
 
 	/**
-		* Obtiene los IDs de productos de WooCommerce a partir de una lista de SKUs.
-		*
-		* @param array $skus Lista de SKUs a buscar.
-		* @return array Array asociativo de ['sku' => 'product_id'].
-		*/
+	 * Obtiene los IDs de productos de WooCommerce a partir de una lista de SKUs.
+	 *
+	 * @param array $skus Lista de SKUs a buscar.
+	 * @return array Array asociativo de ['sku' => 'product_id'].
+	 */
 	private function get_product_ids_by_sku( array $skus ): array {
 		global $wpdb;
 		if ( empty( $skus ) ) {
@@ -2935,8 +3009,6 @@ class Sync_Manager {
 					$params['fecha'] = date('Y-m-d', $filters['modified_after']);
 					if (!empty($filters['modified_after_time'])) {
 						$params['hora'] = $filters['modified_after_time'];
-					} else {
-						$params['hora'] = date('H:i:s', $filters['modified_after']);
 					}
 				}
 				
@@ -3215,734 +3287,489 @@ class Sync_Manager {
 	}
 	
 	/**
-	 * Diagnostica problemas comunes de sincronización y devuelve recomendaciones.
-	 *
-	 * @return array Diagnóstico con problemas detectados y recomendaciones
+	 * Obtener estadísticas de rangos saltados durante la sincronización
 	 */
-	public function diagnose_sync_issues(): array {
-		global $wpdb;
-		
-		$issues = [];
-		$recommendations = [];
-		$diagnostics = [];
-		
-		// Verificar si hay una sincronización activa
+	public function get_skipped_ranges_statistics() {
 		$this->load_sync_status();
-		if ($this->sync_status['current_sync']['in_progress']) {
-			// Verificar si la sincronización está estancada
-			$last_update = $this->sync_status['current_sync']['last_update'] ?? 0;
-			$now = time();
-			
-			if ($now - $last_update > 600) { // 10 minutos sin actividad
-				$issues[] = sprintf(
-					__('Sincronización estancada. Última actualización hace %d minutos.', 'mi-integracion-api'),
-					floor(($now - $last_update) / 60)
-				);
-				$recommendations[] = __('Cancelar la sincronización actual y reiniciar.', 'mi-integracion-api');
-			}
-			
-			$diagnostics['current_sync'] = [
-				'entity' => $this->sync_status['current_sync']['entity'],
-				'direction' => $this->sync_status['current_sync']['direction'],
-				'current_batch' => $this->sync_status['current_sync']['current_batch'],
-				'total_batches' => $this->sync_status['current_sync']['total_batches'],
-				'items_synced' => $this->sync_status['current_sync']['items_synced'],
-				'batch_size' => $this->sync_status['current_sync']['batch_size'],
-				'last_update' => date('Y-m-d H:i:s', $this->sync_status['current_sync']['last_update']),
-				'elapsed_time' => $now - $this->sync_status['current_sync']['start_time']
-			];
-		}
 		
-		// Verificar tabla de errores
-		$table_name = $wpdb->prefix . Installer::SYNC_ERRORS_TABLE;
-		$table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
-		
-		if (!$table_exists) {
-			$issues[] = __('La tabla de errores de sincronización no existe.', 'mi-integracion-api');
-			$recommendations[] = __('Desactivar y reactivar el plugin para crear la tabla.', 'mi-integracion-api');
-		} else {
-			// Verificar número de errores
-			$error_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
-			$diagnostics['error_table'] = [
-				'exists' => true,
-				'error_count' => (int)$error_count
-			];
-			
-			if ($error_count > 1000) {
-				$issues[] = sprintf(
-					__('Exceso de registros de error (%d). Puede afectar al rendimiento.', 'mi-integracion-api'),
-					$error_count
-				);
-				$recommendations[] = __('Ejecutar limpieza de registros de error antiguos.', 'mi-integracion-api');
-			}
-		}
-		
-		// Verificar transients
-		$transients_to_check = [
-			'mia_sync_last_activity',
-			'mia_sync_completed_batches',
-			'mia_sync_processed_skus',
-			'mia_sync_current_batch_offset',
-			'mia_sync_current_batch_limit'
-		];
-		
-		$transient_status = [];
-		foreach ($transients_to_check as $transient) {
-			$value = get_transient($transient);
-			$transient_status[$transient] = [
-				'exists' => $value !== false,
-				'value_type' => gettype($value)
-			];
-			
-			if ($transient === 'mia_sync_processed_skus' && is_array($value)) {
-				$transient_status[$transient]['count'] = count($value);
-				
-				if (count($value) > 10000) {
-					$issues[] = sprintf(
-						__('Exceso de SKUs procesados en caché (%d). Puede causar problemas de memoria.', 'mi-integracion-api'),
-						count($value)
-					);
-					$recommendations[] = __('Considerar borrar el transient mia_sync_processed_skus.', 'mi-integracion-api');
-				}
-			}
-		}
-		$diagnostics['transients'] = $transient_status;
-		
-		// Verificar configuraciones de WooCommerce
-		if (function_exists('wc_get_products')) {
-			$diagnostics['woocommerce'] = [
-				'active' => true,
-				'version' => WC()->version ?? 'desconocida'
-			];
-			
-			// Verificar límites CRUD de WooCommerce
-			$max_execution_time = ini_get('max_execution_time');
-			if ($max_execution_time > 0 && $max_execution_time < 120) {
-				$issues[] = sprintf(
-					__('Tiempo de ejecución PHP bajo (%d segundos). Puede causar interrupciones.', 'mi-integracion-api'),
-					$max_execution_time
-				);
-				$recommendations[] = __('Aumentar max_execution_time a 300 segundos o más.', 'mi-integracion-api');
-			}
-			
-			$memory_limit = ini_get('memory_limit');
-			$memory_limit_bytes = wp_convert_hr_to_bytes($memory_limit);
-			
-			if ($memory_limit_bytes < 256 * 1024 * 1024) // 256 MB
-			{
-				$issues[] = sprintf(
-					__('Límite de memoria PHP bajo (%s). Puede causar fallos con catálogos grandes.', 'mi-integracion-api'),
-					$memory_limit
-				);
-				$recommendations[] = __('Aumentar memory_limit a 256M o más.', 'mi-integracion-api');
-			}
-			
-			$diagnostics['php_limits'] = [
-				'max_execution_time' => $max_execution_time,
-				'memory_limit' => $memory_limit,
-				'memory_limit_bytes' => $memory_limit_bytes
-			];
-		} else {
-			$issues[] = __('WooCommerce no está activo o no se detecta correctamente.', 'mi-integracion-api');
-			$recommendations[] = __('Verificar la instalación de WooCommerce.', 'mi-integracion-api');
-			$diagnostics['woocommerce'] = ['active' => false];
-		}
-		
-		// Verificar API de Verial
-		if (!$this->api_connector->has_valid_credentials()) {
-			$issues[] = __('No hay credenciales válidas para la API de Verial.', 'mi-integracion-api');
-			$recommendations[] = __('Configurar las credenciales de API en la página de configuración.', 'mi-integracion-api');
-		} else {
-			// Realizar prueba básica de conexión
-			$test_result = $this->api_connector->test_connection();
-			$diagnostics['api_connection'] = [
-				'credentials_valid' => true,
-				'test_result' => is_wp_error($test_result) ? 'error' : 'success'
-			];
-			
-			if (is_wp_error($test_result)) {
-				$issues[] = sprintf(
-					__('Error al conectar con API de Verial: %s', 'mi-integracion-api'),
-					$test_result->get_error_message()
-				);
-				$recommendations[] = __('Verificar URL y credenciales de API.', 'mi-integracion-api');
-			}
-		}
-		
-		// Devolver resultado completo
-		return [
-			'issues' => $issues,
-			'recommendations' => $recommendations,
-			'diagnostics' => $diagnostics,
-			'sync_active' => $this->sync_status['current_sync']['in_progress'],
-			'timestamp' => current_time('mysql'),
-			'php_version' => PHP_VERSION,
-			'wordpress_version' => get_bloginfo('version')
-		];
-	}
-	
-	/**
-	 * Calcula el tamaño óptimo de lote basado en el rendimiento histórico.
-	 *
-	 * @return array Recomendación de tamaño de lote y análisis
-	 */
-	public function calculate_optimal_batch_size(): array {
-		// Obtener historial de tiempos de procesamiento de lotes
-		$batch_times = get_transient('mia_sync_batch_times') ?: [];
-		
-		if (empty($batch_times)) {
-			return [
-				'recommended_size' => 75, // Valor por defecto razonable
-				'confidence' => 'low',
-				'message' => __('No hay suficientes datos históricos. Usando valor predeterminado.', 'mi-integracion-api'),
-				'analysis' => []
-			];
-		}
-		
-		// Agrupar por tamaño de lote y calcular promedios
-		$grouped_data = [];
-		foreach ($batch_times as $key => $data) {
-			$size = $data['limit'] ?? 0;
-			if (!$size) continue;
-			
-			if (!isset($grouped_data[$size])) {
-				$grouped_data[$size] = [
-					'count' => 0,
-					'total_duration' => 0,
-					'total_items' => 0,
-					'samples' => []
-				];
-			}
-			
-			$grouped_data[$size]['count']++;
-			$grouped_data[$size]['total_duration'] += $data['duration'] ?? 0;
-			$grouped_data[$size]['total_items'] += $data['items'] ?? 0;
-			
-			// Guardar muestra para análisis (limitado a 5 por tamaño)
-			if (count($grouped_data[$size]['samples']) < 5) {
-				$grouped_data[$size]['samples'][] = [
-					'duration' => $data['duration'] ?? 0,
-					'items' => $data['items'] ?? 0,
-					'key' => $key
-				];
-			}
-		}
-		
-		// Calcular rendimiento por tamaño
-		$performance_metrics = [];
-		foreach ($grouped_data as $size => $data) {
-			if ($data['count'] < 2) continue; // Ignorar tamaños con pocas muestras
-			
-			$avg_duration = $data['total_duration'] / $data['count'];
-			$avg_items = $data['total_items'] / $data['count'];
-			$items_per_second = $avg_items / $avg_duration;
-			
-			$performance_metrics[$size] = [
-				'size' => (int)$size,
-				'avg_duration' => round($avg_duration, 2),
-				'items_per_second' => round($items_per_second, 2),
-				'sample_count' => $data['count'],
-				'samples' => $data['samples']
-			];
-		}
-		
-		if (empty($performance_metrics)) {
-			return [
-				'recommended_size' => 75,
-				'confidence' => 'low',
-				'message' => __('Datos insuficientes para análisis.', 'mi-integracion-api'),
-				'analysis' => []
-			];
-		}
-		
-		// Encontrar el tamaño con mejor rendimiento
-		$best_size = 75; // Valor predeterminado
-		$best_performance = 0;
-		$best_confidence = 'medium';
-		
-		foreach ($performance_metrics as $size => $metrics) {
-			$performance_score = $metrics['items_per_second'] * min(1, $metrics['sample_count'] / 10);
-			
-			if ($performance_score > $best_performance) {
-				$best_performance = $performance_score;
-				$best_size = $size;
-				$best_confidence = $metrics['sample_count'] >= 5 ? 'high' : 'medium';
-			}
-		}
-		
-		// Aplicar límites razonables
-		$best_size = max(25, min(200, $best_size));
-		
-		// Mensaje personalizado
-		$message = sprintf(
-			__('Tamaño de lote recomendado: %d. Basado en %d muestras con un rendimiento de %.2f elementos/segundo.', 'mi-integracion-api'),
-			$best_size,
-			$performance_metrics[$best_size]['sample_count'] ?? 0,
-			$performance_metrics[$best_size]['items_per_second'] ?? 0
-		);
-		
-		return [
-			'recommended_size' => $best_size,
-			'confidence' => $best_confidence,
-			'message' => $message,
-			'analysis' => $performance_metrics,
-			'raw_data_count' => count($batch_times)
-		];
-	}
-	
-	/**
-	 * Verifica la disponibilidad de rangos de productos en Verial antes de la sincronización
-	 * Esta función prueba bloques más grandes para identificar rápidamente qué rangos existen
-	 * y cuáles son problemáticos.
-	 *
-	 * @param int $total_items Total de items reportados por GetNumArticulosWS
-	 * @param int $batch_size Tamaño del lote para pruebas
-	 * @param array $filters Filtros aplicados
-	 * @return array Mapa de rangos disponibles y problemáticos
-	 */
-	private function prevalidate_product_ranges($total_items, $batch_size, $filters = []) {
-		// Inicializar resultado
-		$result = [
-			'available_ranges' => [],
-			'problematic_ranges' => [],
-			'empty_ranges' => [],
+		$stats = [
+			'total_skipped_ranges' => 0,
+			'total_skipped_products' => 0,
 			'skipped_ranges' => [],
-			'total_available' => 0,
-			'total_problematic' => 0,
-			'validation_summary' => []
+			'reasons' => []
 		];
 		
-		// Rangos problemáticos conocidos para saltar automáticamente
-		$known_problematic_ranges = [
-			[2601, 2610], [2801, 2810], [3101, 3110],
-			[2501, 2510], [2701, 2710], [2901, 2910], [3001, 3010], [3201, 3210],
-			[3301, 3310], [3401, 3410], [3501, 3510], [3601, 3610], [3701, 3710],
-		];
-		
-		// Determinar el tamaño de bloque para pruebas
-		$test_block_size = max(50, min($batch_size * 2, 100));
-		
-		// Calcular número de bloques necesarios para cubrir todos los items
-		$total_blocks = ceil($total_items / $test_block_size);
-		
-		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-			$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-			$logger->info(
-				sprintf('Iniciando prevalidación de %d bloques con tamaño %d para %d productos',
-					$total_blocks, $test_block_size, $total_items),
-				['filters' => $filters]
-			);
+		if (isset($this->sync_status['current_sync']['skipped_ranges'])) {
+			$skipped_ranges = $this->sync_status['current_sync']['skipped_ranges'];
+			$stats['total_skipped_ranges'] = count($skipped_ranges);
+			
+			foreach ($skipped_ranges as $skipped) {
+				$range_size = $skipped['range'][1] - $skipped['range'][0] + 1;
+				$stats['total_skipped_products'] += $range_size;
+				$stats['skipped_ranges'][] = $skipped;
+				
+				if (!isset($stats['reasons'][$skipped['reason']])) {
+					$stats['reasons'][$skipped['reason']] = 0;
+				}
+				$stats['reasons'][$skipped['reason']]++;
+			}
 		}
 		
-		// Ejecutar prueba para cada bloque grande
-		for ($block = 0; $block < $total_blocks; $block++) {
-			$inicio = ($block * $test_block_size) + 1; // API Verial comienza en 1
-			$fin = min(($block + 1) * $test_block_size, $total_items);
+		return $stats;
+	}
+	
+	/**
+	 * Diagnostica la causa de un timeout en la API de Verial
+	 * 
+	 * @param int $inicio Número de producto inicial
+	 * @param int $fin Número de producto final  
+	 * @param array $params Parámetros de la consulta
+	 * @param int $retry_count Número de reintentos realizados
+	 * @return array Resultado del diagnóstico con mensaje y datos
+	 */
+	private function diagnose_timeout_cause($inicio, $fin, $params, $retry_count) {
+		$logger = class_exists('\MiIntegracionApi\Helpers\Logger') ? 
+			new \MiIntegracionApi\Helpers\Logger('sync-diagnostic') : null;
 			
-			// Crear parámetros de solicitud
-			$params = [
+		if ($logger) {
+			$logger->info('Iniciando diagnóstico de timeout', [
+				'rango' => [$inicio, $fin],
+				'batch_size' => $fin - $inicio + 1,
+				'retry_count' => $retry_count
+			]);
+		}
+		
+		// 1. PRUEBA DE CONECTIVIDAD BÁSICA
+		$connectivity_test = $this->test_api_connectivity();
+		
+		// 2. PRUEBA CON RANGO MÁS PEQUEÑO
+		$small_batch_test = null;
+		if (($fin - $inicio + 1) > 1) {
+			$small_batch_test = $this->test_small_batch($inicio, min($inicio + 1, $fin));
+		}
+		
+		// 3. PRUEBA DE PRODUCTO INDIVIDUAL
+		$individual_test = $this->test_individual_product($inicio);
+		
+		// 4. ANÁLISIS DE PATRONES
+		$pattern_analysis = $this->analyze_timeout_patterns($inicio, $fin);
+		
+		// 5. GENERAR DIAGNÓSTICO Y RECOMENDACIONES
+		$diagnosis = $this->generate_diagnosis([
+			'connectivity' => $connectivity_test,
+			'small_batch' => $small_batch_test,
+			'individual' => $individual_test,
+			'patterns' => $pattern_analysis,
+			'original_range' => [$inicio, $fin],
+			'retry_count' => $retry_count
+		]);
+		
+		if ($logger) {
+			$logger->info('Diagnóstico completado', $diagnosis);
+		}
+		
+		// Registrar el fallo por timeout para optimización futura
+		$original_range = $test_results['original_range'];
+		$batch_size = $original_range[1] - $original_range[0] + 1;
+		$this->record_sync_result($original_range[0], $original_range[1], $batch_size, false, 'timeout');
+		
+		return $diagnosis;
+	}
+	
+	/**
+	 * Prueba la conectividad básica con la API
+	 */
+	private function test_api_connectivity() {
+		try {
+			// Hacer una llamada simple para verificar que la API responde
+			$test_params = [
+				'inicio' => 1,
+				'fin' => 1,
+				'x' => $this->api_connector->get_session_number(),
+			];
+			
+			$response = $this->api_connector->get_articulos($test_params, ['timeout' => 15]);
+			
+			return [
+				'success' => !is_wp_error($response),
+				'error' => is_wp_error($response) ? $response->get_error_message() : null,
+				'response_time' => microtime(true)
+			];
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'error' => $e->getMessage()
+			];
+		}
+	}
+	
+	/**
+	 * Prueba con un lote más pequeño
+	 */
+	private function test_small_batch($inicio, $fin) {
+		try {
+			$test_params = [
 				'inicio' => $inicio,
 				'fin' => $fin,
 				'x' => $this->api_connector->get_session_number(),
 			];
 			
-			// Añadir filtros de fecha/hora si existen
-			if (!empty($filters['modified_after'])) {
-				$params['fecha'] = date('Y-m-d', $filters['modified_after']);
-				if (!empty($filters['modified_after_time'])) {
-					$params['hora'] = $filters['modified_after_time'];
-				} else {
-					$params['hora'] = date('H:i:s', $filters['modified_after']);
-				}
-			}
+			$response = $this->api_connector->get_articulos($test_params, ['timeout' => 30]);
 			
-			// Registrar prueba de bloque
-			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-				$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-				$logger->debug(
-					sprintf('Probando bloque %d/%d (rango %d-%d)',
-						$block + 1, $total_blocks, $inicio, $fin),
-					['params' => $params]
-				);
-			}
-			
-			// Hacer solicitud con timeout reducido para la prueba
-			$api_options = [
-				'timeout' => 30,
-				'wp_args' => ['timeout' => 30]
+			return [
+				'success' => !is_wp_error($response) && !empty(wp_remote_retrieve_body($response)),
+				'error' => is_wp_error($response) ? $response->get_error_message() : null,
+				'empty_response' => !is_wp_error($response) && empty(wp_remote_retrieve_body($response))
 			];
-			
-			$response = $this->api_connector->get('GetArticulosWS', $params, $api_options);
-			
-			if (is_wp_error($response)) {
-				// Rango problemático
-				$result['problematic_ranges'][] = [$inicio, $fin];
-				$result['total_problematic'] += ($fin - $inicio + 1);
-				
-				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-					$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-					$logger->warning(
-						sprintf('Bloque problemático detectado: %d-%d', $inicio, $fin),
-						[
-							'error' => $response->get_error_message(),
-							'code' => $response->get_error_code(),
-							'data' => $response->get_error_data()
-						]
-					);
-				}
-			} else {
-				// Analizar respuesta
-				$body = wp_remote_retrieve_body($response);
-				$data = json_decode($body, true);
-				
-				// Verificar errores específicos de API Verial
-				if (isset($data['InfoError']) && isset($data['InfoError']['Codigo']) && $data['InfoError']['Codigo'] != 0) {
-					$result['problematic_ranges'][] = [$inicio, $fin];
-					$result['total_problematic'] += ($fin - $inicio + 1);
-					
-					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-						$logger->warning(
-							sprintf('Bloque con error de API: %d-%d (Código %d: %s)',
-								$inicio, $fin, 
-								$data['InfoError']['Codigo'],
-								$data['InfoError']['Descripcion'] ?? 'Sin descripción'
-							)
-						);
-					}
-				}
-				// Verificar si hay datos reales
-				else if (!isset($data['Articulos']) || !is_array($data['Articulos']) || count($data['Articulos']) == 0) {
-					$result['empty_ranges'][] = [$inicio, $fin];
-					
-					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-						$logger->info(
-							sprintf('Bloque vacío detectado: %d-%d', $inicio, $fin)
-						);
-					}
-				} else {
-					// Rango disponible con productos
-					$result['available_ranges'][] = [$inicio, $fin];
-					$result['total_available'] += count($data['Articulos']);
-					
-					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-						$logger->info(
-							sprintf('Bloque disponible: %d-%d con %d productos',
-								$inicio, $fin, count($data['Articulos']))
-						);
-					}
-				}
-			}
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'error' => $e->getMessage()
+			];
 		}
-		
-		// Almacenar el mapa de disponibilidad para uso en la sincronización
-		set_transient('mia_sync_product_availability_map', $result, 3600); // 1 hora
-		
-		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-			$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
-			$logger->info('Prevalidación completada', [
-				'available_blocks' => count($result['available_ranges']),
-				'problematic_blocks' => count($result['problematic_ranges']),
-				'empty_blocks' => count($result['empty_ranges']),
-				'total_available' => $result['total_available'],
-			]);
-		}
-		
-		return $result;
 	}
 	
 	/**
-	 * Diagnosticar un rango específico de productos para entender por qué es problemático
+	 * Prueba acceso a un producto individual
 	 */
-	public function diagnose_problematic_range($inicio, $fin, $deep_analysis = false) {
-		$diagnostic_result = [
-			'range' => [$inicio, $fin],
-			'timestamp' => date('Y-m-d H:i:s'),
-			'tests_performed' => [],
-			'issues_found' => [],
-			'raw_responses' => [],
-			'recommendations' => []
-		];
-		
-		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-			$logger = new \MiIntegracionApi\Helpers\Logger('range-diagnostics');
-			$logger->info("Iniciando diagnóstico profundo del rango {$inicio}-{$fin}");
-		}
-		
-		// Test 1: Intentar obtener el rango completo
-		$diagnostic_result['tests_performed'][] = 'full_range_request';
-		$full_range_result = $this->test_api_range($inicio, $fin, 'full_range');
-		$diagnostic_result['raw_responses']['full_range'] = $full_range_result;
-		
-		// Test 2: Intentar obtener productos individuales del rango
-		$diagnostic_result['tests_performed'][] = 'individual_products';
-		$individual_results = [];
-		for ($i = $inicio; $i <= min($inicio + 5, $fin); $i++) { // Solo los primeros 5 para no sobrecargar
-			$individual_results[$i] = $this->test_api_range($i, $i, "individual_product_{$i}");
-		}
-		$diagnostic_result['raw_responses']['individual_products'] = $individual_results;
-		
-		// Test 3: Intentar con rangos más pequeños
-		$diagnostic_result['tests_performed'][] = 'small_chunks';
-		$chunk_size = 2;
-		$chunk_results = [];
-		for ($chunk_start = $inicio; $chunk_start <= $fin; $chunk_start += $chunk_size) {
-			$chunk_end = min($chunk_start + $chunk_size - 1, $fin);
-			$chunk_results["{$chunk_start}-{$chunk_end}"] = $this->test_api_range($chunk_start, $chunk_end, "chunk_{$chunk_start}_{$chunk_end}");
-		}
-		$diagnostic_result['raw_responses']['small_chunks'] = $chunk_results;
-		
-		// Test 4: Verificar si es un problema de timeout
-		$diagnostic_result['tests_performed'][] = 'timeout_test';
-		$timeout_result = $this->test_api_range($inicio, $fin, 'timeout_test', ['timeout' => 5]);
-		$diagnostic_result['raw_responses']['short_timeout'] = $timeout_result;
-		
-		// Test 5: Verificar diferentes parámetros
-		if ($deep_analysis) {
-			$diagnostic_result['tests_performed'][] = 'parameter_variations';
-			$param_variations = [];
+	private function test_individual_product($product_id) {
+		try {
+			$test_params = [
+				'inicio' => $product_id,
+				'fin' => $product_id,
+				'x' => $this->api_connector->get_session_number(),
+			];
 			
-			// Sin filtros adicionales
-			$param_variations['no_filters'] = $this->test_api_range($inicio, $fin, 'no_filters', [], []);
+			$response = $this->api_connector->get_articulos($test_params, ['timeout' => 20]);
 			
-			// Con fecha específica
-			$param_variations['with_date'] = $this->test_api_range($inicio, $fin, 'with_date', [], ['fecha' => date('Y-m-d')]);
-			
-			// Con diferentes números de sesión
-			$param_variations['different_session'] = $this->test_api_range($inicio, $fin, 'different_session', [], ['x' => rand(1, 100)]);
-			
-			$diagnostic_result['raw_responses']['parameter_variations'] = $param_variations;
+			return [
+				'success' => !is_wp_error($response) && !empty(wp_remote_retrieve_body($response)),
+				'error' => is_wp_error($response) ? $response->get_error_message() : null,
+				'has_data' => false
+			];
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'error' => $e->getMessage()
+			];
 		}
-		
-		// Analizar resultados y generar recomendaciones
-		$diagnostic_result = $this->analyze_diagnostic_results($diagnostic_result);
-		
-		// Guardar diagnóstico completo
-		update_option("mi_integracion_api_diagnostic_{$inicio}_{$fin}", $diagnostic_result);
-		
-		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-			$logger = new \MiIntegracionApi\Helpers\Logger('range-diagnostics');
-			$logger->info("Diagnóstico completado para rango {$inicio}-{$fin}", [
-				'issues_found' => count($diagnostic_result['issues_found']),
-				'recommendations' => count($diagnostic_result['recommendations'])
-			]);
-		}
-		
-		return $diagnostic_result;
 	}
 	
 	/**
-	 * Realizar una prueba específica en un rango de la API
+	 * Analiza patrones de timeouts
 	 */
-	private function test_api_range($inicio, $fin, $test_name, $options = [], $extra_params = []) {
-		$start_time = microtime(true);
-		$start_memory = memory_get_usage(true);
-		
-		$params = array_merge([
-			'inicio' => $inicio,
-			'fin' => $fin,
-			'x' => $this->api_connector->get_session_number(),
-		], $extra_params);
-		
-		$api_options = array_merge([
-			'timeout' => 30,
-			'wp_args' => ['timeout' => 30],
-			'diagnostics' => true
-		], $options);
-		
-		$response = $this->api_connector->get('GetArticulosWS', $params, $api_options);
-		
-		$end_time = microtime(true);
-		$end_memory = memory_get_usage(true);
-		
-		$result = [
-			'test_name' => $test_name,
-			'params' => $params,
-			'options' => $api_options,
-			'duration' => round($end_time - $start_time, 4),
-			'memory_delta' => $end_memory - $start_memory,
-			'timestamp' => date('Y-m-d H:i:s'),
-			'is_wp_error' => is_wp_error($response),
-			'response_analysis' => []
+	private function analyze_timeout_patterns($inicio, $fin) {
+		// Verificar si es un rango históricamente problemático
+		$known_problematic_ranges = [
+			[2501, 2600], [2701, 2800], [2901, 3000], [3101, 3200],
+			[3301, 3400], [3501, 3600], [3701, 3800], [3801, 3900]
 		];
 		
-		if (is_wp_error($response)) {
-			$result['error'] = [
-				'code' => $response->get_error_code(),
-				'message' => $response->get_error_message(),
-				'data' => $response->get_error_data()
+		$is_known_problematic = false;
+		foreach ($known_problematic_ranges as $range) {
+			if ($inicio >= $range[0] && $inicio <= $range[1]) {
+				$is_known_problematic = true;
+				break;
+			}
+		}
+		
+		return [
+			'is_known_problematic_range' => $is_known_problematic,
+			'batch_size' => $fin - $inicio + 1,
+			'is_large_batch' => ($fin - $inicio + 1) > 20,
+			'range_analysis' => sprintf('Rango %d-%d', $inicio, $fin)
+		];
+	}
+	
+	/**
+	 * Genera el diagnóstico final y recomendaciones
+	 */
+	private function generate_diagnosis($test_results) {
+		$connectivity = $test_results['connectivity'];
+		$small_batch = $test_results['small_batch'];
+		$individual = $test_results['individual'];
+		$patterns = $test_results['patterns'];
+		$original_range = $test_results['original_range'];
+		
+		// Determinar la causa más probable
+		if (!$connectivity['success']) {
+			return [
+				'message' => __('Error de conectividad con la API de Verial. Verifique la configuración de conexión.', 'mi-integracion-api'),
+				'data' => [
+					'cause' => 'connectivity_failure',
+					'api_error' => $connectivity['error'],
+					'recommendation' => 'verify_api_settings'
+				]
 			];
-			$result['response_analysis']['type'] = 'wp_error';
+		}
+		
+		if ($small_batch && $small_batch['success']) {
+			return [
+				'message' => sprintf(__('El rango %d-%d requiere un lote más pequeño. La API responde correctamente con lotes menores.', 'mi-integracion-api'), 
+					$original_range[0], $original_range[1]),
+				'data' => [
+					'cause' => 'batch_size_too_large',
+					'recommendation' => 'reduce_batch_size',
+					'suggested_size' => 1,
+					'current_size' => $patterns['batch_size']
+				]
+			];
+		}
+		
+		if ($individual['success']) {
+			return [
+				'message' => sprintf(__('Productos individuales responden correctamente, pero el lote %d-%d causa timeout. Posible problema de rendimiento del servidor.', 'mi-integracion-api'), 
+					$original_range[0], $original_range[1]),
+				'data' => [
+					'cause' => 'server_performance',
+					'recommendation' => 'use_individual_sync',
+					'range' => $original_range
+				]
+			];
+		}
+		
+		if ($patterns['is_known_problematic_range']) {
+			return [
+				'message' => sprintf(__('El rango %d-%d es conocido por causar problemas. Posibles datos corruptos o productos con información problemática.', 'mi-integracion-api'), 
+					$original_range[0], $original_range[1]),
+				'data' => [
+					'cause' => 'problematic_data_range',
+					'recommendation' => 'contact_verial_support',
+					'range' => $original_range,
+					'action' => 'skip_and_log'
+				]
+			];
+		}
+		
+		// Diagnóstico general
+		return [
+			'message' => sprintf(__('Timeout persistente en rango %d-%d. Causa no determinada - requiere investigación manual.', 'mi-integracion-api'), 
+				$original_range[0], $original_range[1]),
+			'data' => [
+				'cause' => 'undetermined_timeout',
+				'recommendation' => 'manual_investigation',
+				'test_results' => $test_results,
+				'range' => $original_range
+			]
+		];
+	}
+
+	/**
+	 * Optimiza automáticamente el tamaño de lote basado en timeouts históricos
+	 * 
+	 * @param int $current_batch_size Tamaño actual del lote
+	 * @param int $range_start Inicio del rango problemático
+	 * @param int $range_end Final del rango problemático
+	 * @return int Nuevo tamaño de lote optimizado
+	 */
+	private function optimize_batch_size_for_range($current_batch_size, $range_start, $range_end) {
+		$logger = class_exists('\MiIntegracionApi\Helpers\Logger') ? 
+			new \MiIntegracionApi\Helpers\Logger('sync-batch-optimizer') : null;
+		
+		// Obtener historial de timeouts para este rango
+		$timeout_history = get_option('mia_timeout_history', []);
+		
+		// Si es un rango conocido por timeouts, usar un tamaño más pequeño
+		$range_key = floor($range_start / 100) * 100; // Agrupar por centenarios
+		
+		if (isset($timeout_history[$range_key])) {
+			$range_data = $timeout_history[$range_key];
+			$timeout_count = $range_data['timeout_count'] ?? 0;
+			$last_successful_size = $range_data['last_successful_size'] ?? null;
+			
+			if ($timeout_count > 3 && $last_successful_size) {
+				// Si hay muchos timeouts, usar el último tamaño exitoso
+				$optimized_size = min($last_successful_size, $current_batch_size);
+				
+				if ($logger) {
+					$logger->info('Optimizando tamaño de lote basado en historial', [
+						'range' => [$range_start, $range_end],
+						'current_size' => $current_batch_size,
+						'optimized_size' => $optimized_size,
+						'timeout_count' => $timeout_count,
+						'last_successful_size' => $last_successful_size
+					]);
+				}
+				
+				return $optimized_size;
+			}
+		}
+		
+		// Estrategia progresiva: reducir gradualmente
+		if ($current_batch_size > 20) {
+			return 20;
+		} elseif ($current_batch_size > 10) {
+			return 10;
+		} elseif ($current_batch_size > 5) {
+			return 5;
 		} else {
-			$body = wp_remote_retrieve_body($response);
-			$status_code = wp_remote_retrieve_response_code($response);
-			$headers = wp_remote_retrieve_headers($response);
-			
-			$result['response_analysis'] = [
-				'type' => 'http_response',
-				'status_code' => $status_code,
-				'body_length' => strlen($body),
-				'body_md5' => md5($body),
-				'headers_count' => count($headers),
-				'is_json' => false,
-				'json_valid' => false,
-				'verial_error' => null,
-				'product_count' => 0,
-				'body_preview' => substr($body, 0, 200)
-			];
-			
-			// Intentar decodificar JSON
-			$json_data = json_decode($body, true);
-			$result['response_analysis']['is_json'] = json_last_error() === JSON_ERROR_NONE;
-			$result['response_analysis']['json_valid'] = $result['response_analysis']['is_json'];
-			
-			if ($result['response_analysis']['is_json']) {
-				// Analizar estructura JSON
-				if (isset($json_data['InfoError'])) {
-					$result['response_analysis']['verial_error'] = $json_data['InfoError'];
-				}
-				
-				if (isset($json_data['Table']) && is_array($json_data['Table'])) {
-					$result['response_analysis']['product_count'] = count($json_data['Table']);
-					$result['response_analysis']['has_products'] = $result['response_analysis']['product_count'] > 0;
-				}
-				
-				// Verificar estructura completa
-				$result['response_analysis']['json_structure'] = [
-					'keys' => array_keys($json_data),
-					'has_table' => isset($json_data['Table']),
-					'has_error' => isset($json_data['InfoError']),
-					'table_type' => isset($json_data['Table']) ? gettype($json_data['Table']) : 'not_present'
-				];
-			} else {
-				$result['response_analysis']['json_error'] = json_last_error_msg();
-			}
+			return 1; // Último recurso: productos individuales
 		}
-		
-		return $result;
 	}
 	
 	/**
-	 * Analizar los resultados del diagnóstico para generar recomendaciones
+	 * Registra el resultado de una operación de sincronización para optimización futura
 	 */
-	private function analyze_diagnostic_results($diagnostic_result) {
-		$issues = [];
-		$recommendations = [];
+	private function record_sync_result($range_start, $range_end, $batch_size, $success, $error_type = null) {
+		$timeout_history = get_option('mia_timeout_history', []);
+		$range_key = floor($range_start / 100) * 100;
 		
-		// Analizar respuesta de rango completo
-		if (isset($diagnostic_result['raw_responses']['full_range'])) {
-			$full_range = $diagnostic_result['raw_responses']['full_range'];
+		if (!isset($timeout_history[$range_key])) {
+			$timeout_history[$range_key] = [
+				'timeout_count' => 0,
+				'success_count' => 0,
+				'last_successful_size' => null,
+				'last_update' => time()
+			];
+		}
+		
+		if ($success) {
+			$timeout_history[$range_key]['success_count']++;
+			$timeout_history[$range_key]['last_successful_size'] = $batch_size;
+		} else {
+			if ($error_type === 'timeout' || $error_type === 'empty_response') {
+				$timeout_history[$range_key]['timeout_count']++;
+			}
+		}
+		
+		$timeout_history[$range_key]['last_update'] = time();
+		
+		// Limpiar datos antiguos (más de 30 días)
+		foreach ($timeout_history as $key => $data) {
+			if (time() - $data['last_update'] > 30 * 24 * 3600) {
+				unset($timeout_history[$key]);
+			}
+		}
+		
+		update_option('mia_timeout_history', $timeout_history);
+	}
+	
+	/**
+	 * Función de emergencia para manejar timeouts persistentes automáticamente
+	 * 
+	 * @param int $inicio
+	 * @param int $fin
+	 * @param array $filters
+	 * @param int $max_depth Profundidad máxima de división recursiva
+	 * @return array|WP_Error
+	 */
+	private function emergency_timeout_handler($inicio, $fin, $filters = [], $max_depth = 3) {
+		$logger = class_exists('\MiIntegracionApi\Helpers\Logger') ? 
+			new \MiIntegracionApi\Helpers\Logger('emergency-timeout') : null;
+		
+		if ($logger) {
+			$logger->warning(
+				sprintf('Activando manejador de emergencia para rango %d-%d', $inicio, $fin),
+				[
+					'range_size' => $fin - $inicio + 1,
+					'max_depth' => $max_depth,
+					'filters' => $filters
+				]
+			);
+		}
+		
+		// Si el rango es de 1 producto y aún falla, marcarlo como problemático
+		if (($fin - $inicio + 1) <= 1) {
+			$this->mark_product_as_problematic($inicio);
 			
-			if ($full_range['is_wp_error']) {
-				$issues[] = [
-					'type' => 'wp_error_on_full_range',
-					'description' => 'El rango completo genera un WP_Error',
-					'details' => $full_range['error']
-				];
-				
-				if (strpos($full_range['error']['message'], 'timeout') !== false) {
-					$recommendations[] = 'El rango sufre de timeouts. Considere dividirlo en chunks más pequeños.';
-				}
-				
-				if (strpos($full_range['error']['message'], 'empty') !== false) {
-					$recommendations[] = 'El servidor devuelve respuestas vacías. Puede ser un problema del servidor Verial.';
-				}
+			return [
+				'count' => 0,
+				'errors' => 1,
+				'batch' => [$inicio, $fin],
+				'emergency_skip' => true,
+				'reason' => 'single_product_timeout'
+			];
+		}
+		
+		// Si hemos alcanzado la profundidad máxima, procesar productos individualmente
+		if ($max_depth <= 0) {
+			return $this->process_products_individually($inicio, $fin, $filters);
+		}
+		
+		// Dividir el rango por la mitad
+		$mid_point = $inicio + floor(($fin - $inicio) / 2);
+		
+		$total_processed = 0;
+		$total_errors = 0;
+		$sub_ranges_processed = [];
+		
+		// Procesar primera mitad
+		$first_result = $this->emergency_timeout_handler($inicio, $mid_point, $filters, $max_depth - 1);
+		if (!is_wp_error($first_result)) {
+			$total_processed += $first_result['count'];
+			$total_errors += $first_result['errors'];
+			$sub_ranges_processed[] = [$inicio, $mid_point];
+		}
+		
+		// Procesar segunda mitad  
+		$second_result = $this->emergency_timeout_handler($mid_point + 1, $fin, $filters, $max_depth - 1);
+		if (!is_wp_error($second_result)) {
+			$total_processed += $second_result['count'];
+			$total_errors += $second_result['errors'];
+			$sub_ranges_processed[] = [$mid_point + 1, $fin];
+		}
+		
+		if ($logger) {
+			$logger->info(
+				sprintf('Manejador de emergencia completado para %d-%d: %d procesados, %d errores', 
+					$inicio, $fin, $total_processed, $total_errors),
+				[
+					'sub_ranges' => $sub_ranges_processed,
+					'emergency_mode' => true
+				]
+			);
+		}
+		
+		return [
+			'count' => $total_processed,
+			'errors' => $total_errors,
+			'batch' => [$inicio, $fin],
+			'emergency_processed' => true,
+			'sub_ranges' => $sub_ranges_processed
+		];
+	}
+	
+	/**
+	 * Marca un producto como problemático para omitirlo en futuras sincronizaciones
+	 */
+	private function mark_product_as_problematic($product_id) {
+		$problematic_products = get_option('mia_problematic_products', []);
+		$problematic_products[$product_id] = [
+			'timestamp' => time(),
+			'reason' => 'persistent_timeout',
+			'attempts' => ($problematic_products[$product_id]['attempts'] ?? 0) + 1
+		];
+		
+		update_option('mia_problematic_products', $problematic_products);
+	}
+	
+	/**
+	 * Procesa productos individualmente con timeout extendido
+	 */
+	private function process_products_individually($inicio, $fin, $filters = []) {
+		$processed = 0;
+		$errors = 0;
+		
+		for ($i = $inicio; $i <= $fin; $i++) {
+			$result = $this->sync_products_from_verial_range($i, $i, $filters);
+			
+			if (is_wp_error($result)) {
+				$errors++;
+				$this->mark_product_as_problematic($i);
 			} else {
-				// Analizar respuesta HTTP
-				if ($full_range['response_analysis']['status_code'] !== 200) {
-					$issues[] = [
-						'type' => 'http_error',
-						'description' => 'Código de estado HTTP no exitoso: ' . $full_range['response_analysis']['status_code']
-					];
-				}
-				
-				if (!$full_range['response_analysis']['json_valid']) {
-					$issues[] = [
-						'type' => 'invalid_json',
-						'description' => 'La respuesta no es JSON válido',
-						'details' => $full_range['response_analysis']['json_error']
-					];
-					$recommendations[] = 'La respuesta no es JSON válido. Verifique la configuración del endpoint.';
-				}
-				
-				if (isset($full_range['response_analysis']['verial_error']) && 
-				    $full_range['response_analysis']['verial_error']['Codigo'] != 0) {
-					$issues[] = [
-						'type' => 'verial_api_error',
-						'description' => 'Error reportado por la API de Verial',
-						'details' => $full_range['response_analysis']['verial_error']
-					];
-					$recommendations[] = 'Error específico de Verial: ' . $full_range['response_analysis']['verial_error']['Descripcion'];
-				}
-				
-				if ($full_range['response_analysis']['product_count'] === 0) {
-					$issues[] = [
-						'type' => 'no_products_in_range',
-						'description' => 'El rango no contiene productos'
-					];
-					$recommendations[] = 'El rango no contiene productos. Puede ser un rango vacío legítimo.';
-				}
+				$processed += $result['count'];
+				$errors += $result['errors'];
 			}
+			
+			// Pequeña pausa entre productos para no saturar la API
+			usleep(100000); // 0.1 segundos
 		}
 		
-		// Analizar productos individuales
-		if (isset($diagnostic_result['raw_responses']['individual_products'])) {
-			$individual_errors = 0;
-			$individual_successes = 0;
-			
-			foreach ($diagnostic_result['raw_responses']['individual_products'] as $product_id => $result) {
-				if ($result['is_wp_error']) {
-					$individual_errors++;
-				} else {
-					$individual_successes++;
-				}
-			}
-			
-			if ($individual_errors > 0 && $individual_successes === 0) {
-				$issues[] = [
-					'type' => 'all_individual_products_fail',
-					'description' => 'Todos los productos individuales fallan'
-				];
-				$recommendations[] = 'Problema sistemático con todos los productos del rango. Posible corrupción de datos.';
-			} else if ($individual_errors > 0) {
-				$issues[] = [
-					'type' => 'some_individual_products_fail',
-					'description' => sprintf('Algunos productos individuales fallan (%d/%d)', 
-						$individual_errors, $individual_errors + $individual_successes)
-				];
-				$recommendations[] = 'Algunos productos específicos causan problemas. Considere saltarlos individualmente.';
-			}
-		}
-		
-		// Analizar chunks pequeños
-		if (isset($diagnostic_result['raw_responses']['small_chunks'])) {
-			$chunk_errors = 0;
-			$chunk_successes = 0;
-			
-			foreach ($diagnostic_result['raw_responses']['small_chunks'] as $chunk_name => $result) {
-				if ($result['is_wp_error']) {
-					$chunk_errors++;
-				} else {
-					$chunk_successes++;
-				}
-			}
-			
-			if ($chunk_errors === 0 && $chunk_successes > 0) {
-				$recommendations[] = 'Los chunks pequeños funcionan correctamente. Use tamaños de lote más pequeños.';
-			} else if ($chunk_errors > 0) {
-				$issues[] = [
-					'type' => 'chunks_also_fail',
-					'description' => 'Incluso los chunks pequeños fallan'
-				];
-				$recommendations[] = 'Problema fundamental con el rango. Considere omitirlo completamente.';
-			}
-		}
-		
-		$diagnostic_result['issues_found'] = $issues;
-		$diagnostic_result['recommendations'] = $recommendations;
-		
-		return $diagnostic_result;
+		return [
+			'count' => $processed,
+			'errors' => $errors,
+			'batch' => [$inicio, $fin],
+			'individual_processing' => true
+		];
 	}
 }

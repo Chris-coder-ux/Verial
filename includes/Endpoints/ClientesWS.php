@@ -114,7 +114,8 @@ class ClientesWS extends Base {
 	 */
 	protected function format_verial_response( array $verial_response ): array|WP_Error {
 		if ( ! isset( $verial_response['Clientes'] ) || ! is_array( $verial_response['Clientes'] ) ) {
-			Logger::error( __( '[GetClientesWS] La respuesta de Verial no contiene la clave "Clientes" esperada o no es un array.', 'mi-integracion-api' ), array( 'verial_response' => $verial_response ) );
+			$logger = new \MiIntegracionApi\Helpers\Logger('clientes-ws');
+			$logger->error( __( '[GetClientesWS] La respuesta de Verial no contiene la clave "Clientes" esperada o no es un array.', 'mi-integracion-api' ), array( 'verial_response' => $verial_response ) );
 			return new WP_Error(
 				'verial_api_malformed_clientes_data',
 				__( 'Los datos de clientes recibidos de Verial no tienen el formato esperado.', 'mi-integracion-api' ),
