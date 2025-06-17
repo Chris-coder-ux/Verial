@@ -79,11 +79,6 @@ class BatchProcessor
     private $recovery_state = [];
 
     /**
-     * @var Logger Instancia del logger
-     */
-    private $logger;
-
-    /**
      * Constructor
      *
      * @param object|null $api_connector
@@ -102,7 +97,6 @@ class BatchProcessor
         $this->admin_email = get_option('admin_email');
         $this->entity_name = ''; // Por defecto vacío, debe ser establecido
         $this->filters = [];
-        $this->logger = new Logger('batch-processor');
     }
     
     /**
@@ -144,8 +138,7 @@ class BatchProcessor
         $this->is_resuming = !empty($this->recovery_state);
         
         if ($this->is_resuming) {
-            $logger = new \MiIntegracionApi\Helpers\Logger("sync-recovery-{$this->entity_name}");
-            $logger->info("Reanudando sincronización de {$this->entity_name} desde el lote #{$this->recovery_state['last_batch']}", [
+            Logger::info("Reanudando sincronización de {$this->entity_name} desde el lote #{$this->recovery_state['last_batch']}", [
                 'processed' => $this->recovery_state['processed'] ?? 0,
                 'total' => $this->recovery_state['total'] ?? 0,
                 'category' => "sync-recovery-{$this->entity_name}"
@@ -209,7 +202,7 @@ class BatchProcessor
                 $processed
             );
             
-            $this->logger->info("Reanudando sincronización", [
+            Logger::info("Reanudando sincronización", [
                 'entity' => $this->entity_name,
                 'last_batch' => $last_batch,
                 'processed' => $processed,
@@ -240,10 +233,6 @@ class BatchProcessor
             
             // Si estamos reanudando, saltamos los lotes ya procesados
             if ($resumed && $batch_num <= $skipped_batches) {
-                $this->logger->info("Saltando lote ya procesado previamente", [
-                    'batch_num' => $batch_num, 
-                    'skipped_batches' => $skipped_batches
-                ]);
                 continue;
             }
             
@@ -252,149 +241,53 @@ class BatchProcessor
             $batch_processed = 0;
             $batch_failed = [];
             $batch_log = [];
-            
-            // MEJORA: Implementación completa de reintentos por lote
-            $batch_retry_count = 0;
-            $max_batch_retries = 2; // Máximo de reintentos por lote completo
-            $batch_success = false;
-            
-            // Variables para el seguimiento de memoria
-            $memory_start = memory_get_usage(true);
-            $memory_peak = 0;
-            
-            // Registrar inicio del procesamiento del lote
-            $this->logger->info("Iniciando procesamiento de lote #{$batch_num}", [
-                'total_items' => count($lote),
-                'batch_size' => $batch_size,
-                'memory_start' => round($memory_start / 1024 / 1024, 2) . ' MB'
-            ]);
-            
-            // Establecer timeout de lote
-            $batch_timeout = time() + $this->timeout;
-            
-            // MEJORA: Actualizar heartbeat para mostrar actividad
-            $this->update_heartbeat($batch_num, count($lote));
 
             // Cancelación externa
             if ($this->is_cancelled()) {
                 $cancelled = true;
                 $log[] = "Procesamiento cancelado externamente en el lote #$batch_num.";
-                $this->logger->warning('Procesamiento cancelado externamente', ['batch' => $batch_num]);
-                break;
-            }
-            
-            // MEJORA: Verificar la salud del sistema antes de procesar
-            if (!$this->check_system_health()) {
-                $log[] = "La verificación de salud del sistema falló antes del lote #$batch_num. Pausando sincronización.";
-                $this->logger->error('Verificación de salud del sistema falló', [
-                    'batch' => $batch_num,
-                    'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB',
-                    'memory_limit' => $this->memory_limit_mb . ' MB'
-                ]);
+                Logger::warning('Procesamiento cancelado externamente', ['batch' => $batch_num]);
                 break;
             }
 
             foreach ($lote as $producto) {
                 $retries = 0;
                 $success = false;
-                $producto_id = $this->get_producto_identifier($producto);
-                
-                // MEJORA: Guardar el producto actual para diagnóstico y recuperación
-                if (!empty($this->entity_name) && !empty($producto_id)) {
-                    set_transient("mia_last_{$this->entity_name}_id", $producto_id, HOUR_IN_SECONDS);
-                    
-                    // Si es un producto, también guardar su nombre para mejor UX
-                    if ($this->entity_name === 'productos' && !empty($producto['Descripcion'])) {
-                        set_transient("mia_last_product_name", $producto['Descripcion'], HOUR_IN_SECONDS);
-                    }
-                }
-                
                 do {
                     try {
-                        // MEJORA: Gestión mejorada de resultados
                         if ($callback && is_callable($callback)) {
                             $result = call_user_func($callback, $producto, $this->api_connector);
-                            
-                            // Si el resultado es un WP_Error, lo manejamos apropiadamente
-                            if (is_wp_error($result)) {
-                                $error_code = $result->get_error_code();
-                                $error_message = $result->get_error_message();
-                                $error_data = $result->get_error_data();
-                                
-                                // Determinamos si el error es recuperable o crítico
-                                $recoverable_codes = ['timeout', 'api_error', 'temporary_error', 'network_error'];
-                                $is_recoverable = in_array($error_code, $recoverable_codes);
-                                
-                                if ($is_recoverable) {
-                                    throw new \RuntimeException($error_message);
-                                } else {
-                                    // Error no recuperable, registramos y continuamos con el siguiente producto
-                                    $batch_errors++;
-                                    $batch_failed[] = $producto;
-                                    $batch_log[] = sprintf('Error no recuperable: %s [%s]', $error_message, $error_code);
-                                    $this->logger->error('Error no recuperable en producto', [
-                                        'producto_id' => $producto_id,
-                                        'batch' => $batch_num,
-                                        'error_code' => $error_code,
-                                        'error_message' => $error_message,
-                                        'error_data' => $error_data
-                                    ]);
-                                    break; // Salir del bucle de reintentos
-                                }
-                            }
                         } elseif (method_exists('MiIntegracionApi\\Sync\\SyncProductos', 'sync_producto')) {
                             $result = \MiIntegracionApi\Sync\SyncProductos::sync_producto($producto);
                         } else {
                             throw new \Exception('No hay método de procesamiento definido para productos.');
                         }
-                        
-                        // Comprobación de errores en formato de array
                         if (is_array($result) && !empty($result['error'])) {
-                            throw new \RuntimeException($result['message'] ?? $result['msg'] ?? 'Error procesando producto.');
+                            throw new \RuntimeException($result['msg'] ?? 'Error procesando producto.');
                         }
-                        
                         $batch_processed++;
                         $success = true;
-                        
-                        // MEJORA: Registrar éxito para estadísticas
-                        $this->logger->debug('Producto procesado con éxito', [
-                            'producto_id' => $producto_id,
-                            'batch' => $batch_num
-                        ]);
-                        
                     } catch (\RuntimeException $e) {
                         $batch_errors++;
                         $batch_failed[] = $producto;
-                        $batch_log[] = sprintf('Error recuperable en producto %s: %s', $producto_id, $e->getMessage());
-                        $this->logger->warning('Error recuperable en producto', [
-                            'producto_id' => $producto_id,
+                        $batch_log[] = $e->getMessage();
+                        Logger::warning('Error recuperable en producto', [
                             'batch' => $batch_num,
                             'error' => $e->getMessage(),
                             'retries' => $retries
                         ]);
-                        
                         $retries++;
-                        
-                        // MEJORA: Esperar entre reintentos con backoff exponencial
-                        if ($retries <= $this->max_retries) {
-                            $wait_seconds = min(pow(2, $retries - 1), 10); // 1, 2, 4, 8, 10 segundos máximo
-                            $this->logger->info(sprintf('Esperando %d segundos antes del reintento %d/%d', 
-                                $wait_seconds, $retries, $this->max_retries));
-                            sleep($wait_seconds);
-                        } else {
-                            break; // Salir después de agotar reintentos
+                        if ($retries > $this->max_retries) {
+                            break;
                         }
                     } catch (\Exception $e) {
-                        // Error crítico, abortar el procesamiento de este producto
+                        // Error crítico, abortar lote
                         $batch_errors++;
                         $batch_failed[] = $producto;
-                        $batch_log[] = sprintf('Error crítico en producto %s: %s', $producto_id, $e->getMessage());
-                        $this->logger->error('Error crítico en producto', [
-                            'producto_id' => $producto_id,
+                        $batch_log[] = 'Error crítico: ' . $e->getMessage();
+                        Logger::error('Error crítico en producto', [
                             'batch' => $batch_num,
-                            'error' => $e->getMessage(),
-                            'file' => $e->getFile(),
-                            'line' => $e->getLine()
+                            'error' => $e->getMessage()
                         ]);
                         break;
                     }
@@ -403,14 +296,14 @@ class BatchProcessor
                 // Timeout por lote
                 if ((microtime(true) - $batch_start) > $this->timeout) {
                     $batch_log[] = 'Timeout alcanzado en el lote #' . $batch_num;
-                    $this->logger->warning('Timeout alcanzado en lote', ['batch' => $batch_num]);
+                    Logger::warning('Timeout alcanzado en lote', ['batch' => $batch_num]);
                     break;
                 }
                 // Control de memoria
                 if ($this->memory_limit_mb > 0 && (memory_get_usage() / 1024 / 1024) > $this->memory_limit_mb) {
                     $memory_exceeded = true;
                     $batch_log[] = 'Límite de memoria superado en el lote #' . $batch_num;
-                    $this->logger->error('Límite de memoria superado', ['batch' => $batch_num]);
+                    Logger::error('Límite de memoria superado', ['batch' => $batch_num]);
                     break;
                 }
             }
@@ -450,7 +343,7 @@ class BatchProcessor
         }
 
         $duration = round(microtime(true) - $start_time, 2);
-        $this->logger->info('Procesamiento por lotes finalizado', [
+        Logger::info('Procesamiento por lotes finalizado', [
             'total' => $total,
             'procesados' => $processed,
             'errores' => $errors,
@@ -467,7 +360,7 @@ class BatchProcessor
             // También limpiar punto de recuperación si todo salió bien
             if (!empty($this->entity_name)) {
                 \MiIntegracionApi\Sync\SyncRecovery::clear_recovery_state($this->entity_name);
-                $this->logger->info("Punto de recuperación eliminado tras finalización exitosa", [
+                Logger::info("Punto de recuperación eliminado tras finalización exitosa", [
                     'entity' => $this->entity_name
                 ]);
             }
@@ -485,7 +378,7 @@ class BatchProcessor
             ];
             
             \MiIntegracionApi\Sync\SyncRecovery::save_recovery_state($this->entity_name, $final_state);
-            $this->logger->info("Punto de recuperación guardado para reanudar más tarde", [
+            Logger::info("Punto de recuperación guardado para reanudar más tarde", [
                 'entity' => $this->entity_name,
                 'status' => $final_state['status']
             ]);
@@ -562,134 +455,5 @@ class BatchProcessor
         if ($this->admin_email) {
             wp_mail($this->admin_email, '[Verial/WC] Alerta de sincronización por lotes', $message);
         }
-    }
-
-    /**
-     * Obtiene un identificador único para el producto o entidad
-     * 
-     * @param array $item Producto o entidad a identificar
-     * @return string Identificador único del producto
-     */
-    private function get_producto_identifier($item)
-    {
-        // Intentar obtener el identificador más adecuado según la entidad
-        if ($this->entity_name === 'productos') {
-            // Prioridad de campos para identificar productos
-            if (!empty($item['ReferenciaBarras'])) {
-                return 'SKU:' . $item['ReferenciaBarras'];
-            } elseif (!empty($item['Codigo'])) {
-                return 'COD:' . $item['Codigo'];
-            } elseif (!empty($item['Id'])) {
-                return 'ID:' . $item['Id'];
-            } elseif (!empty($item['Descripcion'])) {
-                return 'DESC:' . substr($item['Descripcion'], 0, 30);
-            }
-        } elseif ($this->entity_name === 'clientes') {
-            // Identificadores para clientes
-            if (!empty($item['Codigo'])) {
-                return 'COD:' . $item['Codigo'];
-            } elseif (!empty($item['Email'])) {
-                return 'EMAIL:' . $item['Email'];
-            } elseif (!empty($item['Nombre'])) {
-                return 'NOM:' . substr($item['Nombre'], 0, 30);
-            }
-        } elseif ($this->entity_name === 'pedidos') {
-            // Identificadores para pedidos
-            if (!empty($item['Codigo'])) {
-                return 'PED:' . $item['Codigo'];
-            } elseif (!empty($item['NumeroDocumento'])) {
-                return 'DOC:' . $item['NumeroDocumento'];
-            }
-        }
-        
-        // Si no podemos identificarlo por ninguno de los campos esperados
-        // Usar un hash de los datos para asegurar un identificador único
-        return 'HASH:' . substr(md5(serialize($item)), 0, 10);
-    }
-    
-    /**
-     * Actualiza el heartbeat de la sincronización para indicar actividad
-     * 
-     * @param int $batch_num Número de lote actual
-     * @param int $item_count Cantidad de elementos en el lote
-     * @return bool Éxito de la operación
-     */
-    private function update_heartbeat($batch_num, $item_count)
-    {
-        $heartbeat_data = [
-            'timestamp' => time(),
-            'batch' => $batch_num,
-            'items' => $item_count,
-            'entity' => $this->entity_name,
-            'memory_usage' => round(memory_get_usage(true) / 1024 / 1024, 2) . ' MB'
-        ];
-        
-        // Guardar transient para monitoreo
-        set_transient('mia_sync_heartbeat', $heartbeat_data, HOUR_IN_SECONDS);
-        
-        // Si tenemos información de la entidad actual, también guardarlo específicamente para ella
-        if (!empty($this->entity_name)) {
-            set_transient("mia_sync_{$this->entity_name}_heartbeat", $heartbeat_data, HOUR_IN_SECONDS);
-        }
-        
-        return true;
-    }
-    
-    /**
-     * Verifica la salud del sistema antes de procesar un lote
-     * 
-     * @return bool True si el sistema está en buen estado, False si hay problemas
-     */
-    private function check_system_health()
-    {
-        // Verificar uso de memoria
-        $memory_usage = memory_get_usage(true);
-        $memory_usage_mb = round($memory_usage / 1024 / 1024, 2);
-        
-        // Si el uso de memoria supera el 90% del límite configurable, no continuar
-        if ($this->memory_limit_mb > 0 && $memory_usage_mb > ($this->memory_limit_mb * 0.9)) {
-            $this->logger->warning('Uso de memoria crítico', [
-                'memory_usage' => $memory_usage_mb . ' MB',
-                'memory_limit' => $this->memory_limit_mb . ' MB',
-                'percentage' => round(($memory_usage_mb / $this->memory_limit_mb) * 100, 1) . '%'
-            ]);
-            return false;
-        }
-        
-        // Verificar tiempo máximo de ejecución
-        $max_execution_time = (int)ini_get('max_execution_time');
-        if ($max_execution_time > 0) {
-            $script_time = time() - $_SERVER['REQUEST_TIME'];
-            
-            // Si estamos a más del 80% del tiempo máximo de ejecución, mejor no continuar
-            if ($script_time > ($max_execution_time * 0.8)) {
-                $this->logger->warning('Tiempo de ejecución próximo al límite', [
-                    'script_time' => $script_time . ' segundos',
-                    'max_execution_time' => $max_execution_time . ' segundos',
-                    'percentage' => round(($script_time / $max_execution_time) * 100, 1) . '%'
-                ]);
-                return false;
-            }
-        }
-        
-        // Verificar si la API está respondiendo correctamente
-        if ($this->api_connector) {
-            try {
-                $api_health = $this->api_connector->check_api_health();
-                if (is_wp_error($api_health)) {
-                    $this->logger->error('API no responde correctamente', [
-                        'error' => $api_health->get_error_message()
-                    ]);
-                    return false;
-                }
-            } catch (\Exception $e) {
-                $this->logger->error('Error al verificar salud de la API', [
-                    'exception' => $e->getMessage()
-                ]);
-                // No bloqueamos sólo por este error ya que podría ser temporal
-            }
-        }
-        
-        return true;
     }
 }

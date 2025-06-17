@@ -150,7 +150,7 @@ class ArticulosWS extends Base {
 	 * @return bool|\WP_Error
 	 */
 	public function permissions_check( \WP_REST_Request $request ): bool|\WP_Error {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			return new \WP_Error(
 				'rest_forbidden',
 				esc_html__( 'No tienes permiso para ver esta información.', 'mi-integracion-api' ),

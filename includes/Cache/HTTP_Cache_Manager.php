@@ -9,6 +9,8 @@
 
 namespace MiIntegracionApi\Cache;
 
+use MiIntegracionApi\Core\CacheConfig;
+
 // Evitar acceso directo
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -35,17 +37,6 @@ class HTTP_Cache_Manager {
 	);
 
 	/**
-	 * Tiempo de vida predeterminado para la caché en segundos
-	 * (4 horas por defecto)
-	 */
-	private static $default_ttl = 14400;
-
-	/**
-	 * Indicador de si la caché está habilitada
-	 */
-	private static $enabled = true;
-
-	/**
 	 * Estadísticas de caché para la solicitud actual
 	 */
 	private static $stats = array(
@@ -59,114 +50,30 @@ class HTTP_Cache_Manager {
 	 * Inicializa el administrador de caché HTTP
 	 */
 	public static function init() {
-		// Comprobar si la caché está habilitada en la configuración
-		self::$enabled = (bool) get_option( 'mi_integracion_api_enable_http_cache', true );
-
-		// Cargar el tiempo de vida personalizado si está configurado
-		$custom_ttl = get_option( 'mi_integracion_api_http_cache_ttl', false );
-		if ( $custom_ttl !== false && is_numeric( $custom_ttl ) ) {
-			self::$default_ttl = (int) $custom_ttl;
-		}
-
-		// Añadir hooks para limpiar caché en eventos relevantes
-		add_action( 'mi_api_product_updated', array( __CLASS__, 'invalidate_product_cache' ) );
-		add_action( 'mi_api_order_updated', array( __CLASS__, 'invalidate_order_cache' ) );
-		add_action( 'mi_api_config_updated', array( __CLASS__, 'invalidate_config_cache' ) );
-
-		// Añadir endpoint REST API para administrar la caché
-		add_action( 'rest_api_init', array( __CLASS__, 'register_rest_routes' ) );
+		// No se requiere inicialización adicional
 	}
 
 	/**
-	 * Registra rutas REST API para administrar la caché
-	 */
-	public static function register_rest_routes() {
-		register_rest_route(
-			'mi-integracion-api/v1',
-			'/cache/flush',
-			array(
-				'methods'             => 'POST',
-				'callback'            => array( __CLASS__, 'rest_flush_cache' ),
-				'permission_callback' => function () {
-					return current_user_can( 'manage_options' );
-				},
-			)
-		);
-
-		register_rest_route(
-			'mi-integracion-api/v1',
-			'/cache/stats',
-			array(
-				'methods'             => 'GET',
-				'callback'            => array( __CLASS__, 'rest_get_stats' ),
-				'permission_callback' => function () {
-					return current_user_can( 'manage_options' );
-				},
-			)
-		);
-	}
-
-	/**
-	 * Endpoint REST para limpiar la caché
-	 *
-	 * @param \WP_REST_Request $request Objeto de solicitud REST
-	 * @return \WP_REST_Response
-	 */
-	public static function rest_flush_cache( $request ) {
-		$group = $request->get_param( 'group' );
-
-		if ( $group && array_key_exists( $group, self::CACHE_GROUPS ) ) {
-			$count = self::flush_group( $group );
-			return new \WP_REST_Response(
-				array(
-					'success' => true,
-					'message' => sprintf( __( 'Se han eliminado %1$d entradas de caché del grupo %2$s', 'mi-integracion-api' ), $count, $group ),
-					'count'   => $count,
-				)
-			);
-		} else {
-			$count = self::flush_all();
-			return new \WP_REST_Response(
-				array(
-					'success' => true,
-					'message' => sprintf( __( 'Se han eliminado %d entradas de caché', 'mi-integracion-api' ), $count ),
-					'count'   => $count,
-				)
-			);
-		}
-	}
-
-	/**
-	 * Endpoint REST para obtener estadísticas de caché
-	 *
-	 * @return \WP_REST_Response
-	 */
-	public static function rest_get_stats() {
-		$stats = self::get_extended_stats();
-		return new \WP_REST_Response( $stats );
-	}
-
-	/**
-	 * Guarda una respuesta HTTP en la caché
+	 * Guarda una respuesta HTTP en caché
 	 *
 	 * @param string $url URL de la solicitud
 	 * @param array  $args Argumentos de la solicitud
 	 * @param mixed  $response Respuesta a guardar
 	 * @param string $group Grupo de caché
-	 * @param int    $ttl Tiempo de vida en segundos (opcional)
-	 * @return bool
+	 * @param int    $ttl Tiempo de vida en segundos
+	 * @return bool True si se guardó correctamente
 	 */
 	public static function set( $url, $args, $response, $group = 'global', $ttl = null ) {
-		if ( ! self::$enabled ) {
+		if ( ! CacheConfig::is_enabled() ) {
 			return false;
 		}
 
 		// Generar una clave única basada en la URL y los argumentos
 		$key = self::generate_cache_key( $url, $args );
 
-		// Si no se especifica TTL, usar el predeterminado
+		// Si no se especifica TTL, usar el configurado para la entidad
 		if ( $ttl === null ) {
-			$ttl = self::$default_ttl;
+			$ttl = CacheConfig::get_ttl_for_entity($group);
 		}
 
 		// Preparar datos a guardar
@@ -205,8 +112,20 @@ class HTTP_Cache_Manager {
 	 * @return mixed|false
 	 */
 	public static function get( $key, $group = 'global' ) {
+		if ( ! CacheConfig::is_enabled() ) {
+			return false;
+		}
+
 		$transient_key = self::CACHE_PREFIX . $group . '_' . $key;
-		return get_transient( $transient_key );
+		$cached = get_transient( $transient_key );
+
+		if ( $cached !== false ) {
+			++self::$stats['hit'];
+			return $cached;
+		}
+
+		++self::$stats['miss'];
+		return false;
 	}
 
 	/**
@@ -217,63 +136,31 @@ class HTTP_Cache_Manager {
 	 * @return string Clave de caché
 	 */
 	private static function generate_cache_key( $url, $args ) {
-		// Extraer solo los argumentos relevantes para la firma de la caché
-		$cache_args = array();
-		if ( isset( $args['method'] ) ) {
-			$cache_args['method'] = $args['method'];
-		}
-		if ( isset( $args['body'] ) ) {
-			$cache_args['body'] = $args['body'];
-		}
-		if ( isset( $args['headers'] ) ) {
-			// Filtrar headers sensibles que no deben afectar la caché
-			$filtered_headers = array();
-			foreach ( $args['headers'] as $header => $value ) {
-				if ( ! in_array( strtolower( $header ), array( 'authorization', 'cookie' ) ) ) {
-					$filtered_headers[ $header ] = $value;
-				}
-			}
-			if ( ! empty( $filtered_headers ) ) {
-				$cache_args['headers'] = $filtered_headers;
-			}
-		}
+		$key_parts = array(
+			$url,
+			md5( wp_json_encode( $args ) ),
+		);
 
-		// Crear firma
-		return md5( $url . serialize( $cache_args ) );
+		return implode( '_', $key_parts );
 	}
 
 	/**
-	 * Invalida la caché para un producto específico
+	 * Elimina una entrada específica de la caché HTTP
 	 *
-	 * @param int $product_id ID del producto
+	 * @param string $url URL de la solicitud
+	 * @param array  $args Argumentos de la solicitud
+	 * @param string $group Grupo de caché
+	 * @return bool True si se eliminó correctamente
 	 */
-	public static function invalidate_product_cache( $product_id ) {
-		// Implementación de invalidación específica
-		// Esta es una simplificación, se podría mejorar con un registro de claves por ID
-		self::flush_group( 'product' );
+	public static function delete( $url, $args, $group = 'global' ) {
+		$key = self::generate_cache_key( $url, $args );
+		return delete_transient( self::CACHE_PREFIX . $key );
 	}
 
 	/**
-	 * Invalida la caché para un pedido específico
+	 * Limpia todas las entradas de caché de un grupo específico
 	 *
-	 * @param int $order_id ID del pedido
-	 */
-	public static function invalidate_order_cache( $order_id ) {
-		// Implementación de invalidación específica
-		self::flush_group( 'order' );
-	}
-
-	/**
-	 * Invalida la caché de configuración
-	 */
-	public static function invalidate_config_cache() {
-		self::flush_group( 'config' );
-	}
-
-	/**
-	 * Limpia todas las entradas de caché para un grupo específico usando el registro de claves.
-	 *
-	 * @param string $group Grupo de caché a limpiar
+	 * @param string $group Grupo de caché
 	 * @return int Número de entradas eliminadas
 	 */
 	public static function flush_group( $group ) {
@@ -376,8 +263,8 @@ class HTTP_Cache_Manager {
 		$size_formatted = self::format_bytes( $total_size );
 
 		return array(
-			'enabled'         => self::$enabled,
-			'ttl_default'     => self::$default_ttl,
+			'enabled'         => CacheConfig::is_enabled(),
+			'ttl_default'     => CacheConfig::get_default_ttl(),
 			'current_request' => self::$stats,
 			'total_entries'   => (int) $total_entries,
 			'by_group'        => $group_stats,
@@ -411,7 +298,7 @@ class HTTP_Cache_Manager {
 	 * @return bool
 	 */
 	public static function is_enabled() {
-		return self::$enabled;
+		return CacheConfig::is_enabled();
 	}
 
 	/**
@@ -420,9 +307,7 @@ class HTTP_Cache_Manager {
 	 * @param bool $enabled Estado de activación
 	 */
 	public static function set_enabled( $enabled ) {
-		$enabled       = (bool) $enabled;
-		self::$enabled = $enabled;
-		update_option( 'mi_integracion_api_enable_http_cache', $enabled );
+		CacheConfig::set_enabled( (bool) $enabled );
 	}
 
 	/**
@@ -431,11 +316,7 @@ class HTTP_Cache_Manager {
 	 * @param int $ttl Tiempo de vida en segundos
 	 */
 	public static function set_default_ttl( $ttl ) {
-		$ttl = absint( $ttl );
-		if ( $ttl > 0 ) {
-			self::$default_ttl = $ttl;
-			update_option( 'mi_integracion_api_http_cache_ttl', $ttl );
-		}
+		CacheConfig::set_default_ttl( (int) $ttl );
 	}
 
 	/**
@@ -464,61 +345,5 @@ class HTTP_Cache_Manager {
 	public static function get_cache_size() {
 		$stats = self::get_extended_stats();
 		return $stats['size_formatted'];
-	}
-
-	/**
-	 * Obtiene el número de entradas en caché para una entidad específica
-	 *
-	 * @param string $entity_key Clave de la entidad
-	 * @return int Número de entradas
-	 */
-	public static function get_entity_cache_count( $entity_key ) {
-		$stats = self::get_extended_stats();
-		return isset( $stats['by_group'][ $entity_key ] ) ? $stats['by_group'][ $entity_key ] : 0;
-	}
-
-	/**
-	 * Alias para flush_group('product')
-	 *
-	 * @return int Número de entradas eliminadas
-	 */
-	public static function flush_product_cache() {
-		return self::flush_group( 'product' );
-	}
-
-	/**
-	 * Alias para flush_group('order')
-	 *
-	 * @return int Número de entradas eliminadas
-	 */
-	public static function flush_order_cache() {
-		return self::flush_group( 'order' );
-	}
-
-	/**
-	 * Alias para flush_group('config')
-	 *
-	 * @return int Número de entradas eliminadas
-	 */
-	public static function flush_config_cache() {
-		return self::flush_group( 'config' );
-	}
-
-	/**
-	 * Alias para flush_group('global')
-	 *
-	 * @return int Número de entradas eliminadas
-	 */
-	public static function flush_global_cache() {
-		return self::flush_group( 'global' );
-	}
-
-	/**
-	 * Elimina todas las entradas de caché de todos los grupos.
-	 * 
-	 * @return int El número de entradas eliminadas.
-	 */
-	public static function flush_all_cache() {
-		return self::flush_all();
 	}
 }

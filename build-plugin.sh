@@ -17,9 +17,14 @@ cp index.php "$BUILD_DIR/"
 cp mi-integracion-api.php "$BUILD_DIR/"
 cp uninstall.php "$BUILD_DIR/"
 cp composer.json "$BUILD_DIR/" || true
+cp composer.lock "$BUILD_DIR/" || true
+cp qodana.yaml "$BUILD_DIR/" || true
+
+# Copiar directorios principales
 cp -r admin "$BUILD_DIR/"
 cp -r api_connector "$BUILD_DIR/"
 cp -r assets "$BUILD_DIR/"
+cp -r certs "$BUILD_DIR/"
 cp -r docs "$BUILD_DIR/"
 cp -r includes "$BUILD_DIR/"
 cp -r languages "$BUILD_DIR/"
@@ -37,18 +42,47 @@ if [ -f "$BUILD_DIR/composer.json" ]; then
     echo "✅ vendor/autoload.php generado correctamente."
 fi
 
+# Verificar que los archivos críticos existan
+CRITICAL_FILES=(
+    "$BUILD_DIR/includes/Core/TransactionManager.php"
+    "$BUILD_DIR/includes/Core/SyncMetrics.php"
+    "$BUILD_DIR/includes/Core/ConfigManager.php"
+    "$BUILD_DIR/includes/Sync/SyncProductos.php"
+    "$BUILD_DIR/includes/Sync/SyncPedidos.php"
+    "$BUILD_DIR/includes/Sync/SyncClientes.php"
+    "$BUILD_DIR/includes/Core/ApiConnector.php"
+    "$BUILD_DIR/includes/Core/Sync_Manager.php"
+    "$BUILD_DIR/includes/Core/LogManager.php"
+    "$BUILD_DIR/includes/Core/MemoryManager.php"
+    "$BUILD_DIR/includes/Core/RetryManager.php"
+    "$BUILD_DIR/includes/Core/SyncRecovery.php"
+)
+
+for file in "${CRITICAL_FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        echo "❌ Error: Archivo crítico no encontrado: $file"
+        exit 1
+    fi
+done
+
 # Eliminar archivos y carpetas innecesarios del build
 find "$BUILD_DIR" -name 'Legacy' -type d -exec rm -rf {} +
 find "$BUILD_DIR" -name '*.bak' -delete
 find "$BUILD_DIR" -name '*.legacy' -delete
 find "$BUILD_DIR" -name '*.md' -delete
 find "$BUILD_DIR" -name '*.sh' -delete
-# find "$BUILD_DIR" -name '*.txt' -delete
 find "$BUILD_DIR" -name '*.log' -delete
 find "$BUILD_DIR" -name '.DS_Store' -delete
 find "$BUILD_DIR" -name '__MACOSX' -exec rm -rf {} +
 find "$BUILD_DIR" -name 'tests' -type d -exec rm -rf {} +
 find "$BUILD_DIR" -name 'scripts' -type d -exec rm -rf {} +
+find "$BUILD_DIR" -name 'Examples' -type d -exec rm -rf {} +
+find "$BUILD_DIR" -name 'Patches' -type d -exec rm -rf {} +
+find "$BUILD_DIR" -name 'Polyfills' -type d -exec rm -rf {} +
+
+# Verificar permisos de archivos
+find "$BUILD_DIR" -type f -exec chmod 644 {} \;
+find "$BUILD_DIR" -type d -exec chmod 755 {} \;
 
 # Crear el archivo ZIP
 cd "/tmp"
@@ -63,4 +97,8 @@ cp "$OLDPWD/$ZIP_FILE" "$HOME/Escritorio/$ZIP_FILE"
 # Limpiar
 rm -rf "$BUILD_DIR"
 
-echo "Plugin compilado correctamente: $ZIP_FILE (en la raíz del plugin y en el Escritorio)"
+echo "✅ Plugin compilado correctamente: $ZIP_FILE (en la raíz del plugin y en el Escritorio)"
+echo "📦 Archivos críticos verificados:"
+for file in "${CRITICAL_FILES[@]}"; do
+    echo "   ✓ $(basename "$file")"
+done

@@ -3,46 +3,6 @@
  * Compatible con clases antiguas (verial-) y nuevas (mi-integracion-api-)
  */
 jQuery(document).ready(function($) {
-  
-  /**
-   * Función para obtener el nonce de seguridad de múltiples fuentes posibles
-   * Garantiza compatibilidad entre páginas y contextos diferentes
-   */
-  function getNonceValue() {
-    // 1. Intentar obtener del objeto global miIntegracionApiDashboard
-    if (typeof miIntegracionApiDashboard !== 'undefined' && miIntegracionApiDashboard.nonce) {
-      console.log('Usando nonce de miIntegracionApiDashboard');
-      return miIntegracionApiDashboard.nonce;
-    }
-    
-    // 2. Buscar en elementos con name="_ajax_nonce"
-    let ajaxNonce = $('input[name="_ajax_nonce"]').val();
-    if (ajaxNonce) {
-      console.log('Usando nonce de input[name="_ajax_nonce"]');
-      return ajaxNonce;
-    }
-    
-    // 3. Buscar en otros campos de nonce comunes de WordPress
-    const possibleNonceFields = ['_wpnonce', 'security', 'nonce'];
-    for (let fieldName of possibleNonceFields) {
-      let nonceValue = $(`input[name="${fieldName}"]`).val();
-      if (nonceValue) {
-        console.log(`Usando nonce de input[name="${fieldName}"]`);
-        return nonceValue;
-      }
-    }
-    
-    // 4. Buscar en datos de elementos con atributo data-nonce 
-    let dataNonce = $('[data-nonce]').first().data('nonce');
-    if (dataNonce) {
-      console.log('Usando nonce de elemento con data-nonce');
-      return dataNonce;
-    }
-    
-    console.error('No se pudo encontrar un nonce válido en ninguna fuente');
-    return null;
-  }
-  
   // Selector compuesto para compatibilidad
   var dashboardSelector = '.mi-integracion-api-dashboard, .verial-dashboard';
   
@@ -95,10 +55,9 @@ jQuery(document).ready(function($) {
     console.log('URL AJAX:', ajaxurl);
     console.log('miIntegracionApiDashboard:', miIntegracionApiDashboard);
     
-    // Verificar si tenemos un nonce válido - con múltiples opciones
-    const nonceValue = getNonceValue();
-    if (!nonceValue) {
-      console.error('Error: nonce no disponible en ninguna fuente');
+    // Verificar si tenemos un nonce válido
+    if (!miIntegracionApiDashboard || !miIntegracionApiDashboard.nonce) {
+      console.error('Error: nonce no disponible');
       clearInterval(syncInterval);
       $syncBtn.prop('disabled', false);
       $feedback.removeClass('in-progress').text('Error: falta el token de seguridad. Por favor, recarga la página.');
@@ -111,7 +70,7 @@ jQuery(document).ready(function($) {
       type: 'POST',
       data: { 
         action: 'mia_sync_progress', 
-        nonce: getNonceValue()
+        nonce: miIntegracionApiDashboard.nonce 
       },
       success: function(response) {
         const timeStamp = new Date().toISOString();
@@ -207,35 +166,10 @@ jQuery(document).ready(function($) {
   // También capturamos el selector de tamaño de lote
   var $batchSizeSelector = $('#mi-batch-size');
 
-  // Manejar cambios en el selector de batch size para guardar la selección
-  $batchSizeSelector.on('change', function() {
-    const selectedSize = parseInt($(this).val()) || 20;
-    console.log('Batch size cambiado a:', selectedSize);
-    
-    // Guardar la selección del usuario inmediatamente
-    $.post(ajaxurl, {
-      action: 'mi_integracion_api_save_batch_size',
-      batch_size: selectedSize,
-      nonce: getNonceValue()
-    }, function(response) {
-      if (response.success) {
-        console.log('Batch size guardado exitosamente:', selectedSize);
-      } else {
-        console.warn('Error al guardar batch size:', response.data);
-      }
-    });
-  });
-
   $syncBtn.on('click', function(e) {
     e.preventDefault();
-    const batchSize = parseInt($batchSizeSelector.val()) || 20; // Valor por defecto unificado: 20
-    
-    // Logging mejorado para diagnóstico
-    console.log('=== INICIO SINCRONIZACIÓN ===');
-    console.log('Tamaño de lote seleccionado:', batchSize);
-    console.log('Valor raw del selector:', $batchSizeSelector.val());
-    console.log('Tipo de dato:', typeof batchSize);
-    console.log('Timestamp:', new Date().toISOString());
+    const batchSize = parseInt($batchSizeSelector.val()) || 20; // Valor por defecto: 20
+    console.log('Click en sincronizar productos en lote. Tamaño de lote:', batchSize);
     
     $syncBtn.prop('disabled', true);
     $batchSizeSelector.prop('disabled', true); // También deshabilitamos el selector
@@ -246,22 +180,25 @@ jQuery(document).ready(function($) {
     $progressBar.css('width', '5%'); // Comenzar con un 5% para que se vea algo
     $progressInfo.text('Preparando sincronización...');
     
-    // Datos a enviar con logging detallado
-    const ajaxData = { 
-      action: 'mi_integracion_api_sync_products_batch', 
-      nonce: getNonceValue(),
-      batch_size: batchSize
-    };
-    
+    // Lanzar AJAX para iniciar la sincronización batch
+    const timeStamp = new Date().toISOString();
+    console.log(`[${timeStamp}] Iniciando sincronización batch...`);
     console.log('URL AJAX:', ajaxurl);
-    console.log('Datos completos a enviar:', ajaxData);
-    console.log('Nonce válido:', getNonceValue() ? 'SÍ' : 'NO');
+    console.log('Datos a enviar:', { 
+      action: 'mi_integracion_api_sync_products_batch', 
+      nonce: miIntegracionApiDashboard.nonce,
+      batch_size: batchSize
+    });
     
     $.ajax({
       url: ajaxurl,
       type: 'POST',
       dataType: 'json',
-      data: ajaxData,
+      data: { 
+        action: 'mi_integracion_api_sync_products_batch', 
+        nonce: miIntegracionApiDashboard.nonce,
+        batch_size: batchSize
+      },
       success: function(response) {
         const timeStamp = new Date().toISOString();
         console.log(`[${timeStamp}] Respuesta de mi_integracion_api_sync_products_batch:`, response);
@@ -293,7 +230,7 @@ jQuery(document).ready(function($) {
     
     const timeStamp = new Date().toISOString();
     console.log(`[${timeStamp}] Click en cancelar sincronización`);
-    console.log('Datos a enviar:', { action: 'mia_sync_cancel', nonce: getNonceValue() });
+    console.log('Datos a enviar:', { action: 'mia_sync_cancel', nonce: miIntegracionApiDashboard.nonce });
     
     $.ajax({
       url: ajaxurl,
@@ -301,7 +238,7 @@ jQuery(document).ready(function($) {
       dataType: 'json',
       data: { 
         action: 'mia_sync_cancel', 
-        nonce: getNonceValue()
+        nonce: miIntegracionApiDashboard.nonce 
       },
       success: function(response) {
         const timeStamp = new Date().toISOString();
@@ -335,110 +272,4 @@ jQuery(document).ready(function($) {
   } else {
     $syncStatusContainer.hide();
   }
-  
-  // Handler para diagnóstico de rangos problemáticos
-  $('#mi-diagnose-range').on('click', function(e) {
-    e.preventDefault();
-    
-    const inicio = parseInt($('#diagnostic-inicio').val()) || 0;
-    const fin = parseInt($('#diagnostic-fin').val()) || 0;
-    const deepAnalysis = $('#diagnostic-deep').is(':checked');
-    
-    if (inicio <= 0 || fin <= 0 || inicio > fin) {
-      alert('Por favor, especifique un rango válido (inicio <= fin, ambos > 0)');
-      return;
-    }
-    
-    const $btn = $(this);
-    const $feedback = $('#mi-diagnostic-feedback');
-    const $content = $('#mi-diagnostic-content');
-    
-    console.log('=== INICIO DIAGNÓSTICO ===');
-    console.log('Rango:', inicio, '-', fin);
-    console.log('Análisis profundo:', deepAnalysis);
-    
-    $btn.prop('disabled', true).text('Diagnosticando...');
-    $feedback.show();
-    $content.html('<p>Ejecutando diagnóstico, esto puede tomar varios minutos...</p>');
-    
-    $.ajax({
-      url: ajaxurl,
-      type: 'POST',
-      dataType: 'json',
-      data: {
-        action: 'mi_integracion_api_diagnose_range',
-        nonce: miIntegracionApiDashboard.nonce,
-        inicio: inicio,
-        fin: fin,
-        deep_analysis: deepAnalysis
-      },
-      success: function(response) {
-        console.log('Respuesta de diagnóstico:', response);
-        
-        if (response.success) {
-          const result = response.data.diagnostic_result;
-          let html = '<div class="diagnostic-result">';
-          
-          // Resumen
-          html += '<h5>Resumen del Diagnóstico</h5>';
-          html += '<p><strong>Rango:</strong> ' + result.range[0] + '-' + result.range[1] + '</p>';
-          html += '<p><strong>Pruebas realizadas:</strong> ' + result.tests_performed.join(', ') + '</p>';
-          html += '<p><strong>Problemas encontrados:</strong> ' + result.issues_found.length + '</p>';
-          
-          // Problemas encontrados
-          if (result.issues_found.length > 0) {
-            html += '<h5 style="color: #d63638;">Problemas Detectados</h5>';
-            html += '<ul>';
-            result.issues_found.forEach(function(issue) {
-              html += '<li><strong>' + issue.type + ':</strong> ' + issue.description;
-              if (issue.details) {
-                html += '<br><small>Detalles: ' + JSON.stringify(issue.details) + '</small>';
-              }
-              html += '</li>';
-            });
-            html += '</ul>';
-          }
-          
-          // Recomendaciones
-          if (result.recommendations.length > 0) {
-            html += '<h5 style="color: #2271b1;">Recomendaciones</h5>';
-            html += '<ul>';
-            result.recommendations.forEach(function(rec) {
-              html += '<li>' + rec + '</li>';
-            });
-            html += '</ul>';
-          }
-          
-          // Detalles técnicos (colapsable)
-          html += '<details style="margin-top: 15px;">';
-          html += '<summary><strong>Detalles Técnicos</strong></summary>';
-          html += '<pre style="background: #f1f1f1; padding: 10px; overflow: auto; max-height: 300px; font-size: 12px;">';
-          html += JSON.stringify(result, null, 2);
-          html += '</pre>';
-          html += '</details>';
-          
-          html += '</div>';
-          $content.html(html);
-        } else {
-          $content.html('<p style="color: #d63638;">Error: ' + (response.data?.message || 'Error desconocido') + '</p>');
-        }
-      },
-      error: function(xhr, status, error) {
-        console.error('Error en diagnóstico:', status, error);
-        $content.html('<p style="color: #d63638;">Error de comunicación: ' + xhr.status + ' ' + error + '</p>');
-      },
-      complete: function() {
-        $btn.prop('disabled', false).text('Diagnosticar Rango');
-      }
-    });
-  });
-
-  // Rellenar campos con rangos problemáticos conocidos al hacer clic
-  $('.range-badge').on('click', function() {
-    const range = $(this).text().split('-');
-    if (range.length === 2) {
-      $('#diagnostic-inicio').val(range[0]);
-      $('#diagnostic-fin').val(range[1]);
-    }
-  });
 });

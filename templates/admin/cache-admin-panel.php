@@ -15,6 +15,7 @@ $cache_enabled = get_option('mi_integracion_api_enable_http_cache', true);
 $cache_ttl = get_option('mi_integracion_api_http_cache_ttl', 14400);
 $cache_stats = \MiIntegracionApi\Cache\HTTP_Cache_Manager::get_cache_stats();
 $cache_size = \MiIntegracionApi\Cache\HTTP_Cache_Manager::get_cache_size();
+$storage_method = get_option('mi_integracion_api_cache_storage_method', 'transient');
 ?>
 
 <div class="wrap mi-api-cache-admin">
@@ -75,6 +76,25 @@ $cache_size = \MiIntegracionApi\Cache\HTTP_Cache_Manager::get_cache_size();
                 <?php else: ?>
                     <span class="status-value"><?php _e('No hay datos disponibles', 'mi-integracion-api'); ?></span>
                 <?php endif; ?>
+            </div>
+
+            <div class="mi-api-status-item">
+                <span class="dashicons dashicons-database"></span>
+                <span class="status-label"><?php _e('Método de almacenamiento', 'mi-integracion-api'); ?></span>
+                <select id="mi-api-storage-method">
+                    <option value="transient" <?php selected($storage_method, 'transient'); ?>>
+                        <?php _e('Transients (base de datos)', 'mi-integracion-api'); ?>
+                    </option>
+                    <option value="file" <?php selected($storage_method, 'file'); ?>>
+                        <?php _e('Sistema de archivos', 'mi-integracion-api'); ?>
+                    </option>
+                    <?php if (function_exists('apcu_store')): ?>
+                    <option value="apcu" <?php selected($storage_method, 'apcu'); ?>>
+                        <?php _e('APCu (memoria)', 'mi-integracion-api'); ?>
+                    </option>
+                    <?php endif; ?>
+                </select>
+                <button class="button" id="mi-api-update-storage"><?php _e('Actualizar', 'mi-integracion-api'); ?></button>
             </div>
         </div>
         
@@ -209,29 +229,6 @@ $cache_size = \MiIntegracionApi\Cache\HTTP_Cache_Manager::get_cache_size();
                         </label>
                         <p class="description">
                             <?php _e('Esta opción limpiará automáticamente la caché relevante cuando se actualizan productos, pedidos o configuración.', 'mi-integracion-api'); ?>
-                        </p>
-                    </td>
-                </tr>
-                <tr>
-                    <th scope="row">
-                        <?php _e('Método de almacenamiento', 'mi-integracion-api'); ?>
-                    </th>
-                    <td>
-                        <select name="mi_integracion_api_cache_storage_method" id="mi_cache_storage_method">
-                            <option value="transient" <?php selected(get_option('mi_integracion_api_cache_storage_method', 'transient'), 'transient'); ?>>
-                                <?php _e('Transients (base de datos)', 'mi-integracion-api'); ?>
-                            </option>
-                            <option value="file" <?php selected(get_option('mi_integracion_api_cache_storage_method', 'transient'), 'file'); ?>>
-                                <?php _e('Sistema de archivos', 'mi-integracion-api'); ?>
-                            </option>
-                            <?php if (function_exists('apcu_store')): ?>
-                            <option value="apcu" <?php selected(get_option('mi_integracion_api_cache_storage_method', 'transient'), 'apcu'); ?>>
-                                <?php _e('APCu (memoria)', 'mi-integracion-api'); ?>
-                            </option>
-                            <?php endif; ?>
-                        </select>
-                        <p class="description">
-                            <?php _e('Seleccione dónde se almacenarán los datos de caché. La opción APCu solo estará disponible si está instalada en su servidor.', 'mi-integracion-api'); ?>
                         </p>
                     </td>
                 </tr>

@@ -1,0 +1,34 @@
+[
+    {
+        "Alto": 25,
+        "Ancho": 18,
+        "Autores": "Autor Ejemplo",
+        "Descripcion": "Descripción larga del producto...",
+        "FechaInactivo": "2025-06-01",
+        "ID_Categoria": 4,
+        "ID_Fabricante": 1,
+        "Id": 5,
+        "Nombre": "ARTURO",
+        "PorcentajeIVA": 21,
+        "ReferenciaBarras": "9788415250128",
+        "Tipo": 2,
+        "DatoSensible1": "información confidencial",
+        "DatoSensible2": "otra información confidencial",
+        "CampoNoEnPlantilla": "Este campo no aparecerá en la salida"
+    },
+    {
+        "Alto": 30,
+        "Ancho": 22,
+        "Autores": "Otro Autor",
+        "Descripcion": "Otra descripción...",
+        "FechaInactivo": "2025-07-15",
+        "ID_Categoria": 3,
+        "ID_Fabricante": 2,
+        "Id": 6,
+        "Nombre": "PRODUCTO B",
+        "PorcentajeIVA": 10,
+        "ReferenciaBarras": "9788411150222",
+        "Tipo": 1,
+        "DatoExtra": "Este campo tampoco aparecerá"
+    }
+]

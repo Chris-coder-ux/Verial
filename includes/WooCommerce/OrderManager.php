@@ -17,6 +17,10 @@ if (!defined('ABSPATH')) {
 
 use MiIntegracionApi\Core\ApiConnector;
 use MiIntegracionApi\Helpers\Logger;
+use MiIntegracionApi\DTOs\OrderDTO;
+use MiIntegracionApi\Helpers\MapOrder;
+use MiIntegracionApi\Core\RetryManager;
+use MiIntegracionApi\Core\DataSanitizer;
 
 /**
  * Clase OrderManager
@@ -46,11 +50,27 @@ class OrderManager {
     private $logger;
     
     /**
+     * Gestor de reintentos para la sincronización
+     * 
+     * @var RetryManager
+     */
+    private $retry_manager;
+    
+    /**
+     * Sanitizador para datos
+     * 
+     * @var DataSanitizer
+     */
+    private $sanitizer;
+    
+    /**
      * Constructor
      */
     private function __construct() {
         $this->api_connector = ApiConnector::get_instance();
         $this->logger = new \MiIntegracionApi\Helpers\Logger('order-manager');
+        $this->retry_manager = new RetryManager();
+        $this->sanitizer = new DataSanitizer();
         
         // Verificar que WooCommerce esté activo antes de registrar los hooks
         if (!\MiIntegracionApi\Hooks\HooksManager::is_woocommerce_active()) {
@@ -492,6 +512,127 @@ class OrderManager {
         
         // Valor por defecto
         return 21.0; // 21% es el IVA estándar en España
+    }
+
+    /**
+     * Sincroniza un pedido de WooCommerce a Verial
+     *
+     * @param \WC_Order $order Pedido de WooCommerce
+     * @return bool|int Resultado de la sincronización
+     */
+    public function sync_order($order): bool {
+        try {
+            if (!$order instanceof \WC_Order) {
+                $this->logger->error('Pedido no encontrado');
+                return false;
+            }
+
+            $order_data = $this->prepare_order_data($order);
+            $order_data = $this->sanitizer->sanitize($order_data, 'text');
+
+            $order_dto = MapOrder::wc_to_verial($order_data);
+            if (!$order_dto) {
+                $this->logger->error('Error al mapear pedido', [
+                    'pedido_id' => $order->get_id()
+                ]);
+                return false;
+            }
+
+            $result = $this->api_connector->sync_order($order_dto);
+            if ($result) {
+                $this->logger->info('Pedido sincronizado exitosamente', [
+                    'pedido_id' => $order->get_id()
+                ]);
+                return true;
+            }
+
+            $this->logger->error('Error al sincronizar pedido', [
+                'pedido_id' => $order->get_id()
+            ]);
+            return false;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Error al sincronizar pedido', [
+                'error' => $e->getMessage(),
+                'pedido_id' => $order->get_id()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Verifica el estado de sincronización de un pedido
+     *
+     * @param int $order_id ID del pedido
+     * @return string|null Estado de sincronización
+     */
+    public function check_sync_status(int $order_id): ?string {
+        try {
+            // Sanitizar ID del pedido
+            $order_id = $this->sanitizer->sanitize($order_id, 'int');
+
+            // Verificar estado de sincronización
+            $status = $this->api_connector->get_order_sync_status($order_id);
+            if ($status) {
+                return $this->sanitizer->sanitize($status, 'text');
+            }
+
+            return null;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Error al verificar estado de sincronización', [
+                'error' => $e->getMessage(),
+                'pedido_id' => $order_id
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Reintenta la sincronización de un pedido fallido
+     *
+     * @param int $order_id ID del pedido
+     * @return bool Resultado del reintento
+     */
+    public function retry_sync(int $order_id): bool {
+        try {
+            // Sanitizar ID del pedido
+            $order_id = $this->sanitizer->sanitize($order_id, 'int');
+
+            // Verificar si se puede reintentar
+            if (!$this->retry_manager->can_retry('order', $order_id)) {
+                $this->logger->warning('No se puede reintentar la sincronización', [
+                    'pedido_id' => $order_id
+                ]);
+                return false;
+            }
+
+            // Obtener datos del pedido
+            $order = wc_get_order($order_id);
+            if (!$order) {
+                $this->logger->error('No se pudieron obtener los datos del pedido', [
+                    'pedido_id' => $order_id
+                ]);
+                return false;
+            }
+
+            // Intentar sincronización
+            $result = $this->sync_order($order);
+            if ($result) {
+                $this->retry_manager->mark_success('order', $order_id);
+                return true;
+            }
+
+            $this->retry_manager->mark_failure('order', $order_id);
+            return false;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Error al reintentar sincronización', [
+                'error' => $e->getMessage(),
+                'pedido_id' => $order_id
+            ]);
+            return false;
+        }
     }
 }
 // Todas las llamadas a log usan Logger::LEVEL_INFO o Logger::LEVEL_ERROR (corregido previamente).

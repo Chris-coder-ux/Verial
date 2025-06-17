@@ -1,0 +1,197 @@
+<?php
+
+
+namespace MiIntegracionApi\Endpoints;
+/**
+ * Clase para el endpoint GetPaisesWS de la API de Verial ERP.
+ * Obtiene el listado de países, según el manual v1.7.5.
+ *
+ * @author Christian (con mejoras propuestas y revisión)
+ * @package mi-integracion-api
+ * @since 1.0.0
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Salir si se accede directamente.
+}
+
+use MiIntegracionApi\Traits\EndpointLogger;
+
+class GetPaisesWS extends \MiIntegracionApi\Endpoints\Base {
+
+	use EndpointLogger;
+
+	const ENDPOINT_NAME          = 'GetPaisesWS';
+	const CACHE_KEY_PREFIX       = 'mi_api_paises_';
+	const CACHE_EXPIRATION       = 12 * HOUR_IN_SECONDS;
+	const VERIAL_ERROR_SUCCESS   = 0;
+	const MAX_LENGTH_NOMBRE_PAIS = 255; // Longitud máxima para el nombre del país.
+
+	public function __construct() {
+		$this->init_logger(); // Logger base, no específico de productos
+	}
+
+	/**
+	 * Comprueba los permisos para acceder al endpoint.
+	 * Requiere manage_woocommerce y autenticación adicional (API key/JWT).
+	 *
+	 * @param \WP_REST_Request $request
+	 * @return bool|\WP_Error
+	 */
+	public function permissions_check( \WP_REST_Request $request ): bool|\WP_Error {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return new \WP_Error(
+				'rest_forbidden',
+				esc_html__( 'No tienes permiso para ver esta información.', 'mi-integracion-api' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+		if ( class_exists( 'MiIntegracionApi\\Helpers\\AuthHelper' ) ) {
+			$auth_result = \MiIntegracionApi\Helpers\AuthHelper::validate_rest_auth( $request );
+			if ( $auth_result !== true ) {
+				return $auth_result;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Define los argumentos esperados por el endpoint (parámetros query).
+	 *
+	 * @return array
+	 */
+	public function get_endpoint_args( bool $is_update = false ): array {
+		return array(
+			'sesionwcf'     => array(
+				'description'       => __( 'Número de sesión de Verial.', 'mi-integracion-api' ),
+				'type'              => 'integer',
+				'required'          => true,
+				'sanitize_callback' => 'absint',
+			),
+			'force_refresh' => array(
+				'description'       => __( 'Forzar la actualización de la caché.', 'mi-integracion-api' ),
+				'type'              => 'boolean',
+				'required'          => false,
+				'default'           => false,
+				'sanitize_callback' => 'rest_sanitize_boolean',
+			),
+			'nombre_pais'   => array(
+				'type'              => 'string',
+				'required'          => false,
+				'sanitize_callback' => 'sanitize_text_field',
+				'validate_callback' => function ( $param ) {
+					return is_string( $param ) && mb_strlen( $param ) <= static::MAX_LENGTH_NOMBRE_PAIS;
+				},
+			),
+			'context'       => array(
+				'description' => __( 'El contexto de la petición (view, embed, edit).', 'mi-integracion-api' ),
+				'type'        => 'string',
+				'enum'        => array( 'view', 'embed', 'edit' ),
+				'default'     => 'view',
+			),
+		);
+	}
+
+	/**
+	 * Formatea la respuesta de la API de Verial.
+	 *
+	 * @param array $verial_response La respuesta decodificada de Verial.
+	 * @return array|WP_Error Los datos formateados o un WP_Error si el formato es incorrecto.
+	 */
+	protected function format_verial_response( array $verial_response ) {
+		if ( ! isset( $verial_response['Paises'] ) || ! is_array( $verial_response['Paises'] ) ) {
+			$this->logger->errorProducto(
+				'[GetPaisesWS] La respuesta de Verial no contiene la clave "Paises" esperada o no es un array.',
+				array( 'verial_response' => $verial_response )
+			);
+			return new \WP_Error(
+				'verial_api_malformed_paises_data',
+				__( 'Los datos de países recibidos de Verial no tienen el formato esperado.', 'mi-integracion-api' ),
+				array(
+					'status'          => 500,
+					'verial_response' => $verial_response,
+				)
+			);
+		}
+
+		$paises_formateados = array();
+		foreach ( $verial_response['Paises'] as $pais_verial ) {
+			$paises_formateados[] = array(
+				'id'     => isset( $pais_verial['Id'] ) ? absint( $pais_verial['Id'] ) : null,
+				'nombre' => isset( $pais_verial['Nombre'] ) ? sanitize_text_field( $pais_verial['Nombre'] ) : null,
+				'iso2'   => isset( $pais_verial['ISO2'] ) ? sanitize_text_field( $pais_verial['ISO2'] ) : null,
+				'iso3'   => isset( $pais_verial['ISO3'] ) ? sanitize_text_field( $pais_verial['ISO3'] ) : null,
+			);
+		}
+		return $paises_formateados;
+	}
+
+	/**
+	 * Ejecuta la lógica del endpoint.
+	 *
+	 * @param WP_REST_Request $request Datos de la solicitud.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function execute_restful( \WP_REST_Request $request ): \WP_REST_Response {
+		// Rate limiting por IP/API key
+		$api_key    = $request->get_header( 'X-Api-Key' ) ?: null;
+		$rate_limit = \MiIntegracionApi\Helpers\AuthHelper::check_rate_limit( 'get_paises', $api_key );
+		if ( $rate_limit instanceof \WP_Error ) {
+			return $rate_limit;
+		}
+
+		$params        = $request->get_params();
+		$sesionwcf     = $params['sesionwcf'];
+		$force_refresh = $params['force_refresh'] ?? false;
+
+		$cache_params_for_key = array(
+			'sesionwcf' => $sesionwcf,
+		);
+
+		if ( ! $force_refresh ) {
+			$cached_data = $this->get_cached_data( $cache_params_for_key );
+			if ( false !== $cached_data ) {
+				return new \WP_REST_Response( $cached_data, 200 );
+			}
+		}
+
+		$verial_api_params = array( 'x' => $sesionwcf );
+		$result            = $this->connector->get( self::ENDPOINT_NAME, $verial_api_params );
+
+		// Si no es un error, procesamos y formateamos la respuesta
+		if ( ! is_wp_error( $result ) && isset( $result['Paises'] ) && is_array( $result['Paises'] ) ) {
+			$formatted = $this->format_verial_response( $result );
+
+			// Solo guardamos en caché si no es un WP_Error
+			if ( ! is_wp_error( $formatted ) ) {
+				$this->set_cached_data( $cache_params_for_key, $formatted );
+				return rest_ensure_response( $formatted );
+			}
+		}
+
+		// Si hay un error o la respuesta no tiene el formato esperado,
+		// devolvemos el resultado original
+		return rest_ensure_response( $result );
+	}
+
+	/**
+	 * Implementación requerida por la clase abstracta Base.
+	 * El registro real de rutas ahora está centralizado en REST_API_Handler.php
+	 */
+	public function register_route(): void {
+		// Esta implementación está vacía ya que el registro real
+		// de rutas ahora se hace de forma centralizada en REST_API_Handler.php
+	}
+}
+
+/*
+ * Ejemplo de cómo se registraría la ruta en el archivo principal del plugin:
+ *
+ * add_action('rest_api_init', function () {
+ * // Asumir que $api_connector es una instancia de ApiConnector pasada por inyección de dependencias.
+ * if (class_exists('MI_Endpoint_GetPaisesWS')) {
+ *     $paises_endpoint = MI_Endpoint_GetPaisesWS::make($api_connector);
+ *     $paises_endpoint->register_route();
+ * }
+ * });
+ */

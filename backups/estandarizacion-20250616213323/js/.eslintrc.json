@@ -1,0 +1,31 @@
+{
+  "env": {
+    "browser": true,
+    "jquery": true,
+    "es6": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 2018,
+    "sourceType": "module"
+  },
+  "rules": {
+    "indent": ["error", 2],
+    "linebreak-style": ["error", "unix"],
+    "quotes": ["error", "single"],
+    "semi": ["error", "always"],
+    "no-console": ["warn", { "allow": ["error"] }],
+    "no-unused-vars": ["warn"]
+  },
+  "globals": {
+    "wp": "readonly",
+    "ajaxurl": "readonly",
+    "miIntegracionApi": "readonly",
+    "mia_admin_ajax": "readonly",
+    "miEndpointsPage": "readonly",
+    "miApiCacheAdmin": "readonly",
+    "miApiCompat": "readonly",
+    "mi_hpos_test": "readonly",
+    "gridjs": "readonly"
+  }
+}

@@ -33,8 +33,7 @@ class ErrorHandler {
 			__( 'ErrorHandler::log_error() está obsoleto. Use MiIntegracionApi\Helpers\Logger::error() en su lugar.', 'mi-integracion-api' ),
 			E_USER_DEPRECATED
 		);
-		$logger = new Logger('deprecated');
-		$logger->error($message, ['context' => $context]);
+		Logger::error($message, $context);
 	}
 	
 	/**
@@ -49,7 +48,6 @@ class ErrorHandler {
 			__( 'ErrorHandler::log_info() está obsoleto. Use MiIntegracionApi\Helpers\Logger::info() en su lugar.', 'mi-integracion-api' ),
 			E_USER_DEPRECATED
 		);
-		$logger = new Logger('deprecated');
-		$logger->info($message, ['context' => $context]);
+		Logger::info($message, $context);
 	}
 }

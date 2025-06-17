@@ -1,0 +1,4074 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Gestor de sincronización bidireccional entre WooCommerce y Verial
+ *
+ * @package MiIntegracionApi\Core
+ * @since 1.0.0
+ */
+
+namespace MiIntegracionApi\Core;
+
+use WP_Error;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Salir si se accede directamente
+}
+
+/**
+ * Clase para gestionar la sincronización entre WooCommerce y Verial ERP
+ */
+class Sync_Manager {
+	/**
+	 * Clave de opción para almacenar el estado de sincronización
+	 */
+	const SYNC_STATUS_OPTION = 'mi_integracion_api_sync_status';
+
+	/**
+	 * Clave de opción para almacenar el historial de sincronización
+	 */
+	const SYNC_HISTORY_OPTION = 'mi_integracion_api_sync_history';
+
+	/**
+	 * Instancia del gestor de configuración.
+	 *
+	 * @var Config_Manager
+	 */
+	private $config_manager;
+
+	/**
+	 * Instancia única de la clase
+	 *
+	 * @var Sync_Manager
+	 */
+	private static $instance = null;
+
+	/**
+	 * Cliente de API de Verial
+	 *
+	 * @var \MiIntegracionApi\Core\ApiConnector
+	 */
+	private $api_connector;
+
+	/**
+	 * Estado actual de sincronización
+	 *
+	 * @var array
+	 */
+	private $sync_status = null;
+
+	/**
+	 * Constructor
+	 */
+	private function __construct() {
+		$this->api_connector = function_exists( 'mi_integracion_api_get_connector' )
+			? \MiIntegracionApi\Helpers\ApiHelpers::get_connector()
+			: new \MiIntegracionApi\Core\ApiConnector();
+		$this->config_manager = Config_Manager::get_instance();
+		$this->load_sync_status();
+	}
+
+	/**
+	 * Obtiene la instancia única de la clase
+	 *
+	 * @return Sync_Manager
+	 */
+	public static function get_instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+
+	/**
+	 * Carga el estado actual de sincronización
+	 */
+	private function load_sync_status() {
+		if ( $this->sync_status === null ) {
+			$this->sync_status = get_option(
+				self::SYNC_STATUS_OPTION,
+				array(
+					'last_sync'    => array(
+						'products' => array(
+							'wc_to_verial' => 0,
+							'verial_to_wc' => 0,
+						),
+						'orders'   => array(
+							'wc_to_verial' => 0,
+							'verial_to_wc' => 0,
+						),
+					),
+					'current_sync' => array(
+						'in_progress'   => false,
+						'entity'        => '',
+						'direction'     => '',
+						'batch_size'    => (int) $this->config_manager->get('mia_sync_batch_size', 100),
+						'current_batch' => 0,
+						'total_batches' => 0,
+						'items_synced'  => 0,
+						'total_items'   => 0,
+						'errors'        => 0,
+						'start_time'    => 0,
+						'last_update'   => 0,
+					),
+				)
+			);
+		}
+	}
+
+	/**
+	 * Guarda el estado de sincronización actual
+	 */
+	private function save_sync_status() {
+		update_option( self::SYNC_STATUS_OPTION, $this->sync_status, true );
+	}
+
+	/**
+	 * Agrega un registro al historial de sincronización
+	 *
+	 * @param array $sync_data Datos de la sincronización
+	 */
+	private function add_to_history( $sync_data ) {
+		$history = get_option( self::SYNC_HISTORY_OPTION, array() );
+
+		// Limitar el tamaño del historial a 100 registros
+		if ( count( $history ) >= 100 ) {
+			array_shift( $history );
+		}
+
+		$history[] = $sync_data;
+
+		update_option( self::SYNC_HISTORY_OPTION, $history, true );
+	}
+
+	/**
+	 * Obtiene el estado actual de sincronización
+	 *
+	 * @return array Estado actual de sincronización
+	 */
+	public function get_sync_status() {
+		$this->load_sync_status();
+		return $this->sync_status;
+	}
+
+	/**
+	 * Obtiene el historial de sincronizaciones
+	 *
+	 * @param int $limit Número máximo de registros a devolver
+	 * @return array Historial de sincronizaciones
+	 */
+	public function get_sync_history( $limit = 100 ) {
+		$history = get_option( self::SYNC_HISTORY_OPTION, array() );
+		return array_slice( $history, -$limit );
+	}
+
+	/**
+	 * Reintenta la sincronización para un conjunto de errores específicos.
+	 *
+	 * @param array $error_ids IDs de los errores a reintentar.
+	 * @return array|WP_Error Resultado de la operación.
+	 */
+	public function retry_sync_errors( array $error_ids ): array|WP_Error {
+		global $wpdb;
+		$table_name = $wpdb->prefix . Installer::SYNC_ERRORS_TABLE;
+
+		$ids_placeholder = implode( ',', array_fill( 0, count( $error_ids ), '%d' ) );
+		$sql = $wpdb->prepare( "SELECT item_data FROM {$table_name} WHERE id IN ($ids_placeholder)", $error_ids );
+		$results = $wpdb->get_col( $sql );
+
+		if ( empty( $results ) ) {
+			return new WP_Error( 'no_errors_found', __( 'No se encontraron los errores especificados para reintentar.', 'mi-integracion-api' ) );
+		}
+
+		$products_to_retry = array_map( 'json_decode', $results, array_fill(0, count($results), true) );
+
+		// Aquí se podría iniciar un proceso de sincronización especial
+		// Por simplicidad, de momento solo devolvemos los productos a reintentar.
+		return [
+			'status' => 'retry_initiated',
+			'item_count' => count($products_to_retry),
+			'items' => $products_to_retry,
+		];
+	}
+
+	/**
+	 * Inicia un proceso de sincronización
+	 *
+	 * @param string $entity Entidad a sincronizar ('products' o 'orders')
+	 * @param string $direction Dirección de la sincronización ('wc_to_verial' o 'verial_to_wc')
+	 * @param array  $filters Filtros adicionales para la sincronización
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	public function start_sync( $entity, $direction, $filters = array() ) {
+		$this->load_sync_status();
+
+		// Verificar si ya hay una sincronización en progreso
+		if ( $this->sync_status['current_sync']['in_progress'] ) {
+			return new \WP_Error(
+				'sync_in_progress',
+				__( 'Ya hay una sincronización en progreso.', 'mi-integracion-api' )
+			);
+		}
+
+		// Validar la entidad
+		if ( ! in_array( $entity, array( 'products', 'orders' ) ) ) {
+			return new \WP_Error(
+				'invalid_entity',
+				__( 'Entidad inválida para sincronización.', 'mi-integracion-api' )
+			);
+		}
+
+		// Validar la dirección
+		if ( ! in_array( $direction, array( 'wc_to_verial', 'verial_to_wc' ) ) ) {
+			return new \WP_Error(
+				'invalid_direction',
+				__( 'Dirección de sincronización inválida.', 'mi-integracion-api' )
+			);
+		}
+
+		// Verificar conexión con Verial
+		if ( ! $this->api_connector->has_valid_credentials() ) {
+			return new \WP_Error(
+				'no_credentials',
+				__( 'No hay credenciales válidas para Verial.', 'mi-integracion-api' )
+			);
+		}
+
+		// Obtener el total de items a sincronizar
+		$total_items = $this->count_items_for_sync( $entity, $direction, $filters );
+
+		if ( is_wp_error( $total_items ) ) {
+			return $total_items;
+		}
+
+		// UNIFICACIÓN: Usar una sola fuente para el tamaño de lote
+		// Eliminar configuraciones redundantes y usar consistentemente la misma opción
+		$batch_size = (int) get_option('mi_integracion_api_batch_size', 20); // Valor por defecto unificado
+		
+		// Limitar el tamaño de lote para GetArticulosWS y aplicar validaciones de seguridad
+		if ($entity === 'products' && $direction === 'verial_to_wc') {
+			// Validar que el tamaño del lote esté en un rango razonable y seguro
+			if ($batch_size < 5) {
+				$batch_size = 10; // Mínimo seguro
+			} elseif ($batch_size > 100) {
+				$batch_size = 100; // Máximo permitido
+			}
+			
+			// Registrar el tamaño de lote que se va a usar para diagnóstico
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-config');
+				$logger->info(
+					sprintf('Usando tamaño de lote unificado: %d productos por lote', $batch_size),
+					[
+						'entity' => $entity,
+						'direction' => $direction,
+						'source' => 'mi_integracion_api_batch_size',
+						'request_batch_size' => isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : 'no_especificado',
+						'validated_size' => $batch_size
+					]
+				);
+			}
+			
+			// NUEVA FUNCIONALIDAD: Prevalidar rangos disponibles antes de iniciar sincronización
+			// Esto solo se hace para sincronización de productos desde Verial a WooCommerce
+			$prevalidation_enabled = apply_filters('mi_integracion_api_enable_prevalidation', true);
+			
+			if ($prevalidation_enabled && $total_items > 0) {
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+					$logger->info('Iniciando prevalidación de rangos de productos', [
+						'total_productos' => $total_items,
+						'filtros' => $filters
+					]);
+				}
+				
+				// Almacenar prevalidación en transient
+				$availability_map = $this->prevalidate_product_ranges($total_items, $batch_size, $filters);
+				
+				// Ajustar el total real basado en los productos encontrados
+				if ($availability_map['total_available'] > 0 && $availability_map['total_available'] < $total_items) {
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-prevalidation');
+						$logger->warning(
+							sprintf('Ajustando conteo de productos de %d a %d basado en prevalidación',
+								$total_items, $availability_map['total_available']),
+							[
+								'original_count' => $total_items,
+								'available_count' => $availability_map['total_available'],
+								'problematic_count' => $availability_map['total_problematic'],
+								'problematic_ranges' => $availability_map['problematic_ranges']
+							]
+						);
+					}
+					
+					// Solo si la diferencia es significativa
+					if ($availability_map['total_available'] < ($total_items * 0.9)) {
+						$total_items = $availability_map['total_available'];
+						
+						// También mostrar una notificación si hay muchos rangos problemáticos
+						if (count($availability_map['problematic_ranges']) > 0) {
+							add_action('admin_notices', function() use ($availability_map) {
+								echo '<div class="notice notice-warning is-dismissible">';
+								echo '<p><strong>' . esc_html__('Mi Integración API:', 'mi-integracion-api') . '</strong> ';
+								echo esc_html__(
+									sprintf('Se han detectado %d rangos problemáticos que podrían causar problemas durante la sincronización. Los productos en estos rangos serán omitidos.',
+										count($availability_map['problematic_ranges']))
+								);
+								echo '</p></div>';
+							});
+						}
+					}
+				}
+			}
+		}
+		
+		$total_batches = $total_items > 0 ? (int) ceil( $total_items / $batch_size ) : 0;
+
+		// Actualizar el estado de sincronización
+		// Generar un ID único para esta ejecución de sincronización
+		$sync_run_id = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('sync_', true);
+
+		// Inicializar tracking de recuperación y lotes
+		delete_transient('mia_sync_completed_batches');
+		delete_transient('mia_sync_processed_skus');
+		delete_transient('mia_sync_current_batch_offset');
+		delete_transient('mia_sync_current_batch_limit');
+		
+		$this->sync_status['current_sync'] = array(
+			'in_progress'   => true,
+			'run_id'        => $sync_run_id,
+			'entity'        => $entity,
+			'direction'     => $direction,
+			'batch_size'    => $batch_size,
+			'current_batch' => 0,
+			'total_batches' => $total_batches,
+			'items_synced'  => 0,
+			'total_items'   => $total_items,
+			'errors'        => 0,
+			'filters'       => $filters,
+			'start_time'    => time(),
+			'last_update'   => time(),
+			'recovery_enabled' => true,
+			'last_error'    => null,
+		);
+
+		$this->save_sync_status();
+
+		// Iniciar el primer lote
+		return $this->process_next_batch(false);
+	}
+
+	/**
+	 * Procesa el siguiente lote de sincronización con soporte de recuperación
+	 *
+	 * @param bool $recovery_mode Si se está ejecutando en modo recuperación
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	public function process_next_batch($recovery_mode = false) {
+		// Protección contra errores fatales para prevenir el error "Cannot use object of type WP_Error as array"
+		try {
+			return $this->_process_next_batch_internal($recovery_mode);
+		} catch (\Throwable $e) {
+			// Capturar cualquier error o excepción que pueda ocurrir
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-critical-error');
+				$logger->error('Excepción crítica en process_next_batch: ' . $e->getMessage(), [
+					'exception_class' => get_class($e),
+					'file' => $e->getFile(),
+					'line' => $e->getLine(),
+					'trace' => $e->getTraceAsString(),
+					'memory_usage' => memory_get_usage(true),
+					'peak_memory' => memory_get_peak_usage(true)
+				]);
+			}
+			
+			// Crear un mensaje de error apropiado
+			if (strpos($e->getMessage(), 'Cannot use object of type WP_Error as array') !== false) {
+				$error_message = __('Error al procesar respuesta de la API. Puede ser debido a un timeout o respuesta vacía. Intente reducir el tamaño del lote.', 'mi-integracion-api');
+			} else {
+				$error_message = __('Error inesperado durante la sincronización: ', 'mi-integracion-api') . $e->getMessage();
+			}
+			
+			// Devolver un WP_Error con información detallada
+			return new \WP_Error(
+				'sync_fatal_error',
+				$error_message,
+				[
+					'exception' => $e->getMessage(),
+					'file' => basename($e->getFile()),
+					'line' => $e->getLine(),
+					'recovery_suggested' => true
+				]
+			);
+		}
+	}
+	
+	/**
+	 * Implementación interna del procesamiento de lotes con validación reforzada
+	 *
+	 * @param bool $recovery_mode Si se está ejecutando en modo recuperación
+	 * @return array|WP_Error Resultado de la operación
+	 * @throws \Exception Si ocurre un error grave durante el procesamiento
+	 */
+	private function _process_next_batch_internal($recovery_mode = false) {
+		// Verificar si hay una sincronización activa
+		if (!isset($this->sync_status['current_sync']) || !$this->sync_status['current_sync']['in_progress']) {
+			return new WP_Error('no_sync_in_progress', __('No hay una sincronización en curso.', 'mi-integracion-api'));
+		}
+
+		// Iniciar logger para diagnóstico
+		$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-process');
+		$logger->info('Iniciando procesamiento de lote', [
+			'batch_number' => $this->sync_status['current_sync']['current_batch'] + 1,
+			'total_batches' => $this->sync_status['current_sync']['total_batches'],
+			'recovery_mode' => $recovery_mode ? 'SÍ' : 'NO',
+			'memory_usage_start' => memory_get_usage(true),
+			'batch_size' => $this->sync_status['current_sync']['batch_size']
+		]);
+
+		$entity = $this->sync_status['current_sync']['entity'];
+		$direction = $this->sync_status['current_sync']['direction'];
+		$batch_num = $this->sync_status['current_sync']['current_batch'];
+		$batch_size = $this->sync_status['current_sync']['batch_size'];
+		$filters = $this->sync_status['current_sync']['filters'] ?? array();
+
+		// Obtener datos para este lote según la entidad y dirección
+		try {
+			$batch_data = [];
+			
+			switch ($entity) {
+				case 'products':
+					// CASO SINCRONIZACIÓN DE PRODUCTOS
+					if ($direction === 'verial_to_wc') {
+						// Verial a WooCommerce
+						$offset = $batch_num * $batch_size;
+						
+						// Registrar para diagnóstico
+						$logger->debug('Parámetros para obtener productos', [
+							'offset' => $offset,
+							'limit' => $batch_size,
+							'filters' => $filters
+						]);
+						
+						// Preparar parámetros para API
+						$params = array(
+							'inicio' => $offset + 1, // API usa base 1
+							'fin' => $offset + $batch_size,
+						);
+						
+						// Agregar filtros adicionales si existen
+						if (!empty($filters)) {
+							foreach ($filters as $key => $value) {
+								if (!empty($value)) {
+									$params[$key] = $value;
+								}
+							}
+						}
+						
+						// Obtener productos desde Verial con manejo robusto de errores
+						$api_response = $this->api_connector->get_articulos($params);
+						
+						// Verificar si hay error en la respuesta
+						if (is_wp_error($api_response)) {
+							$logger->error('Error al obtener productos de Verial', [
+								'error_code' => $api_response->get_error_code(),
+								'error_message' => $api_response->get_error_message(),
+								'params' => $params
+							]);
+							return $api_response;
+						}
+						
+						// Validar la estructura de la respuesta
+						if (!is_array($api_response)) {
+							$logger->error('Respuesta de API no válida (no es array)', [
+								'tipo_respuesta' => gettype($api_response)
+							]);
+							return new WP_Error(
+								'invalid_api_response',
+								__('La respuesta de la API no tiene el formato esperado.', 'mi-integracion-api'),
+								['tipo' => gettype($api_response)]
+							);
+						}
+						
+						// Validar que la respuesta contiene artículos
+						if (isset($api_response['Articulos']) && is_array($api_response['Articulos'])) {
+							// Formato con clave 'Articulos'
+							$batch_data = $api_response['Articulos'];
+							$logger->info('Productos obtenidos en formato [Articulos]', [
+								'count' => count($batch_data)
+							]);
+						} elseif (is_array($api_response) && isset($api_response[0])) {
+							// Formato de array directo de artículos
+							$batch_data = $api_response;
+							$logger->info('Productos obtenidos en formato de array directo', [
+								'count' => count($batch_data)
+							]);
+						} else {
+							// Intentar determinar el formato de la respuesta para diagnóstico
+							$keys = is_array($api_response) ? array_keys($api_response) : [];
+							$logger->error('Formato de respuesta no reconocido', [
+								'claves_disponibles' => $keys,
+								'tipo' => gettype($api_response)
+							]);
+							
+							return new WP_Error(
+								'invalid_api_response_format',
+								__('La respuesta de la API no contiene productos en el formato esperado.', 'mi-integracion-api'),
+								['claves' => $keys]
+							);
+						}
+						
+						// Validación adicional: verificar que todos los elementos son arrays y tienen datos mínimos necesarios
+						$invalid_items = [];
+						$incomplete_items = [];
+						foreach ($batch_data as $index => $item) {
+							if (!is_array($item)) {
+								$invalid_items[$index] = gettype($item);
+								continue;
+							}
+							
+							// Verificar datos mínimos requeridos para un producto válido
+							$has_sku = false;
+							$sku_fields = ['ReferenciaBarras', 'Id', 'CodigoArticulo'];
+							foreach ($sku_fields as $field) {
+								if (isset($item[$field]) && is_scalar($item[$field]) && !empty($item[$field])) {
+									$has_sku = true;
+									break;
+								}
+							}
+							
+							if (!$has_sku) {
+								$incomplete_items[$index] = 'Sin SKU/ReferenciaBarras';
+							}
+						}
+						
+						// Registrar advertencias sobre elementos inválidos
+						if (!empty($invalid_items)) {
+							$logger->warning('Se encontraron elementos no válidos en la respuesta', [
+								'invalid_items' => $invalid_items,
+								'count' => count($invalid_items)
+							]);
+							
+							// Filtrar solo los elementos con estructura válida
+							$batch_data = array_filter($batch_data, function($item) {
+								return is_array($item);
+							});
+						}
+						
+						// Registrar advertencias sobre elementos incompletos
+						if (!empty($incomplete_items)) {
+							$logger->warning('Se encontraron productos con datos incompletos (sin SKU/ID)', [
+								'incomplete_items' => $incomplete_items,
+								'count' => count($incomplete_items)
+							]);
+							
+							// Filtrar solo los elementos con SKU/ID
+							$batch_data = array_filter($batch_data, function($item) {
+								if (!is_array($item)) return false;
+								
+								// Verificar existencia de SKU/ID
+								$sku_fields = ['ReferenciaBarras', 'Id', 'CodigoArticulo'];
+								foreach ($sku_fields as $field) {
+									if (isset($item[$field]) && is_scalar($item[$field]) && !empty($item[$field])) {
+										return true;
+									}
+								}
+								return false;
+							});
+						}
+						
+						// Regenerar índices después de filtrar
+						$batch_data = array_values($batch_data);
+						
+						$logger->info('Productos después de filtrar elementos inválidos/incompletos', [
+							'count_after_filter' => count($batch_data),
+							'invalid_removed' => count($invalid_items),
+							'incomplete_removed' => count($incomplete_items)
+						]);
+						
+						// Si después de todo el proceso no hay elementos válidos
+						if (empty($batch_data)) {
+							$logger->error('No se obtuvieron productos válidos de la API');
+							return new WP_Error(
+								'no_valid_products',
+								__('No se obtuvieron productos válidos de la API.', 'mi-integracion-api')
+							);
+						}
+						
+					} else {
+						// Dirección no soportada
+						$logger->error('Dirección de sincronización no soportada: ' . $direction);
+						return new WP_Error(
+							'unsupported_direction',
+							__('Dirección de sincronización no soportada.', 'mi-integracion-api')
+						);
+					}
+					break;
+					
+				// Otros casos para otras entidades (orders, etc)
+				default:
+					$logger->error('Entidad no soportada: ' . $entity);
+					return new \WP_Error(
+						'unsupported_entity',
+						__('Entidad de sincronización no soportada.', 'mi-integracion-api')
+					);
+			}
+			
+			// Procesar los datos obtenidos
+			$result = $this->process_batch_data($batch_data, $entity, $direction);
+			
+			// Actualizar estadísticas de sincronización
+			$this->sync_status['current_sync']['items_synced'] += $result['processed'];
+			$this->sync_status['current_sync']['errors'] += $result['errors'];
+			$this->sync_status['current_sync']['current_batch']++;
+			$this->sync_status['current_sync']['last_update'] = time();
+			
+			// Verificar si se ha completado la sincronización
+			if ($this->sync_status['current_sync']['current_batch'] >= $this->sync_status['current_sync']['total_batches']) {
+				// Se han procesado todos los lotes
+				$this->finalize_sync();
+				
+				$logger->info('Sincronización completada', [
+					'total_processed' => $this->sync_status['current_sync']['items_synced'],
+					'total_errors' => $this->sync_status['current_sync']['errors'],
+					'total_batches' => $this->sync_status['current_sync']['total_batches'],
+					'memory_peak' => memory_get_peak_usage(true)
+				]);
+				
+				return array(
+					'status' => 'completed',
+					'processed' => $result['processed'],
+					'errors' => $result['errors'],
+					'message' => __('Sincronización completada.', 'mi-integracion-api'),
+				);
+			}
+			
+			// Aún hay más lotes por procesar
+			$this->save_sync_status();
+			
+			$logger->info('Lote procesado correctamente', [
+				'processed' => $result['processed'],
+				'errors' => $result['errors'],
+				'next_batch' => $this->sync_status['current_sync']['current_batch'],
+				'progress_percent' => round(
+					($this->sync_status['current_sync']['current_batch'] / $this->sync_status['current_sync']['total_batches']) * 100, 
+					2
+				),
+				'memory_used' => memory_get_usage(true)
+			]);
+			
+			return array(
+				'status' => 'in_progress',
+				'batch' => $batch_num,
+				'next_batch' => $this->sync_status['current_sync']['current_batch'],
+				'processed' => $result['processed'],
+				'errors' => $result['errors'],
+				'progress' => round(
+					($this->sync_status['current_sync']['current_batch'] / $this->sync_status['current_sync']['total_batches']) * 100
+				),
+				'message' => sprintf(
+					__('Procesado lote %d de %d.', 'mi-integracion-api'),
+					$batch_num + 1,
+					$this->sync_status['current_sync']['total_batches']
+				),
+			);
+			
+		} catch (\Exception $e) {
+			// Registrar el error
+			$logger->error('Excepción durante el procesamiento del lote', [
+				'exception' => $e->getMessage(),
+				'file' => $e->getFile(),
+				'line' => $e->getLine(),
+				'trace' => $e->getTraceAsString()
+			]);
+			
+			// Actualizar estado para incluir información del error
+			$this->sync_status['current_sync']['last_error'] = [
+				'time' => time(),
+				'message' => $e->getMessage(),
+				'batch' => $batch_num
+			];
+			$this->save_sync_status();
+			
+			// Devolver error al cliente
+			return new WP_Error(
+				'sync_batch_exception',
+				__('Error en el procesamiento del lote: ', 'mi-integracion-api') . $e->getMessage(),
+				[
+					'batch' => $batch_num,
+					'exception' => $e->getMessage()
+				]
+			);
+		}
+	}
+	
+	/**
+	 * Procesamiento de datos de un lote
+	 * 
+	 * @param array $batch_data
+	 * @param string $entity
+	 * @param string $direction
+	 * @return array
+	 */
+	private function process_batch_data($batch_data, $entity, $direction) {
+
+		// Verificar si hay una sincronización en progreso
+		if (!$this->sync_status['current_sync']['in_progress']) {
+			return new \WP_Error(
+				'no_sync_in_progress',
+				__('No hay una sincronización en progreso.', 'mi-integracion-api')
+			);
+		}
+		
+		// Registrar inicio del procesamiento con información de diagnóstico
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-process');
+			$logger->info('Iniciando procesamiento de un nuevo lote', [
+				'memory_usage_start' => memory_get_usage(true),
+				'peak_memory_start' => memory_get_peak_usage(true),
+				'recovery_mode' => $recovery_mode,
+				'sync_status' => $this->sync_status['current_sync']
+			]);
+		}
+
+		// Obtener los datos de la sincronización actual
+		$entity = $this->sync_status['current_sync']['entity'];
+		$direction = $this->sync_status['current_sync']['direction'];
+		$current_batch = $this->sync_status['current_sync']['current_batch'];
+		$batch_size = $this->sync_status['current_sync']['batch_size'];
+		$filters = isset($this->sync_status['current_sync']['filters']) ? $this->sync_status['current_sync']['filters'] : array();
+
+		// Intentar recuperar desde el último lote fallido si estamos en modo recuperación
+		if ($recovery_mode && $entity === 'products' && $direction === 'verial_to_wc') {
+			$last_batch_info = $this->get_last_failed_batch();
+			if ($last_batch_info) {
+				$current_batch = floor($last_batch_info['offset'] / $batch_size);
+				
+				// Registrar la recuperación
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-recovery');
+					$logger->info(
+						'Recuperando desde lote fallido',
+						[
+							'offset' => $last_batch_info['offset'],
+							'batch_size' => $batch_size,
+							'current_batch' => $current_batch
+						]
+					);
+				}
+			}
+		}
+
+		// Incrementar el número de lote actual
+		++$current_batch;
+		$this->sync_status['current_sync']['current_batch'] = $current_batch;
+		$this->save_sync_status();
+
+		// Calcular el offset para el lote actual
+		$offset = ($current_batch - 1) * $batch_size;
+		
+		// Registrar inicio del procesamiento del lote
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch');
+			$logger->info(
+				sprintf('Iniciando procesamiento de lote #%d (offset %d, batch_size %d)',
+					$current_batch, $offset, $batch_size),
+				[
+					'entity' => $entity,
+					'direction' => $direction,
+					'recovery_mode' => $recovery_mode
+				]
+			);
+		}
+
+		// Verificar si este lote ya se completó previamente (para casos de reinicio)
+		if ($entity === 'products' && $direction === 'verial_to_wc') {
+			$batch_key = $offset . '-' . ($offset + $batch_size);
+			$completed_batches = get_transient('mia_sync_completed_batches');
+			
+			if (is_array($completed_batches) && isset($completed_batches[$batch_key])) {
+				// Este lote ya se completó, podemos saltar
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch');
+					$logger->info(
+						sprintf('Lote #%d ya fue completado previamente, saltando', $current_batch),
+						[
+							'batch_key' => $batch_key,
+							'completed_at' => date('Y-m-d H:i:s', $completed_batches[$batch_key])
+						]
+					);
+				}
+				
+				// Actualizar el estado como si se hubiera procesado
+				$this->sync_status['current_sync']['items_synced'] += $batch_size;
+				$this->sync_status['current_sync']['last_update'] = time();
+				$this->save_sync_status();
+				
+				// Verificar si se completó la sincronización
+				if ($current_batch >= $this->sync_status['current_sync']['total_batches']) {
+					return $this->finish_sync();
+				}
+				
+				// Devolver el progreso actual como si se hubiera procesado
+				return array(
+					'status' => 'in_progress',
+					'skipped_batch' => true,
+					'progress' => array(
+						'current_batch' => $current_batch,
+						'total_batches' => $this->sync_status['current_sync']['total_batches'],
+						'items_synced' => $this->sync_status['current_sync']['items_synced'],
+						'total_items' => $this->sync_status['current_sync']['total_items'],
+						'percentage' => floor(($this->sync_status['current_sync']['items_synced'] / $this->sync_status['current_sync']['total_items']) * 100),
+					),
+				);
+			}
+		}
+
+		// Actualizar transient de actividad para monitoreo
+		set_transient('mia_sync_last_activity', time(), HOUR_IN_SECONDS);
+
+		// Procesar el lote según la entidad y dirección
+		if ($entity === 'products') {
+			if ($direction === 'wc_to_verial') {
+				$result = $this->sync_products_to_verial($offset, $batch_size, $filters);
+			} else {
+				// Para productos desde Verial, registrar el tamaño original para ajuste
+				$original_batch_size = $batch_size;
+				
+				// Recuperar el tamaño de lote seleccionado por el usuario (más reciente)
+				$user_selected_batch_size = get_option('mi_integracion_api_optimal_batch_size', 20);
+				
+				// Usar el tamaño seleccionado por el usuario si está disponible
+				if ($user_selected_batch_size > 0) {
+					$batch_size = $user_selected_batch_size;
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-size');
+						$logger->info(
+							sprintf('Usando tamaño de lote seleccionado por el usuario: %d', $batch_size),
+							[
+								'offset' => $offset,
+								'batch' => $current_batch,
+								'original_batch_size' => $original_batch_size,
+								'user_selected_batch_size' => $user_selected_batch_size
+							]
+						);
+					}
+				}
+				
+				// Implementación de seguridad adicional: forzar tamaño máximo de lote seguro
+				if ($batch_size > 50) {
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-safe-batch');
+						$logger->warning(
+							sprintf('Forzando reducción de tamaño de lote de %d a 50 para prevenir timeouts',
+								$batch_size),
+							[
+								'offset' => $offset,
+								'batch' => $current_batch,
+								'large_batch_size' => $batch_size
+							]
+						);
+					}
+					$batch_size = 50;
+				}
+				
+				// MEJORA: Verificar si el offset actual está en un rango problemático conocido
+				$problematic_ranges = [
+					[2601, 2610], [2801, 2810], [3101, 3110], [3201, 3210],
+					[2501, 2510], [2701, 2710], [2901, 2910], [3001, 3010], [3301, 3310],
+					[3401, 3410], [3501, 3510], [3601, 3610], [3701, 3710],
+					[2401, 2410], [2481, 2490], [2581, 2590], [2681, 2690], [2781, 2790],
+				];
+				
+				$current_start = $offset + 1;
+				$current_end = $offset + $batch_size;
+				$is_problematic_range = false;
+				
+				foreach ($problematic_ranges as $range) {
+					if (($current_start >= $range[0] && $current_start <= $range[1]) ||
+					    ($current_end >= $range[0] && $current_end <= $range[1]) ||
+					    ($current_start <= $range[0] && $current_end >= $range[1])) {
+						$is_problematic_range = true;
+						
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-skip-problematic');
+							$logger->warning(
+								sprintf('Saltando rango problemático conocido: %d-%d (offset %d)', 
+									$current_start, $current_end, $offset),
+								[
+									'problematic_range' => $range,
+									'current_range' => [$current_start, $current_end],
+									'batch_size' => $batch_size,
+									'skip_reason' => 'known_problematic_range'
+								]
+							);
+						}
+						break;
+					}
+				}
+				
+				if ($is_problematic_range) {
+					// Saltar este lote y continuar con el siguiente
+					$this->sync_status['current_sync']['current_offset'] = $offset + $batch_size;
+					
+					// Registrar el salto en las estadísticas
+					if (!isset($this->sync_status['current_sync']['skipped_ranges'])) {
+						$this->sync_status['current_sync']['skipped_ranges'] = [];
+					}
+					$this->sync_status['current_sync']['skipped_ranges'][] = [
+						'range' => [$current_start, $current_end],
+						'reason' => 'known_problematic_range',
+						'timestamp' => current_time('mysql')
+					];
+					
+					$this->save_sync_status();
+					
+					// Simular un resultado exitoso para continuar
+					$result = [
+						'success' => true,
+						'products_processed' => 0,
+						'products_skipped' => $batch_size,
+						'message' => sprintf('Rango problemático saltado: %d-%d', $current_start, $current_end),
+						'next_offset' => $offset + $batch_size,
+						'skipped_reason' => 'known_problematic_range'
+					];
+					
+					// Actualizar progreso usando el método correcto
+					if (class_exists('\MiIntegracionApi\Admin\AjaxSync')) {
+						\MiIntegracionApi\Admin\AjaxSync::store_sync_progress(
+							0, // El porcentaje se calculará automáticamente
+							sprintf('Rango problemático saltado: %d-%d', $current_start, $current_end),
+							[
+								'articulo_actual' => sprintf('Rango %d-%d', $current_start, $current_end),
+								'sku' => 'SKIPPED_RANGE',
+								'procesados' => $this->sync_status['current_sync']['items_synced'],
+								'errores' => $this->sync_status['current_sync']['errors'],
+								'total' => $this->sync_status['current_sync']['total_items']
+							]
+						);
+					}
+					
+					return $result;
+				}
+				
+				// Ejecutar la sincronización de productos
+				$sync_result = $this->sync_products_from_verial($offset, $batch_size, $filters);
+				
+				// Comprobar tipo de resultado
+				if (is_wp_error($sync_result)) {
+					// Es un error, asignar directamente
+					$result = $sync_result;
+					
+					// Registrar el error para diagnóstico detallado
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-wp-error');
+						$logger->error(
+							'Error en sincronización de productos: ' . $result->get_error_message(),
+							[
+								'error_code' => $result->get_error_code(),
+								'error_data' => $result->get_error_data(),
+								'offset' => $offset,
+								'batch_size' => $batch_size,
+								'memory_usage' => memory_get_usage(true),
+								'peak_memory' => memory_get_peak_usage(true),
+								'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
+							]
+						);
+					}
+				} else {
+					// Es un resultado exitoso, asignar como array y añadir info de ajuste
+					$result = is_array($sync_result) ? $sync_result : ['count' => 0, 'errors' => 0, 'batch' => [$offset, $offset]];
+					
+					// Añadir información sobre el ajuste de lote
+					if ($original_batch_size != $batch_size) {
+						$result['adjusted_batch_size'] = $batch_size;
+						$result['original_batch_size'] = $original_batch_size;
+					}
+				}
+				
+				// Primero verificar si el resultado es un error
+				if (is_wp_error($result)) {
+					// Detectar si es un error de timeout o tamaño de lote demasiado grande
+					$error_code = $result->get_error_code();
+					$error_data = $result->get_error_data();
+					
+					// Verificar si debemos saltar el rango problemático
+					if ($error_code === 'problematic_product_range' && 
+						isset($error_data['skip_recommended']) && $error_data['skip_recommended']) {
+						
+						// Registrar decisión de omitir el rango
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-skip');
+							$logger->warning(
+								sprintf('Omitiendo rango problemático de productos %d-%d', 
+									$error_data['range'][0] ?? $offset, 
+									$error_data['range'][1] ?? ($offset + $batch_size - 1)),
+								[
+									'error_code' => $error_code,
+									'offset' => $offset,
+									'batch_size' => $batch_size,
+									'mensaje' => $result->get_error_message()
+								]
+							);
+						}
+						
+						// Avanzar al siguiente lote
+						$this->sync_status['current_sync']['current_batch']++;
+						$this->sync_status['current_sync']['items_synced'] += $batch_size;
+						$this->sync_status['current_sync']['errors']++;
+						$this->sync_status['current_sync']['last_update'] = time();
+						$this->sync_status['current_sync']['last_error'] = sprintf(
+							__('Omitido rango problemático: %s', 'mi-integracion-api'),
+							$result->get_error_message()
+						);
+						$this->save_sync_status();
+						
+						// Registrar el rango omitido para futura referencia
+						$skipped_ranges = get_option('mi_integracion_api_skipped_ranges', []);
+						$skipped_ranges[] = [
+							'inicio' => $error_data['range'][0] ?? $offset,
+							'fin' => $error_data['range'][1] ?? ($offset + $batch_size - 1),
+							'fecha' => date('Y-m-d H:i:s'),
+							'razon' => $result->get_error_message()
+						];
+						update_option('mi_integracion_api_skipped_ranges', $skipped_ranges);
+						
+						// Devolver un resultado de éxito parcial
+						return [
+							'status' => 'range_skipped',
+							'message' => sprintf(__('Rango %d-%d omitido: %s', 'mi-integracion-api'),
+								$error_data['range'][0] ?? $offset, 
+								$error_data['range'][1] ?? ($offset + $batch_size - 1),
+								$result->get_error_message()),
+							'current_batch' => $this->sync_status['current_sync']['current_batch'],
+							'total_batches' => $this->sync_status['current_sync']['total_batches'],
+							'items_synced' => $this->sync_status['current_sync']['items_synced'],
+							'total_items' => $this->sync_status['current_sync']['total_items'],
+							'percentage' => floor(($this->sync_status['current_sync']['items_synced'] / $this->sync_status['current_sync']['total_items']) * 100),
+							'skipped_range' => $error_data['range'] ?? [$offset, $offset + $batch_size - 1]
+						];
+					}
+					
+					// Verificar si debemos intentar una subdivisión automática del lote
+					if ((($error_code === 'batch_too_large' || $error_code === 'empty_response' || 
+						 $error_code === 'empty_response_in_problematic_range')) &&
+						isset($error_data['subdivision_recommended']) && $error_data['subdivision_recommended']) {
+						
+						// Registrar intento de subdivisión
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-subdivision');
+							$logger->warning(
+								'Iniciando subdivisión automática del lote debido a respuesta vacía/timeout',
+								[
+									'error_code' => $error_code,
+									'offset' => $offset,
+									'original_batch_size' => $batch_size,
+									'suggested_size' => $error_data['suggested_size'] ?? floor($batch_size / 2),
+									'message' => $result->get_error_message()
+								]
+							);
+						}
+						
+						// Calcular nuevo tamaño de lote reducido
+						$new_batch_size = $error_data['suggested_size'] ?? floor($batch_size / 2);
+						if ($new_batch_size < 1) $new_batch_size = 1; // Mínimo 1 elemento para rangos problemáticos
+						
+						// Crear un nuevo resultado que indique subdivisión
+						return [
+							'status' => 'batch_subdivided',
+							'message' => __('Lote subdividido automáticamente para evitar timeouts', 'mi-integracion-api'),
+							'original_batch_size' => $batch_size,
+							'new_batch_size' => $new_batch_size,
+							'current_offset' => $offset,
+							'suggested_next_steps' => [
+								__('Reduzca el tamaño de lote en la configuración a', 'mi-integracion-api') . ' ' . $new_batch_size,
+								__('O continúe con la sincronización, que usará el nuevo tamaño automáticamente', 'mi-integracion-api')
+							]
+						];
+					}
+					
+					// Si no se puede subdividir, devolver el error original
+					return $result; // Devolver el error para ser manejado por la función llamadora
+				}
+				
+				// Verificar si el lote fue reducido durante el procesamiento
+				if (!is_wp_error($result) && is_array($result) && isset($result['adjusted_batch_size']) && $result['adjusted_batch_size'] < $original_batch_size) {
+					// Actualizar el progreso basado en el lote realmente procesado, no el previsto
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch-adjust');
+						$logger->info(
+							sprintf('Lote ajustado de %d a %d elementos para prevenir timeouts',
+								$original_batch_size, $result['adjusted_batch_size']),
+							['batch' => $current_batch]
+						);
+					}
+					
+					// Ajustar el número de batch actual para la próxima ejecución
+					$batch_progress_ratio = $result['adjusted_batch_size'] / $original_batch_size;
+					$current_batch -= (1 - $batch_progress_ratio);
+					$this->sync_status['current_sync']['current_batch'] = $current_batch;
+					
+					// Actualizar tamaño óptimo de lote en opciones para futuras sincronizaciones
+					if ($result['adjusted_batch_size'] < $original_batch_size && $result['adjusted_batch_size'] > 0) {
+						// Guardar nuevo tamaño de lote óptimo con un pequeño margen de seguridad
+						$optimal_batch_size = max(10, floor($result['adjusted_batch_size'] * 0.9));
+						
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-optimization');
+							$logger->info(
+								sprintf('Actualizando tamaño de lote óptimo para futuras sincronizaciones: %d', $optimal_batch_size),
+								[
+									'original_size' => $original_batch_size,
+									'adjusted_size' => $result['adjusted_batch_size'],
+									'optimal_size' => $optimal_batch_size
+								]
+							);
+						}
+						
+						// Actualizar opción de tamaño de lote
+						update_option('mi_integracion_api_optimal_batch_size', $optimal_batch_size);
+						
+						// Actualizar estado actual
+						$this->sync_status['current_sync']['batch_size'] = $result['adjusted_batch_size'];
+						$this->save_sync_status();
+					}
+				}
+			}
+		} elseif ($direction === 'wc_to_verial') { // orders
+			$result = $this->sync_orders_to_verial($offset, $batch_size, $filters);
+		} else {
+			$result = $this->sync_orders_from_verial($offset, $batch_size, $filters);
+		}
+
+		// Verificar errores
+		if (is_wp_error($result)) {
+			// Guardar el último error para referencia
+			$this->sync_status['current_sync']['last_error'] = [
+				'code' => $result->get_error_code(),
+				'message' => $result->get_error_message(),
+				'batch' => $current_batch,
+				'offset' => $offset,
+				'time' => time()
+			];
+			$this->save_sync_status();
+			
+			// Registrar el error para diagnóstico
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-error');
+				$logger->error(
+					sprintf('Error en lote #%d: %s', $current_batch, $result->get_error_message()),
+					[
+						'code' => $result->get_error_code(),
+						'data' => $result->get_error_data(),
+						'offset' => $offset,
+						'batch_size' => $batch_size
+					]
+				);
+			}
+			
+			return $result;
+		}
+
+		// Asegurarnos de que result es un array antes de acceder a sus índices
+		if (!is_array($result)) {
+			$result = ['count' => 0, 'errors' => 0, 'batch' => [$offset, $offset]];
+		}
+
+		// Actualizar el estado de la sincronización
+		$items_processed = $result['count'] ?? 0;
+		$this->sync_status['current_sync']['items_synced'] += $items_processed;
+		$this->sync_status['current_sync']['last_update'] = time();
+		$this->save_sync_status();
+		
+		// Registrar éxito del lote
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-batch');
+			$logger->info(
+				sprintf('Lote #%d completado exitosamente: %d elementos procesados',
+					$current_batch, $items_processed),
+				[
+					'progress' => floor(($this->sync_status['current_sync']['items_synced'] / $this->sync_status['current_sync']['total_items']) * 100) . '%',
+					'items_synced' => $this->sync_status['current_sync']['items_synced'],
+					'total_items' => $this->sync_status['current_sync']['total_items']
+				]
+			);
+		}
+
+		// Verificar si se completó la sincronización
+		if ($current_batch >= $this->sync_status['current_sync']['total_batches']) {
+			return $this->finish_sync();
+		}
+
+		// Devolver el progreso actual
+		return array(
+			'status' => 'in_progress',
+			'progress' => array(
+				'current_batch' => $current_batch,
+				'total_batches' => $this->sync_status['current_sync']['total_batches'],
+				'items_synced' => $this->sync_status['current_sync']['items_synced'],
+				'total_items' => $this->sync_status['current_sync']['total_items'],
+				'percentage' => floor(($this->sync_status['current_sync']['items_synced'] / $this->sync_status['current_sync']['total_items']) * 100),
+				'last_update' => time(),
+			),
+			'batch_result' => $result,
+		);
+	}
+	
+	/**
+	 * Obtiene información del último lote que falló para recuperación
+	 *
+	 * @return array|false Información del último lote fallido o false si no hay información
+	 */
+	private function get_last_failed_batch() {
+		// Verificar transient con offset del último lote en proceso
+		$offset = get_transient('mia_sync_current_batch_offset');
+		$limit = get_transient('mia_sync_current_batch_limit');
+		$time = get_transient('mia_sync_current_batch_time');
+		
+		// Si no tenemos información de recuperación, usar el estado actual
+		if (false === $offset || false === $limit) {
+			return false;
+		}
+		
+		// Verificar si la información no es demasiado antigua (< 24 horas)
+		if ($time && (time() - $time) > 86400) {
+			// Información demasiado antigua, no usarla
+			return false;
+		}
+		
+		return [
+			'offset' => (int)$offset,
+			'limit' => (int)$limit,
+			'time' => $time
+		];
+	}
+
+	/**
+	 * Finaliza el proceso de sincronización actual
+	 *
+	 * @return array Resultado de la operación
+	 */
+	public function finish_sync() {
+		$this->load_sync_status();
+
+		// Verificar si hay una sincronización en progreso
+		if ( ! $this->sync_status['current_sync']['in_progress'] ) {
+			return array(
+				'status'  => 'no_sync',
+				'message' => __( 'No hay una sincronización en progreso.', 'mi-integracion-api' ),
+			);
+		}
+
+		// Calcular la duración de la sincronización
+		$duration = time() - $this->sync_status['current_sync']['start_time'];
+
+		// Crear el registro para el historial
+		$history_entry = array(
+			'entity'       => $this->sync_status['current_sync']['entity'],
+			'direction'    => $this->sync_status['current_sync']['direction'],
+			'items_synced' => $this->sync_status['current_sync']['items_synced'],
+			'total_items'  => $this->sync_status['current_sync']['total_items'],
+			'errors'       => $this->sync_status['current_sync']['errors'],
+			'start_time'   => $this->sync_status['current_sync']['start_time'],
+			'end_time'     => time(),
+			'duration'     => $duration,
+		);
+
+		// Actualizar la última sincronización
+		$this->sync_status['last_sync'][ $this->sync_status['current_sync']['entity'] ][ $this->sync_status['current_sync']['direction'] ] = time();
+
+		// Añadir estadísticas finales al registro de historial
+		$history_entry['run_id'] = $this->sync_status['current_sync']['run_id'] ?? 'unknown';
+		$history_entry['batch_size'] = $this->sync_status['current_sync']['batch_size'];
+		$history_entry['status'] = 'completed';
+		
+		// Añadir métricas de rendimiento
+		$metrics = $this->get_sync_performance_metrics($history_entry['run_id']);
+		$history_entry['performance'] = [
+			'items_per_second' => $metrics['items_per_second'] ?? 0,
+			'items_per_minute' => $metrics['items_per_minute'] ?? 0,
+			'error_rate' => $metrics['error_rate'] ?? 0
+		];
+
+		// Restablecer el estado de sincronización actual
+		$this->sync_status['current_sync']['in_progress'] = false;
+
+		// Guardar cambios
+		$this->save_sync_status();
+
+		// Agregar al historial
+		$this->add_to_history( $history_entry );
+
+		return array(
+			'status'  => 'completed',
+			'message' => __( 'Sincronización completada con éxito.', 'mi-integracion-api' ),
+			'summary' => $history_entry,
+		);
+	}
+
+	/**
+	 * Cancela la sincronización actual
+	 *
+	 * @return array Resultado de la operación
+	 */
+	public function cancel_sync() {
+		$this->load_sync_status();
+
+		// Verificar si hay una sincronización en progreso
+		if ( ! $this->sync_status['current_sync']['in_progress'] ) {
+			return array(
+				'status'  => 'no_sync',
+				'message' => __( 'No hay una sincronización en progreso.', 'mi-integracion-api' ),
+			);
+		}
+
+		// Crear el registro para el historial
+		$history_entry = array(
+			'entity'       => $this->sync_status['current_sync']['entity'],
+			'direction'    => $this->sync_status['current_sync']['direction'],
+			'items_synced' => $this->sync_status['current_sync']['items_synced'],
+			'total_items'  => $this->sync_status['current_sync']['total_items'],
+			'errors'       => $this->sync_status['current_sync']['errors'],
+			'start_time'   => $this->sync_status['current_sync']['start_time'],
+			'end_time'     => time(),
+			'duration'     => time() - $this->sync_status['current_sync']['start_time'],
+			'status'       => 'cancelled',
+			'run_id'       => $this->sync_status['current_sync']['run_id'] ?? 'unknown',
+			'batch_size'   => $this->sync_status['current_sync']['batch_size'],
+		);
+
+		// Restablecer el estado de sincronización actual
+		$this->sync_status['current_sync']['in_progress'] = false;
+
+		// Guardar cambios
+		$this->save_sync_status();
+
+		// Agregar al historial
+		$this->add_to_history( $history_entry );
+
+		return array(
+			'status'  => 'cancelled',
+			'message' => __( 'Sincronización cancelada.', 'mi-integracion-api' ),
+			'summary' => $history_entry,
+		);
+	}
+
+	/**
+	 * Cuenta el número de elementos a sincronizar
+	 *
+	 * @param string $entity Entidad a sincronizar
+	 * @param string $direction Dirección de la sincronización
+	 * @param array  $filters Filtros adicionales
+	 * @return int|WP_Error Número de elementos o error
+	 */
+	private function count_items_for_sync( $entity, $direction, $filters ) {
+		if ( $entity === 'products' ) {
+			if ( $direction === 'wc_to_verial' ) {
+				return $this->count_woocommerce_products( $filters );
+			} else {
+				return $this->count_verial_products( $filters );
+			}
+		} elseif ( $direction === 'wc_to_verial' ) { // orders
+				return $this->count_woocommerce_orders( $filters );
+		} else {
+			return $this->count_verial_orders( $filters );
+		}
+	}
+
+	/**
+	 * Cuenta el número de productos en WooCommerce
+	 *
+	 * @param array $filters Filtros adicionales
+	 * @return int Número de productos
+	 */
+	private function count_woocommerce_products( $filters ) {
+		$args = array(
+			'status' => 'publish',
+			'limit'  => 1,
+			'return' => 'ids',
+		);
+
+		// Aplicar filtros adicionales
+		if ( ! empty( $filters['categories'] ) ) {
+			$args['category'] = $filters['categories'];
+		}
+
+		if ( ! empty( $filters['modified_after'] ) ) {
+			$args['date_modified'] = '>=' . $filters['modified_after'];
+		}
+
+		// Contar productos
+		$products = wc_get_products( $args );
+
+		return $products->total;
+	}
+
+	/**
+	 * Cuenta el número de productos en Verial
+	 *
+	 * @param array $filters Filtros adicionales
+	 * @return int|WP_Error Número de productos o error
+	 */
+	/**
+	 * Cuenta el número de productos en Verial usando GetNumArticulosWS
+	 * Implementa soporte completo para fecha y hora según manual V1.7.1+
+	 *
+	 * @param array $filters Filtros adicionales
+	 * @return int|WP_Error Número de productos o error
+	 */
+	private function count_verial_products( $filters ) {
+		// Crear parámetros para la consulta con soporte para fecha y hora
+		$params = array();
+
+		// Soporte para filtros de fecha con formato adecuado
+		if ( ! empty( $filters['modified_after'] ) ) {
+			$params['fecha'] = date( 'Y-m-d', $filters['modified_after'] );
+			
+			// Si hay hora específica, añadirla (soporte para V1.7.1+)
+			if (!empty($filters['modified_after_time'])) {
+				$params['hora'] = $filters['modified_after_time'];
+			} else {
+				// Si tenemos timestamp completo, extraer la hora también
+				$params['hora'] = date('H:i:s', $filters['modified_after']);
+			}
+		}
+		
+		// Añadir parámetro de sesión según requisito del manual v1.8 (debe ser 'x')
+		$params['x'] = $this->api_connector->get_session_number();
+
+		// Registrar llamada para diagnóstico
+		if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-count');
+			$logger->info(
+				'Contando productos Verial',
+				[
+					'params' => $params,
+					'filters' => $filters
+				]
+			);
+		}
+
+		// Llamar al método GetNumArticulosWS para obtener el total
+		$response = $this->api_connector->get( 'GetNumArticulosWS', $params );
+
+		if ( is_wp_error( $response ) ) {
+			if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-count-error');
+				$logger->error(
+					'Error al contar productos Verial',
+					[
+						'error' => $response->get_error_message(),
+						'params' => $params
+					]
+				);
+			}
+			return $response;
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		$data = json_decode( $body, true );
+
+		// Verificar errores específicos de API Verial antes de procesar
+		if (isset($data['InfoError']) && isset($data['InfoError']['Codigo']) && $data['InfoError']['Codigo'] != 0) {
+			$error_message = $data['InfoError']['Descripcion'] ?? __('Error desconocido desde la API de Verial', 'mi-integracion-api');
+			
+			if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-error');
+				$logger->error(
+					$error_message,
+					[
+						'codigo' => $data['InfoError']['Codigo'],
+						'params' => $params
+					]
+				);
+			}
+			
+			return new WP_Error(
+				'verial_api_error_' . $data['InfoError']['Codigo'],
+				$error_message,
+				[ 'response_body' => $body ]
+			);
+		}
+
+		if ( ! isset( $data['Numero'] ) ) {
+			$error_message = __( 'Respuesta inválida del servidor al contar productos. La clave "Numero" no fue encontrada.', 'mi-integracion-api' );
+			// Registrar el cuerpo de la respuesta para depuración
+			if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-error');
+				$logger->error(
+					$error_message,
+					[
+						'context'  => 'count_verial_products',
+						'response_body' => $body,
+						'params' => $params
+					]
+				);
+			}
+			return new WP_Error( 'invalid_response', $error_message, [ 'response_body' => $body ] );
+		}
+
+		// Registrar resultado exitoso
+		if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-count');
+			$logger->info(
+				'Conteo de productos Verial completado',
+				[
+					'total' => (int) $data['Numero'],
+					'params' => $params
+				]
+			);
+		}
+
+		return (int) $data['Numero'];
+	}
+
+	/**
+	 * Cuenta el número de pedidos en WooCommerce
+	 *
+	 * @param array $filters Filtros adicionales
+	 * @return int Número de pedidos
+	 */
+	private function count_woocommerce_orders( $filters ) {
+		$args = array(
+			'limit'  => 1,
+			'return' => 'ids',
+		);
+
+		// Aplicar filtros adicionales
+		if ( ! empty( $filters['status'] ) ) {
+			$args['status'] = $filters['status'];
+		}
+
+		if ( ! empty( $filters['modified_after'] ) ) {
+			$args['date_modified'] = '>=' . $filters['modified_after'];
+		}
+
+		// Contar pedidos
+		$query  = new \WC_Order_Query( $args );
+		$orders = $query->get_orders();
+
+		return $query->total;
+	}
+
+	/**
+	 * Cuenta el número de pedidos en Verial
+	 *
+	 * @param array $filters Filtros adicionales
+	 * @return int|WP_Error Número de pedidos o error
+	 */
+	private function count_verial_orders( $filters ) {
+		// Esta función necesitaría implementarse según la API de Verial
+		// Por ahora, devolvemos un valor estático para demostración
+		return 100;
+	}
+
+	/**
+	 * Sincroniza productos desde WooCommerce a Verial
+	 *
+	 * @param int   $offset Offset para la consulta
+	 * @param int   $limit Límite de productos a procesar
+	 * @param array $filters Filtros adicionales
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	private function sync_products_to_verial( $offset, $limit, $filters ) {
+		// Obtener productos de WooCommerce
+		$args = array(
+			'status' => 'publish',
+			'limit'  => $limit,
+			'offset' => $offset,
+		);
+
+		// Aplicar filtros adicionales
+		if ( ! empty( $filters['categories'] ) ) {
+			$args['category'] = $filters['categories'];
+		}
+
+		if ( ! empty( $filters['modified_after'] ) ) {
+			$args['date_modified'] = '>=' . $filters['modified_after'];
+		}
+
+		// Obtener productos
+		$products = wc_get_products( $args );
+
+		// Procesar cada producto
+		$processed = 0;
+		$errors    = array();
+
+		foreach ( $products as $product ) {
+			// Mapear producto de WooCommerce a formato de Verial
+			$verial_product = $this->map_wc_product_to_verial( $product );
+
+			// Enviar a Verial
+			// TODO: Implementar la lógica específica según la API de Verial
+
+			++$processed;
+		}
+
+		return array(
+			'count'  => $processed,
+			'errors' => $errors,
+		);
+	}
+
+	/**
+	 * Sincroniza productos desde Verial a WooCommerce
+	 *
+	 * @param int   $offset Offset para la consulta
+	 * @param int   $limit Límite de productos a procesar
+	 * @param array $filters Filtros adicionales
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	/**
+	 * Sincroniza productos desde Verial a WooCommerce usando paginación robusta
+	 * con el sistema de inicio/fin según manual v1.8+
+	 *
+	 * @param int   $offset Offset para la consulta
+	 * @param int   $limit Límite de productos a procesar
+	 * @param array $filters Filtros adicionales
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	private function sync_products_from_verial( $offset, $limit, $filters ) {
+		// UNIFICACIÓN: Usar la fuente única de configuración para el tamaño de lote
+		$batch_size = (int) get_option('mi_integracion_api_batch_size', 20);
+		$original_limit = $limit;
+		
+		// Asegurarse de que siempre usamos el tamaño de lote unificado
+		$limit = $batch_size;
+		
+		// Registrar uso de tamaño de lote para diagnóstico
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+			$logger->info(
+				sprintf('Usando tamaño de lote unificado: %d (parámetro recibido: %d)',
+					$limit, $original_limit),
+				[
+					'offset' => $offset,
+					'original_limit' => $original_limit,
+					'actual_limit' => $limit,
+					'source' => 'mi_integracion_api_batch_size',
+					'batch_size_from_option' => $batch_size,
+					'request_batch_size' => isset($_REQUEST['batch_size']) ? intval($_REQUEST['batch_size']) : 'no_especificado'
+				]
+			);
+		}
+		
+		// Guardar progreso actual para recuperación
+		$this->save_sync_batch_state($offset, $limit);
+		
+		// Calcular parámetros de paginación
+		$inicio = $offset + 1; // API Verial comienza en 1
+		$fin = $offset + $limit;
+		
+		// Crear parámetros para la consulta con soporte completo para filtros
+		// Verificar si el tamaño del lote es muy grande y posiblemente problemático
+		$batch_size = $fin - $inicio + 1;
+		if ($batch_size > 75) {
+			// Registrar advertencia sobre tamaño de lote
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+				$logger->warning(
+					sprintf('Tamaño de lote grande (%d) podría causar problemas. Considere reducirlo.', $batch_size),
+					[
+						'inicio' => $inicio,
+						'fin' => $fin,
+						'batch_size' => $batch_size
+					]
+				);
+			}
+		}
+		
+		// NUEVA FUNCIONALIDAD: Verificar si este rango se ha identificado como problemático
+		// en la prevalidación
+		$availability_map = get_transient('mia_sync_product_availability_map');
+		if (is_array($availability_map) && isset($availability_map['problematic_ranges'])) {
+			$is_problematic_range = false;
+			
+			// Comprobar si el rango actual está dentro de algún rango problemático
+			foreach ($availability_map['problematic_ranges'] as $problematic_range) {
+				if (
+					($inicio >= $problematic_range[0] && $inicio <= $problematic_range[1]) ||
+					($fin >= $problematic_range[0] && $fin <= $problematic_range[1]) ||
+					($problematic_range[0] >= $inicio && $problematic_range[0] <= $fin)
+				) {
+					$is_problematic_range = true;
+					
+					if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+						$logger->warning(
+							sprintf('Lote actual %d-%d está en un rango problemático conocido %d-%d, intentando subdividir.',
+								$inicio, $fin, $problematic_range[0], $problematic_range[1])
+						);
+					}
+					
+					// Si el lote ya es mínimo (<=5 productos), informar del problema específico
+					if (($fin - $inicio + 1) <= 5) {
+						return new \WP_Error(
+							'problematic_product_range',
+							sprintf(__('Los productos en el rango %d-%d no pueden sincronizarse debido a un error conocido en la API de Verial. Intente sincronizar productos individuales para este rango.', 'mi-integracion-api'), 
+								$inicio, $fin),
+							[
+								'original_error' => $response->get_error_message(),
+								'params' => $params,
+								'range' => [$inicio, $fin],
+								'skip_recommended' => true  // Indica que se podría saltar este rango
+							]
+						);
+					} else {
+						// Recomendar subdivisión para intentar sincronizar productos individuales
+						return new \WP_Error(
+							'batch_too_large',
+							sprintf(__('Rango problemático detectado (%d-%d). Se intentará sincronizar productos individuales.', 'mi-integracion-api'),
+								$inicio, $fin),
+							[
+								'subdivision_recommended' => true,
+								'original_range' => [$inicio, $fin],
+								'suggested_size' => 1,  // Intentar sincronizar productos individuales
+								'params' => $params
+							]
+						);
+					}
+				}
+			}
+		}
+		
+		// Asegurarnos de que los parámetros estén correctamente formateados y sean consistentes
+		// IMPORTANTE: Para GET, el parámetro de sesión debe ser 'x' para V1.8, NO 'sesionwcf' según documentación v1.8
+		$params = array(
+			'inicio' => (int)$inicio,
+			'fin'    => (int)$fin,
+			// El número de sesión se añade como 'x' para GET según manual v1.8
+			'x' => $this->api_connector->get_session_number(),
+		);
+
+		// Soporte para filtro de fecha y hora
+		if ( ! empty( $filters['modified_after'] ) ) {
+			$params['fecha'] = date( 'Y-m-d', $filters['modified_after'] );
+			
+			// Si hay hora específica, añadirla (soporte para V1.7.1+)
+			if (!empty($filters['modified_after_time'])) {
+				$params['hora'] = $filters['modified_after_time'];
+			} else {
+				// Si tenemos timestamp completo, extraer la hora
+				$params['hora'] = date('H:i:s', $filters['modified_after']);
+			}
+		}
+		
+		// Registrar inicio de sincronización del lote
+		if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+			$logger->info(
+				sprintf('Sincronizando lote de productos (inicio=%d, fin=%d)', $inicio, $fin),
+				[
+					'params' => $params,
+					'offset' => $offset,
+					'limit' => $limit,
+					'filters' => $filters
+				]
+			);
+		}
+
+		// Obtener productos de Verial con retry en caso de error
+		$max_retries = 3;
+		$retry_count = 0;
+		$response = null;
+		$last_error = null;
+		
+		// NUEVO LOG: Verificar y registrar específicamente si estamos en un rango conocido como problemático
+		$known_problematic_ranges = [
+			[2601, 2610],
+			[2801, 2810],
+			// Añadir aquí otros rangos problemáticos conforme se descubran
+		];
+		
+		// Comprobar si el rango actual coincide con alguno de los rangos conocidos problemáticos
+		$in_known_problematic_range = false;
+		$matched_problematic_range = null;
+		foreach ($known_problematic_ranges as $prob_range) {
+			if (
+				($inicio >= $prob_range[0] && $inicio <= $prob_range[1]) ||
+				($fin >= $prob_range[0] && $fin <= $prob_range[1]) ||
+				($prob_range[0] >= $inicio && $prob_range[0] <= $fin)
+			) {
+				$in_known_problematic_range = true;
+				$matched_problematic_range = $prob_range;
+				break;
+			}
+		}
+		
+		// Registrar si estamos en un rango problemático conocido
+		if ($in_known_problematic_range && class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-range-analysis');
+			$logger->warning(
+				sprintf('ATENCIÓN: Intentando procesar un rango problemático conocido: %d-%d coincide con %d-%d',
+					$inicio, $fin, $matched_problematic_range[0], $matched_problematic_range[1]),
+				[
+					'inicio' => $inicio,
+					'fin' => $fin,
+					'matched_range' => $matched_problematic_range,
+					'timestamp' => date('Y-m-d H:i:s'),
+					'memory_usage' => memory_get_usage(true),
+					'batch_size' => $fin - $inicio + 1
+				]
+			);
+		}
+		
+		while ($retry_count < $max_retries) {		// Intentar obtener productos con opciones avanzadas para diagnóstico
+		$api_options = [
+			'timeout' => 90,                 // Timeout más agresivo para rangos problemáticos
+			'diagnostics' => true,           // Habilitar información de diagnóstico en respuesta de error
+			'trace_request' => true,         // Rastrear detalles completos de la solicitud HTTP
+			'retry_transient_errors' => true, // Reintentar automáticamente errores transitorios
+			'wp_args' => [                   // Argumentos directos para wp_remote_request
+				'timeout' => 90,             // Configurar el mismo timeout en los argumentos de WordPress
+				'httpversion' => '1.1',      // Usar HTTP 1.1 para mejor compatibilidad
+				'blocking' => true,          // Esperar a que se complete la solicitud
+				'sslverify' => false,        // Desactivar verificación SSL temporalmente
+				'redirection' => 5,          // Permitir hasta 5 redirecciones
+				'user-agent' => 'Mi-Integracion-API/1.0'
+			]
+		];
+			
+			// Configurar backoff más agresivo para este lote específico
+			if ($retry_count > 0) {
+				$api_options['retry_config'] = [
+					'max_retries' => 4,          // Un reintento adicional para este lote
+					'base_delay' => 2,           // Mayor tiempo base de espera
+					'backoff_multiplier' => 2.5, // Crecimiento más rápido del backoff
+					'strategy' => 'exponential'  // Estrategia de crecimiento exponencial
+				];
+			}
+			
+			// Registrar solicitud detallada para diagnóstico
+			if ($in_known_problematic_range && class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-range-analysis');
+				$logger->debug(
+					sprintf('Realizando solicitud para rango problemático %d-%d (intento %d)',
+						$inicio, $fin, $retry_count + 1),
+					[
+						'params' => $params,
+						'api_options' => $api_options,
+						'timestamp_pre' => microtime(true)
+					]
+				);
+			}
+			
+			// Realizar la solicitud y capturar el tiempo exacto
+			$request_start_time = microtime(true);
+			$response = $this->api_connector->get( 'GetArticulosWS', $params, $api_options );
+			$request_end_time = microtime(true);
+			$request_duration = $request_end_time - $request_start_time;
+			
+			// Registrar la respuesta detallada si estamos en un rango problemático conocido
+			if ($in_known_problematic_range && class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-range-analysis');
+				
+				if (is_wp_error($response)) {
+					// Caso 1: Error de WordPress
+					$logger->error(
+						sprintf('Error en rango problemático %d-%d: %s',
+							$inicio, $fin, $response->get_error_message()),
+						[
+							'error_code' => $response->get_error_code(),
+							'error_data' => $response->get_error_data(),
+							'duration' => $request_duration,
+							'retry' => $retry_count + 1
+						]
+					);
+				} else {
+					// Caso 2: Respuesta recibida (puede ser error de API o válida)
+					$body = wp_remote_retrieve_body($response);
+					$status = wp_remote_retrieve_response_code($response);
+					$headers = wp_remote_retrieve_headers($response);
+					$data = json_decode($body, true);
+					
+					// Análisis profundo de lo que contiene la respuesta
+					$logger->info(
+						sprintf('Respuesta analizada para rango problemático %d-%d',
+							$inicio, $fin),
+						[
+							'status_code' => $status,
+							'response_length' => strlen($body),
+							'response_first_100_chars' => substr($body, 0, 100),
+							'response_is_json' => json_last_error() === JSON_ERROR_NONE,
+							'json_error' => json_last_error_msg(),
+							'has_info_error' => isset($data['InfoError']) ? 'sí' : 'no',
+							'info_error_code' => isset($data['InfoError']['Codigo']) ? $data['InfoError']['Codigo'] : 'no presente',
+							'info_error_desc' => isset($data['InfoError']['Descripcion']) ? $data['InfoError']['Descripcion'] : 'no presente',
+							'has_articulos' => isset($data['Articulos']) ? 'sí' : 'no',
+							'articulos_count' => isset($data['Articulos']) ? count($data['Articulos']) : 0,
+							'response_keys' => is_array($data) ? array_keys($data) : 'no_data',
+							'content_type' => isset($headers['content-type']) ? $headers['content-type'] : 'desconocido',
+							'duration' => $request_duration,
+							'memory_usage_kb' => round(memory_get_usage(true)/1024)
+						]
+					);
+					
+					// Si hay datos en InfoError pero no hay Articulos, esto es particularmente interesante
+					if (isset($data['InfoError']) && !isset($data['Articulos'])) {
+						$logger->warning(
+							'IMPORTANTE: Respuesta de API con InfoError pero sin Articulos',
+							[
+								'info_error_code' => $data['InfoError']['Codigo'] ?? 'N/A',
+								'info_error_desc' => $data['InfoError']['Descripcion'] ?? 'N/A',
+								'rango' => [$inicio, $fin],
+								'other_keys' => array_diff(array_keys($data), ['InfoError', 'Articulos'])
+							]
+						);
+					}
+					
+					// Si la respuesta está vacía pero no hay error de WordPress, es muy sospechoso
+					if (empty($body) && $status >= 200 && $status < 300) {
+						$logger->critical(
+							'CRÍTICO: Respuesta vacía con código de éxito HTTP',
+							[
+								'status_code' => $status,
+								'rango' => [$inicio, $fin],
+								'headers' => $headers,
+								'empty_response' => empty($body) ? 'sí' : 'no'
+							]
+						);
+					}
+				}
+			}
+			
+			// Si no hay error, salir del bucle
+			if (!is_wp_error($response)) {
+				break;
+			}
+			
+			// Guardar el último error
+			$last_error = $response;
+			$retry_count++;
+			
+			// Registrar intento fallido
+			if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-retry');
+				$logger->warning(
+					sprintf('Intento %d fallido al obtener productos', $retry_count),
+					[
+						'error' => $response->get_error_message(),
+						'params' => $params,
+						'duration' => $request_duration
+					]
+				);
+			}
+			
+			// Esperar antes de reintentar (backoff exponencial)
+			$wait_time = pow(2, $retry_count) * 1; // 2, 4, 8 segundos
+			sleep($wait_time);
+		}
+		
+		// Procesar la respuesta final después de todos los reintentos
+		if (is_wp_error($response)) {
+			// Si después de todos los reintentos sigue habiendo error, analizarlo en detalle
+			$error_code = $response->get_error_code();
+			$error_message = $response->get_error_message();
+			$error_data = $response->get_error_data();
+			
+			// Determinar el tipo específico de error para rangos problemáticos
+			$is_known_problematic_range = false;
+			$known_problematic_ranges = [
+				[2601, 2610], [2801, 2810], [3101, 3110],
+				[2501, 2510], [2701, 2710], [2901, 2910], [3001, 3010], [3201, 3210]
+			];
+			
+			foreach ($known_problematic_ranges as $range) {
+				if (($inicio >= $range[0] && $inicio <= $range[1]) || 
+					($fin >= $range[0] && $fin <= $range[1])) {
+					$is_known_problematic_range = true;
+					break;
+				}
+			}
+			
+			// Log crítico para errores en rangos problemáticos
+			if ($is_known_problematic_range && class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('critical-range-error');
+				$logger->critical(
+					sprintf('ERROR CRÍTICO en rango problemático %d-%d: %s', $inicio, $fin, $error_message),
+					[
+						'error_code' => $error_code,
+						'error_message' => $error_message,
+						'error_data' => $error_data,
+						'range' => [$inicio, $fin],
+						'params' => $params,
+						'retry_count' => $retry_count,
+						'max_retries' => $max_retries,
+						'is_known_problematic' => $is_known_problematic_range,
+						'memory_usage' => memory_get_usage(true),
+						'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
+					]
+				);
+			}
+			
+			// Asegurarse de que el error tenga un código y mensaje específicos
+			if (!$response->get_error_code()) {
+				return new \WP_Error(
+					'api_connection_error',
+					__('Error de conexión con la API de Verial', 'mi-integracion-api'),
+					[
+						'original_error' => $response->get_error_message(),
+						'params' => $params,
+						'range' => [$inicio, $fin],
+						'is_problematic_range' => $is_known_problematic_range
+					]
+				);
+			}
+			
+			// ---- MEJORA: Analizar si estamos en un caso de rango problemático específico ----
+			// Ciertos rangos de productos parecen causar problemas consistentemente (ej. 2500-2510)
+			$error_code = $response->get_error_code();
+			$is_known_problematic_range = ($inicio >= 2500 && $inicio <= 2600);
+			
+			if ($error_code === 'http_request_failed' && $is_known_problematic_range) {
+				// Intentar una estrategia diferente para rangos problemáticos conocidos
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-problematic-range');
+					$logger->warning(
+						sprintf('Detectado rango problemático conocido: %d-%d. Recomendando subdivisión.',
+							$inicio, $fin),
+						[
+							'error_code' => $error_code,
+							'error_message' => $response->get_error_message(),
+							'params' => $params
+						]
+					);
+				}
+				
+				// Si el lote ya es mínimo (<=5 productos), informar del problema específico
+				if (($fin - $inicio + 1) <= 5) {
+					return new \WP_Error(
+						'problematic_product_range',
+						sprintf(__('Los productos en el rango %d-%d no pueden sincronizarse debido a un error conocido en la API de Verial. Intente sincronizar productos individuales para este rango.', 'mi-integracion-api'), 
+							$inicio, $fin),
+						[
+							'original_error' => $response->get_error_message(),
+							'params' => $params,
+							'range' => [$inicio, $fin],
+							'skip_recommended' => true  // Indica que se podría saltar este rango
+						]
+					);
+				} else {
+					// Recomendar subdivisión para intentar sincronizar productos individuales
+					return new \WP_Error(
+						'batch_too_large',
+						sprintf(__('Rango problemático detectado (%d-%d). Se intentará sincronizar productos individuales.', 'mi-integracion-api'),
+							$inicio, $fin),
+						[
+							'subdivision_recommended' => true,
+							'original_range' => [$inicio, $fin],
+							'suggested_size' => 1,  // Intentar sincronizar productos individuales
+							'params' => $params
+						]
+					);
+				}
+			}
+			
+			return $response;
+		}
+
+		// Recuperar y validar el cuerpo de la respuesta
+		$body = wp_remote_retrieve_body( $response );
+		$status_code = wp_remote_retrieve_response_code($response);
+		$api_url = $this->api_connector->get_last_request_url() ?? 'unknown';
+		
+		// Verificar si tenemos una respuesta vacía (posible timeout)
+		if (empty($body)) {
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-error');
+				$logger->error(
+					'Respuesta vacía del servidor (posible timeout)',
+					[
+						'params' => $params,
+						'inicio' => $inicio,
+						'fin' => $fin,
+						'response_status' => $status_code,
+						'api_url' => $api_url,
+						'retry_count' => $retry_count,
+						'timeout' => $api_options['timeout'] ?? 45,
+						'batch_size' => $fin - $inicio + 1,
+						'headers' => wp_remote_retrieve_headers($response),
+						'memory_usage' => memory_get_usage(true),
+						'peak_memory' => memory_get_peak_usage(true),
+						'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
+					]
+				);
+			}
+			
+			// ESTRATEGIA AUTOMÁTICA: Si es timeout persistente, activar manejador de emergencia
+			if ($diagnostic_result['data']['cause'] === 'undetermined_timeout' && ($fin - $inicio + 1) > 1) {
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-emergency');
+					$logger->warning(
+						sprintf('Activando manejador de emergencia para rango persistentemente problemático %d-%d', $inicio, $fin),
+						[
+							'diagnostic_result' => $diagnostic_result['data'],
+							'timeout_count' => $retry_count,
+							'emergency_mode' => 'activated'
+						]
+					);
+				}
+				
+				// Usar el manejador de emergencia
+				return $this->emergency_timeout_handler($inicio, $fin, $filters);
+			}
+			
+			// Si todo falla, usar la división automática como respaldo
+			if ($diagnostic_result['data']['cause'] === 'undetermined_timeout' && ($fin - $inicio + 1) > 1) {
+				$mid_point = $inicio + floor(($fin - $inicio) / 2);
+				
+				if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-auto-split');
+					$logger->info(
+						sprintf('Dividiendo automáticamente el rango %d-%d en sub-rangos', $inicio, $fin),
+						[
+							'rango_original' => [$inicio, $fin],
+							'primer_sub_rango' => [$inicio, $mid_point],
+							'segundo_sub_rango' => [$mid_point + 1, $fin],
+							'razon' => 'timeout_persistente'
+						]
+					);
+				}
+				
+				// Intentar procesar la primera mitad
+				$first_half_result = $this->sync_products_from_verial_range($inicio, $mid_point, $filters);
+				
+				// Intentar procesar la segunda mitad
+				$second_half_result = $this->sync_products_from_verial_range($mid_point + 1, $fin, $filters);
+				
+				// Combinar resultados
+				if (!is_wp_error($first_half_result) && !is_wp_error($second_half_result)) {
+					return [
+						'count' => $first_half_result['count'] + $second_half_result['count'],
+						'errors' => $first_half_result['errors'] + $second_half_result['errors'],
+						'batch' => [$inicio, $fin],
+						'auto_split' => true,
+						'sub_ranges' => [
+							[$inicio, $mid_point],
+							[$mid_point + 1, $fin]
+						]
+					];
+				}
+			}
+			
+			// DIAGNÓSTICO INTELIGENTE: Analizar la causa del timeout
+			$diagnostic_result = $this->diagnose_timeout_cause($inicio, $fin, $params, $retry_count);
+			
+			return new \WP_Error(
+				'empty_response',
+				$diagnostic_result['message'],
+				$diagnostic_result['data']
+			);
+		}
+		
+		// Intentar decodificar el JSON de la respuesta
+		$data = json_decode($body, true);
+		$json_error = json_last_error();
+		
+		// Verificar si tenemos un JSON válido
+		if ($json_error !== JSON_ERROR_NONE) {
+			// Analizar el tipo de error JSON para mejor diagnóstico
+			$error_type = json_last_error_msg();
+			$truncated_response = false;
+			
+			// Intentar detectar respuestas truncadas (común en timeouts)
+			if (strpos($error_type, 'Syntax error') !== false) {
+				// Verificar si parece una respuesta truncada
+				if (substr($body, -20) !== '}' && strpos($body, '{"Articulos":') !== false) {
+					$truncated_response = true;
+				}
+			}
+			
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-error');
+				$logger->error(
+					'Error al decodificar respuesta JSON',
+					[
+						'json_error' => $error_type,
+						'body_preview' => substr($body, 0, 1000),
+						'body_end' => strlen($body) > 100 ? substr($body, -100) : 'n/a',
+						'params' => $params,
+						'response_length' => strlen($body),
+						'response_status' => $api_url,
+						'truncated_response' => $truncated_response,
+						'memory_usage' => memory_get_usage(true),
+						'memory_limit' => ini_get('memory_limit')
+					]
+				);
+			}
+			
+			// Mensaje específico según el tipo de error
+			if ($truncated_response) {
+				$error_message = __('Respuesta JSON truncada. Probable timeout durante la transferencia de datos. Intente con un lote más pequeño.', 'mi-integracion-api');
+			} else if (strpos($error_type, 'Maximum stack depth exceeded') !== false) {
+				$error_message = __('Error de anidamiento excesivo en JSON. La respuesta es demasiado compleja.', 'mi-integracion-api');
+			} else if (strpos($error_type, 'Memory limit') !== false || strlen($body) > 5000000) {
+				$error_message = __('Respuesta demasiado grande para procesar. Considere aumentar memory_limit en PHP.', 'mi-integracion-api');
+			} else {
+				$error_message = sprintf(__('Error al decodificar respuesta JSON: %s', 'mi-integracion-api'), $error_type);
+			}
+			
+			return new \WP_Error(
+				'invalid_json',
+				$error_message,
+				[
+					'response_body_preview' => substr($body, 0, 1000),
+					'response_length' => strlen($body),
+					'truncated_response' => $truncated_response,
+					'params' => $params
+				]
+			);
+		}
+
+		// Comprobación de errores lógicos de la API de Verial ANTES de procesar los datos.
+		if (isset($data['InfoError']['Codigo']) && $data['InfoError']['Codigo'] != 0) {
+			$error_message = $data['InfoError']['Descripcion'] ?? __('Error desconocido desde la API de Verial.', 'mi-integracion-api');
+			
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-error');
+				$logger->error(
+					$error_message,
+					[
+						'codigo' => $data['InfoError']['Codigo'],
+						'params' => $params,
+						'response_status' => $api_url,
+						'retry_count' => $retry_count,
+						'batch_size' => $fin - $inicio + 1,
+						'memory_usage' => memory_get_usage(true),
+						'peak_memory' => memory_get_peak_usage(true),
+						'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
+					]
+				);
+			}
+			
+			return new WP_Error(
+				'verial_api_error_' . $data['InfoError']['Codigo'],
+				$error_message,
+				[
+					'response_body' => $body,
+					'api_url' => $api_url
+				]
+			);
+		}
+
+		// Verificar la presencia de la clave Articulos en la respuesta
+		if (!isset($data['Articulos']) || !is_array($data['Articulos'])) {
+			// Realizar análisis profundo de la respuesta para determinar la causa real
+			$is_empty_response = empty($data) || count($data) <= 1;
+			$is_partial_response = false;
+			$has_session_data = false;
+			$error_code = 'invalid_response';
+			
+			// Verificar si hay signos de una respuesta parcial o de autenticación
+			if (is_array($data)) {
+				if (isset($data['InfoError']) || isset($data['Version']) || isset($data['sesionwcf'])) {
+					$has_session_data = true;
+				}
+				
+				if ($has_session_data && !isset($data['Articulos'])) {
+					$is_partial_response = true;
+				}
+			}
+			
+			// NUEVO SISTEMA DE LOGGING: Verificar si estamos en un rango conocido como problemático
+			$known_problematic_ranges = [
+				[2601, 2610],
+				[2801, 2810],
+				// Añadir aquí otros rangos problemáticos conforme se descubran
+			];
+			
+			// Comprobar si estamos en un rango problemático conocido
+			$is_problematic_range = false;
+			$matched_problematic_range = null;
+			
+			foreach ($known_problematic_ranges as $prob_range) {
+				if (
+					($inicio >= $prob_range[0] && $inicio <= $prob_range[1]) ||
+					($fin >= $prob_range[0] && $fin <= $prob_range[1]) ||
+					($prob_range[0] >= $inicio && $prob_range[0] <= $fin)
+				) {
+					$is_problematic_range = true;
+					$matched_problematic_range = $prob_range;
+					break;
+				}
+			}
+			
+			// Crear un logger especial para análisis de rangos problemáticos
+			if ($is_problematic_range && class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('problematic-range-analysis');
+				
+				// Análisis detallado de la respuesta para este rango problemático
+				$logger->critical(
+					sprintf('ANÁLISIS DE RANGO PROBLEMÁTICO: %d-%d (coincide con %d-%d)',
+						$inicio, $fin, $matched_problematic_range[0], $matched_problematic_range[1]),
+					[
+						'raw_response_first_1000' => substr($body, 0, 1000),
+						'raw_response_last_100' => strlen($body) > 100 ? substr($body, -100) : 'respuesta demasiado corta',
+						'raw_headers' => isset($response['headers']) ? $response['headers'] : 'no disponible',
+						'status_code' => isset($response['response']['code']) ? $response['response']['code'] : 'no disponible',
+						'status_message' => isset($response['response']['message']) ? $response['response']['message'] : 'no disponible',
+						'content_type' => isset($response['headers']['content-type']) ? $response['headers']['content-type'] : 'no disponible',
+						'response_size' => strlen($body),
+						'is_json_valid' => json_last_error() === JSON_ERROR_NONE ? 'sí' : 'no - ' . json_last_error_msg(),
+						'data_keys' => is_array($data) ? array_keys($data) : 'no_data',
+						'info_error' => isset($data['InfoError']) ? json_encode($data['InfoError']) : 'no presente',
+						'cookies' => isset($response['cookies']) ? count($response['cookies']) : 'no disponible',
+						'response_time' => isset($response['request_time']) ? $response['request_time'] : 'no disponible',
+						'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'],
+						'memory_usage' => memory_get_usage(true),
+						'php_version' => PHP_VERSION,
+						'wordpress_version' => get_bloginfo('version'),
+						'is_empty_response' => $is_empty_response ? 'sí' : 'no',
+						'is_partial_response' => $is_partial_response ? 'sí' : 'no',
+						'has_session_data' => $has_session_data ? 'sí' : 'no',
+						'matched_problematic_range' => $matched_problematic_range,
+						'transaction_id' => uniqid('range_analysis_', true)
+					]
+				);
+			}
+			
+			// Registrar el error con información diagnóstica completa (log normal)
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-error');
+				$logger->error(
+					'Respuesta inválida del servidor. La clave "Articulos" no fue encontrada.',
+					[
+						'response_body' => substr($body, 0, 1000),
+						'params' => $params,
+						'response_length' => strlen($body),
+						'response_keys' => is_array($data) ? array_keys($data) : 'no_data',
+						'response_status' => $api_url,
+						'retry_count' => $retry_count,
+						'batch_size' => $fin - $inicio + 1,
+						'inicio' => $inicio,
+						'fin' => $fin,
+						'is_empty_response' => $is_empty_response,
+						'is_partial_response' => $is_partial_response,
+						'has_session_data' => $has_session_data,
+						'is_problematic_range' => $is_problematic_range,
+						'memory_usage' => memory_get_usage(true),
+						'memory_peak' => memory_get_peak_usage(true),
+						'execution_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']
+					]
+				);
+			}
+			
+			// Diagnóstico avanzado basado en el tipo de respuesta
+			if ($is_empty_response) {
+				$error_message = __('Respuesta prácticamente vacía. Probable timeout durante la transmisión de datos.', 'mi-integracion-api');
+				$error_code = 'empty_response';
+			} else if ($is_partial_response) {
+				$error_message = __('Respuesta parcial del servidor. Se recibió información de sesión pero faltan los datos de artículos.', 'mi-integracion-api');
+				$error_code = 'partial_response';
+			} else {
+				$error_message = __('Respuesta inválida del servidor. La clave "Articulos" no fue encontrada.', 'mi-integracion-api');
+			}
+			
+			// Si hay datos en la respuesta, intentar extraer información útil
+			if (is_array($data) && !empty($data)) {
+				if (isset($data['Mensaje'])) {
+					$error_message .= ' ' . $data['Mensaje'];
+				} elseif (isset($data['mensaje'])) {
+					$error_message .= ' ' . $data['mensaje'];
+				} elseif (isset($data['Error'])) {
+					$error_message .= ' ' . (is_string($data['Error']) ? $data['Error'] : json_encode($data['Error']));
+				} elseif (isset($data['InfoError']) && isset($data['InfoError']['Descripcion'])) {
+					$error_message .= ' ' . $data['InfoError']['Descripcion'];
+				}
+				
+				// Añadir información sobre las claves presentes
+				$error_message .= ' ' . sprintf(__('Claves disponibles: %s', 'mi-integracion-api'),
+					implode(', ', array_keys($data)));
+			}
+			
+			// Sugerencias específicas basadas en el diagnóstico
+			if ($fin - $inicio + 1 > 35) {
+				$error_message .= ' ' . sprintf(__('Se recomienda reducir el tamaño del lote a 30 o menos (actual: %d).', 'mi-integracion-api'),
+					$fin - $inicio + 1);
+			}
+			
+			if ($is_empty_response || $is_partial_response) {
+				$error_message .= ' ' . __('Considere aumentar el tiempo de espera en la configuración del servidor o reducir el tamaño del lote.', 'mi-integracion-api');
+			}
+			
+			return new \WP_Error(
+				$error_code,
+				$error_message,
+				[
+					'response_body_preview' => substr($body, 0, 1000),
+					'params' => $params,
+					'api_url' => $api_url,
+					'batch_size' => $fin - $inicio + 1,
+					'is_empty_response' => $is_empty_response,
+					'is_partial_response' => $is_partial_response,
+					'status_code' => $status_code,
+					'retry_count' => $retry_count
+				]
+			);
+		}
+		
+		// Verificar si hay productos en la respuesta
+		if (empty($data['Articulos'])) {
+			if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+				$logger->warning(
+					'No se encontraron productos en este lote',
+					[
+						'inicio' => $inicio,
+						'fin' => $fin,
+						'params' => $params
+					]
+				);
+			}
+			
+			// Devolver resultado vacío pero válido
+			return array(
+				'count'  => 0,
+				'errors' => 0,
+				'empty_batch' => true
+			);
+		}
+
+		// --- Optimización N+1: Precargar datos del lote ---
+		$batch_skus = array_column($data['Articulos'], 'ReferenciaBarras');
+		
+		$verial_category_ids = [];
+		$category_fields = ['ID_Categoria', 'ID_CategoriaWeb1', 'ID_CategoriaWeb2', 'ID_CategoriaWeb3', 'ID_CategoriaWeb4'];
+		foreach ($data['Articulos'] as $product) {
+			foreach ($category_fields as $field) {
+				if (!empty($product[$field])) {
+					$verial_category_ids[] = (int)$product[$field];
+				}
+			}
+		}
+		
+		$batch_cache = [
+			'product_ids'       => $this->get_product_ids_by_sku($batch_skus),
+			'category_mappings' => $this->get_category_mappings(array_unique($verial_category_ids)),
+		];
+		// --- Fin de la optimización ---
+
+		// Registrar tamaño del lote para diagnóstico
+		if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+			$logger->info(
+				sprintf('Procesando lote de %d productos', count($data['Articulos'])),
+				[
+					'skus' => $batch_skus,
+					'inicio' => $inicio,
+					'fin' => $fin
+				]
+			);
+		}
+		
+		// Procesar productos en transacción para mejorar rendimiento
+		global $wpdb;
+		$wpdb->query('START TRANSACTION');
+		$transaction_successful = true;
+
+		// Procesar cada producto
+		$processed = 0;
+		$errors = 0;
+		$success_ids = []; // Almacenar SKUs procesados correctamente
+
+		foreach ( $data['Articulos'] as $verial_product ) {
+			// Guardar el producto actual para recuperación
+			$this->save_current_product($verial_product);
+			
+			// Actualizar progreso visual para el usuario
+			$this->update_visual_progress($processed, count($data['Articulos']), $verial_product);
+			
+			try {
+				// Mapear producto de Verial a formato de WooCommerce
+				$wc_product_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc( $verial_product, [], $batch_cache );
+
+				// Crear o actualizar el producto en WooCommerce
+				$result = $this->create_or_update_wc_product( $wc_product_data, $batch_cache );
+
+				if ( is_wp_error( $result ) ) {
+					// Log detallado del error
+					if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-product-error');
+						$logger->error('Error al crear/actualizar producto', [
+							'sku' => $wc_product_data['sku'] ?? 'unknown',
+							'error_code' => $result->get_error_code(),
+							'error_message' => $result->get_error_message(),
+							'error_data' => $result->get_error_data()
+						]);
+					}
+					
+					$this->log_sync_error(
+						$verial_product,
+						$result->get_error_code(),
+						$result->get_error_message()
+					);
+					$errors++;
+				} else {
+					$processed++;
+					$success_ids[] = $verial_product['ReferenciaBarras'] ?? $verial_product['Id'];
+					
+					// Log de éxito con detalles del producto creado/actualizado
+					if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-product-success');
+						$logger->info('Producto procesado exitosamente', [
+							'sku' => $wc_product_data['sku'] ?? 'unknown',
+							'product_id' => $result->get_id(),
+							'name' => $result->get_name(),
+							'status' => $result->get_status(),
+							'url' => $result->get_permalink()
+						]);
+					}
+				}
+			} catch (\Throwable $e) {
+				// Capturar cualquier excepción durante el procesamiento para evitar interrumpir el lote completo
+				if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-product-error');
+					$logger->error(
+						'Error al procesar producto: ' . $e->getMessage(),
+						[
+							'exception' => get_class($e),
+							'file' => $e->getFile(),
+							'line' => $e->getLine(),
+							'sku' => $verial_product['ReferenciaBarras'] ?? 'Desconocido',
+							'nombre' => $verial_product['Nombre'] ?? 'Desconocido'
+						]
+					);
+				}
+				
+				$this->log_sync_error(
+					$verial_product,
+					'exception',
+					$e->getMessage()
+				);
+				$errors++;
+				
+				// Si hay demasiados errores en este lote, marcar transacción como fallida
+				if ($errors > min(count($data['Articulos']) * 0.3, 10)) {
+					$transaction_successful = false;
+				}
+			}
+		}
+		
+		// Completar o revertir transacción según resultado
+		if ($transaction_successful) {
+			$wpdb->query('COMMIT');
+		} else {
+			$wpdb->query('ROLLBACK');
+			
+			if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-transaction');
+				$logger->error(
+					'Transacción revertida por exceso de errores',
+					[
+						'lote' => [$inicio, $fin],
+						'total_articulos' => count($data['Articulos']),
+						'errores' => $errors,
+						'procesados' => $processed
+					]
+				);
+			}
+		}
+		
+		// Actualizar el contador de errores en el estado general
+		if ($errors > 0) {
+			$this->sync_status['current_sync']['errors'] += $errors;
+			$this->save_sync_status();
+		}
+		
+		// Guardar SKUs procesados correctamente para posible recuperación
+		$this->save_processed_skus($success_ids);
+		
+		// Marcar este lote como completado
+		$this->mark_batch_completed($offset, $limit);
+		
+		// Registrar finalización del lote
+		if ( class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+			$logger->info(
+				sprintf('Lote completado (inicio=%d, fin=%d): %d procesados, %d errores',
+					$inicio, $fin, $processed, $errors),
+				[
+					'transaccion_exitosa' => $transaction_successful
+				]
+			);
+		}
+
+		// Registrar resultado para optimización futura del tamaño de lote
+		$batch_size = $fin - $inicio + 1;
+		$success = ($processed > 0 && $transaction_successful);
+		$this->record_sync_result($inicio, $fin, $batch_size, $success, $errors > 0 ? 'processing_error' : null);
+
+		return array(
+			'count'  => $processed,
+			'errors' => $errors,
+			'batch'  => [$inicio, $fin],
+		);
+	}
+	
+	/**
+	 * Versión simplificada de sync_products_from_verial para sub-rangos
+	 * 
+	 * @param int $inicio
+	 * @param int $fin  
+	 * @param array $filters
+	 * @return array|WP_Error
+	 */
+	private function sync_products_from_verial_range($inicio, $fin, $filters = []) {
+		// Parámetros básicos para el sub-rango
+		$params = [
+			'inicio' => $inicio,
+			'fin' => $fin,
+			'x' => $this->api_connector->get_session_number(),
+		];
+		
+		// Aplicar filtros si existen
+		if (!empty($filters['modified_after'])) {
+			$params['fecha'] = date('Y-m-d', $filters['modified_after']);
+			if (!empty($filters['modified_after_time'])) {
+				$params['hora'] = $filters['modified_after_time'];
+			}
+		}
+		
+		// Configuración con timeout más largo para sub-rangos
+		$api_options = [
+			'timeout' => 120,
+			'wp_args' => [
+				'timeout' => 120,
+				'blocking' => true,
+				'sslverify' => false
+			]
+		];
+		
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-sub-range');
+			$logger->info(
+				sprintf('Procesando sub-rango %d-%d', $inicio, $fin),
+				['params' => $params]
+			);
+		}
+		
+		// Realizar solicitud
+		$response = $this->api_connector->get('GetArticulosWS', $params, $api_options);
+		
+		if (is_wp_error($response)) {
+			return $response;
+		}
+		
+		$body = wp_remote_retrieve_body($response);
+		if (empty($body)) {
+			return new \WP_Error(
+				'empty_sub_range_response',
+				sprintf(__('Sub-rango %d-%d también devuelve respuesta vacía', 'mi-integracion-api'), $inicio, $fin)
+			);
+		}
+		
+		$data = json_decode($body, true);
+		if (json_last_error() !== JSON_ERROR_NONE || empty($data['Articulos'])) {
+			return [
+				'count' => 0,
+				'errors' => 0,
+				'batch' => [$inicio, $fin]
+			];
+		}
+		
+		// Procesar productos simplificado
+		$processed = 0;
+		$errors = 0;
+		
+		foreach ($data['Articulos'] as $verial_product) {
+			try {
+				$wc_product_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($verial_product);
+				$result = $this->create_or_update_wc_product($wc_product_data);
+				
+				if (is_wp_error($result)) {
+					$errors++;
+				} else {
+					$processed++;
+				}
+			} catch (\Exception $e) {
+				$errors++;
+			}
+		}
+		
+		return [
+			'count' => $processed,
+			'errors' => $errors,
+			'batch' => [$inicio, $fin]
+		];
+	}
+	
+	/**
+	 * Guarda el estado del lote actual para posible recuperación
+	 *
+	 * @param int $offset Offset actual
+	 * @param int $limit Tamaño del lote
+	 */
+	private function save_sync_batch_state($offset, $limit) {
+		set_transient('mia_sync_current_batch_offset', $offset, HOUR_IN_SECONDS * 6);
+		set_transient('mia_sync_current_batch_limit', $limit, HOUR_IN_SECONDS * 6);
+		set_transient('mia_sync_current_batch_time', time(), HOUR_IN_SECONDS * 6);
+		set_transient('mia_sync_batch_start_time', microtime(true), HOUR_IN_SECONDS * 6);
+	}
+	
+	/**
+	 * Guarda información del producto actual que se está procesando
+	 *
+	 * @param array $product Datos del producto
+	 */
+	private function save_current_product($product) {
+		$sku = $product['ReferenciaBarras'] ?? $product['Id'] ?? 'unknown';
+		$name = $product['Nombre'] ?? 'Producto sin nombre';
+		
+		set_transient('mia_sync_current_product_sku', $sku, HOUR_IN_SECONDS * 6);
+		set_transient('mia_sync_current_product_name', $name, HOUR_IN_SECONDS * 6);
+		set_transient('mia_last_product', $name, HOUR_IN_SECONDS * 6);
+		
+		// Guardar también el timestamp para análisis de velocidad
+		set_transient('mia_sync_last_product_time', microtime(true), HOUR_IN_SECONDS * 6);
+	}
+	
+	/**
+	 * Actualiza el progreso visual para la interfaz de usuario
+	 *
+	 * @param int $processed Número de productos procesados
+	 * @param int $total Total de productos en el lote
+	 * @param array $current_product Producto actual
+	 */
+	private function update_visual_progress($processed, $total, $current_product) {
+		$sku = $current_product['ReferenciaBarras'] ?? $current_product['Id'] ?? 'unknown';
+		$name = $current_product['Nombre'] ?? 'Producto sin nombre';
+		
+		if (class_exists('\MiIntegracionApi\Admin\AjaxSync')) {
+			\MiIntegracionApi\Admin\AjaxSync::store_sync_progress(
+				0, // El porcentaje se calcula internamente
+				sprintf(__('Procesando producto %d de %d: %s', 'mi-integracion-api'), $processed + 1, $total, $name),
+				[
+					'articulo_actual' => $name,
+					'sku' => $sku,
+					'procesados' => $this->sync_status['current_sync']['items_synced'] + $processed,
+					'errores' => $this->sync_status['current_sync']['errors'],
+					'total' => $this->sync_status['current_sync']['total_items']
+				]
+			);
+		}
+	}
+	
+	/**
+	 * Guarda SKUs procesados correctamente para posible recuperación
+	 *
+	 * @param array $skus Lista de SKUs procesados correctamente
+	 */
+	private function save_processed_skus($skus) {
+		$processed_skus = get_transient('mia_sync_processed_skus');
+		if (!is_array($processed_skus)) {
+			$processed_skus = [];
+		}
+		
+		$processed_skus = array_merge($processed_skus, $skus);
+		set_transient('mia_sync_processed_skus', $processed_skus, HOUR_IN_SECONDS * 6);
+	}
+	
+	/**
+	 * Marca un lote como completado para recuperación
+	 *
+	 * @param int $offset Offset del lote
+	 * @param int $limit Tamaño del lote
+	 */
+	private function mark_batch_completed($offset, $limit) {
+		$completed_batches = get_transient('mia_sync_completed_batches');
+		if (!is_array($completed_batches)) {
+			$completed_batches = [];
+		}
+		
+		$batch_key = $offset . '-' . ($offset + $limit);
+		$completed_batches[$batch_key] = time();
+		
+		// Guardar tiempo de procesamiento para este lote
+		$batch_start_time = get_transient('mia_sync_batch_start_time');
+		if ($batch_start_time) {
+			$batch_duration = microtime(true) - $batch_start_time;
+			
+			// Mantener un historial de tiempos de procesamiento para análisis
+			$batch_times = get_transient('mia_sync_batch_times') ?: [];
+			$batch_times[$batch_key] = [
+				'start' => $batch_start_time,
+				'end' => microtime(true),
+				'duration' => $batch_duration,
+				'offset' => $offset,
+				'limit' => $limit,
+				'items' => $limit  // Aproximación, podría ajustarse con el número real
+			];
+			
+			// Limitar el tamaño del historial para evitar transient demasiado grande
+			if (count($batch_times) > 50) {
+				$batch_times = array_slice($batch_times, -50, 50, true);
+			}
+			
+			set_transient('mia_sync_batch_times', $batch_times, HOUR_IN_SECONDS * 6);
+		}
+		
+		set_transient('mia_sync_completed_batches', $completed_batches, HOUR_IN_SECONDS * 6);
+	}
+
+	/**
+	 * Sincroniza pedidos desde WooCommerce a Verial
+	 *
+	 * @param int   $offset Offset para la consulta
+	 * @param int   $limit Límite de pedidos a procesar
+	 * @param array $filters Filtros adicionales
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	private function sync_orders_to_verial( $offset, $limit, $filters ) {
+		// Obtener pedidos de WooCommerce
+		$args = array(
+			'limit'  => $limit,
+			'offset' => $offset,
+		);
+
+		// Aplicar filtros adicionales
+		if ( ! empty( $filters['status'] ) ) {
+			$args['status'] = $filters['status'];
+		}
+
+		if ( ! empty( $filters['modified_after'] ) ) {
+			$args['date_modified'] = '>=' . $filters['modified_after'];
+		}
+
+		// Obtener pedidos
+		$query  = new \WC_Order_Query( $args );
+		$orders = $query->get_orders();
+
+		// Procesar cada pedido
+		$processed = 0;
+		$errors    = array();
+
+		foreach ( $orders as $order ) {
+			// Mapear pedido de WooCommerce a formato de Verial
+			$verial_order = $this->map_wc_order_to_verial( $order );
+
+			// Enviar a Verial
+			// TODO: Implementar la lógica específica según la API de Verial
+
+			++$processed;
+		}
+
+		return array(
+			'count'  => $processed,
+			'errors' => $errors,
+		);
+	}
+
+	/**
+	 * Sincroniza pedidos desde Verial a WooCommerce
+	 *
+	 * @param int   $offset Offset para la consulta
+	 * @param int   $limit Límite de pedidos a procesar
+	 * @param array $filters Filtros adicionales
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	private function sync_orders_from_verial( $offset, $limit, $filters ) {
+		// Esta función necesitaría implementarse según la API de Verial
+		// Por ahora, devolvemos un resultado simulado para demostración
+		return array(
+			'count'  => 0,
+			'errors' => array(),
+		);
+	}
+
+	/**
+	 * Mapea un producto de WooCommerce al formato de Verial
+	 *
+	 * @param WC_Product $product Producto de WooCommerce
+	 * @return array Datos del producto en formato Verial
+	 */
+	private function map_wc_product_to_verial( $product ) {
+		// TODO: Implementar el mapeo según la documentación de la API de Verial
+		return array(
+			'ID'          => $product->get_id(),
+			'Codigo'      => $product->get_sku(),
+			'Descripcion' => $product->get_name(),
+			'PVP'         => $product->get_price(),
+			// Añadir más campos según la API de Verial
+		);
+	}
+
+	/**
+	 * Mapea un producto de Verial al formato de WooCommerce
+	 *
+	 * @param array $verial_product Datos del producto de Verial
+	 * @return array Datos del producto en formato WooCommerce
+	 */
+	private function map_verial_product_to_wc( $verial_product ) {
+		// Este método ahora es un contenedor simple. La lógica principal se ha movido
+		// a la clase MapProduct para una mejor separación de responsabilidades.
+		// La llamada real se hace directamente desde sync_products_from_verial.
+		return \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($verial_product);
+	}
+
+	/**
+	 * Mapea un pedido de WooCommerce al formato de Verial
+	 *
+	 * @param WC_Order $order Pedido de WooCommerce
+	 * @return array Datos del pedido en formato Verial
+	 */
+	private function map_wc_order_to_verial( $order ) {
+		// TODO: Implementar el mapeo según la documentación de la API de Verial
+		return array(
+			'ID'      => $order->get_id(),
+			'Fecha'   => $order->get_date_created()->format( 'Y-m-d' ),
+			'Cliente' => array(
+				'Nombre' => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+				'Email'  => $order->get_billing_email(),
+				// Añadir más campos según la API de Verial
+			),
+			// Añadir más campos según la API de Verial
+		);
+	}
+
+	/**
+	 * Crea o actualiza un producto en WooCommerce
+	 *
+	 * @param array $product_data Datos del producto.
+	 * @param array $batch_cache  Caché de datos precargados para el lote.
+	 * @return WC_Product|WP_Error Producto creado/actualizado o error.
+	 */
+	private function create_or_update_wc_product( array $product_data, array $batch_cache = [] ): \WC_Product|WP_Error {
+	 // Usar la caché de lote si está disponible, si no, consultar la BD.
+	 $product_id = $batch_cache['product_ids'][ $product_data['sku'] ] ?? wc_get_product_id_by_sku( $product_data['sku'] );
+
+	 if ( $product_id ) {
+	 	// Actualizar producto existente
+	 	$product = wc_get_product( $product_id );
+
+			if ( ! $product ) {
+				return new \WP_Error(
+					'product_not_found',
+					__( 'No se pudo encontrar el producto a actualizar.', 'mi-integracion-api' )
+				);
+			}
+		} else {
+			// Crear nuevo producto simple
+			$product = new \WC_Product_Simple();
+			// CRÍTICO: Establecer el estado como 'publish' para que aparezca en la tienda
+			$product->set_status( 'publish' );
+			$product->set_catalog_visibility( 'visible' );
+			
+			// Log de creación de nuevo producto
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('product-creation');
+				$logger->info('Creando nuevo producto WooCommerce', [
+					'sku' => $product_data['sku'] ?? 'unknown',
+					'name' => $product_data['name'] ?? 'unknown',
+					'status' => 'publish',
+					'visibility' => 'visible',
+					'type' => 'simple'
+				]);
+			}
+		}
+
+		// Actualizar datos del producto
+		$product->set_sku( $product_data['sku'] );
+		$product->set_name( $product_data['name'] );
+		$product->set_regular_price( $product_data['regular_price'] );
+
+		// Añadir más campos según los datos disponibles
+		if ( isset( $product_data['description'] ) ) {
+			$product->set_description( $product_data['description'] );
+		}
+
+		if ( isset( $product_data['short_description'] ) ) {
+			$product->set_short_description( $product_data['short_description'] );
+		}
+
+		if ( isset( $product_data['stock_quantity'] ) ) {
+			$product->set_stock_quantity( $product_data['stock_quantity'] );
+			$product->set_manage_stock( true );
+			$product->set_stock_status( $product_data['stock_quantity'] > 0 ? 'instock' : 'outofstock' );
+		}
+
+		// Guardar producto
+		$product_id = $product->save();
+
+		// Log detallado del guardado del producto
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('product-creation');
+			if (!$product_id) {
+				$logger->error('Error al guardar producto WooCommerce', [
+					'sku' => $product_data['sku'] ?? 'unknown',
+					'name' => $product_data['name'] ?? 'unknown',
+					'errors' => $product->get_error_data()
+				]);
+			} else {
+				$logger->info('Producto WooCommerce guardado exitosamente', [
+					'product_id' => $product_id,
+					'sku' => $product_data['sku'] ?? 'unknown',
+					'name' => $product_data['name'] ?? 'unknown',
+					'status' => $product->get_status(),
+					'visibility' => $product->get_catalog_visibility()
+				]);
+			}
+		}
+
+		if ( ! $product_id ) {
+			return new \WP_Error(
+				'save_failed',
+				__( 'Error al guardar el producto.', 'mi-integracion-api' )
+			);
+		}
+
+		return $product;
+	}
+
+	/**
+	 * Obtiene los IDs de productos de WooCommerce a partir de una lista de SKUs.
+	 *
+	 * @param array $skus Lista de SKUs a buscar.
+	 * @return array Array asociativo de ['sku' => 'product_id'].
+	 */
+	private function get_product_ids_by_sku( array $skus ): array {
+		global $wpdb;
+		if ( empty( $skus ) ) {
+			return [];
+		}
+
+		$placeholders = implode( ', ', array_fill( 0, count( $skus ), '%s' ) );
+		$sql          = "SELECT post_id, meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_sku' AND meta_value IN ( {$placeholders} )";
+		$results      = $wpdb->get_results( $wpdb->prepare( $sql, $skus ) );
+
+		$product_ids = [];
+		foreach ( $results as $result ) {
+			$product_ids[ $result->meta_value ] = (int) $result->post_id;
+		}
+
+		return $product_ids;
+	}
+
+	/**
+		* Obtiene los mapeos de categorías de WooCommerce a partir de una lista de IDs de Verial.
+		*
+		* @param array $verial_ids Lista de IDs de categorías de Verial.
+		* @return array Array asociativo de ['verial_id' => 'wc_term_id'].
+		*/
+	private function get_category_mappings( array $verial_ids ): array {
+		global $wpdb;
+		if ( empty( $verial_ids ) ) {
+			return [];
+		}
+
+		$placeholders = implode( ', ', array_fill( 0, count( $verial_ids ), '%d' ) );
+		$sql = "SELECT tm.term_id, tm.meta_value as verial_id
+				FROM {$wpdb->termmeta} tm
+				WHERE tm.meta_key = '_verial_category_id'
+				AND tm.meta_value IN ( {$placeholders} )";
+
+		$results = $wpdb->get_results( $wpdb->prepare( $sql, $verial_ids ) );
+
+		$mappings = [];
+		foreach ( $results as $result ) {
+			$mappings[ (int) $result->verial_id ] = (int) $result->term_id;
+		}
+
+		return $mappings;
+	}
+
+	/**
+		* Registra un error de sincronización en la base de datos.
+		*
+		* @param array  $item_data     Los datos del item que falló.
+		* @param string $error_code    El código del error.
+		* @param string $error_message El mensaje del error.
+		* @return void
+		*/
+	private function log_sync_error(array $item_data, string $error_code, string $error_message): void {
+		global $wpdb;
+
+		$run_id = $this->sync_status['current_sync']['run_id'] ?? 'unknown';
+		$sku = $item_data['ReferenciaBarras'] ?? $item_data['Id'] ?? 'no-sku';
+
+		$table_name = $wpdb->prefix . Installer::SYNC_ERRORS_TABLE;
+
+		$wpdb->insert(
+			$table_name,
+			array(
+				'sync_run_id'   => $run_id,
+				'item_sku'      => $sku,
+				'item_data'     => wp_json_encode( $item_data ),
+				'error_code'    => $error_code,
+				'error_message' => $error_message,
+				'timestamp'     => current_time( 'mysql' ),
+			),
+			array(
+				'%s', // sync_run_id
+				'%s', // item_sku
+				'%s', // item_data
+				'%s', // error_code
+				'%s', // error_message
+				'%s', // timestamp
+			)
+		);
+	}
+
+	/**
+	 * Limpia los registros de errores de sincronización antiguos.
+	 *
+	 * @param int $days_to_keep Número de días de registros a mantener (por defecto 30)
+	 * @return int Número de registros eliminados
+	 */
+	public function cleanup_old_sync_errors(int $days_to_keep = 30): int {
+		global $wpdb;
+		$table_name = $wpdb->prefix . Installer::SYNC_ERRORS_TABLE;
+
+		// Calcular la fecha límite
+		$cutoff_date = date('Y-m-d H:i:s', strtotime("-{$days_to_keep} days"));
+
+		// Registrar inicio de limpieza
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-cleanup');
+			$logger->info(
+				sprintf('Iniciando limpieza de errores de sincronización anteriores a %s', $cutoff_date)
+			);
+		}
+
+		// Eliminar registros antiguos
+		$result = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$table_name} WHERE timestamp < %s",
+				$cutoff_date
+			)
+		);
+
+		// Registrar resultado
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-cleanup');
+			$logger->info(
+				sprintf('Limpieza completada: %d registros de errores eliminados', $result)
+			);
+		}
+
+		return (int) $result;
+	}
+
+	/**
+	 * Reanuda una sincronización desde el último punto conocido o desde un punto específico.
+	 *
+	 * @param int|null $offset Offset específico para reanudar (opcional)
+	 * @param int|null $batch_size Tamaño de lote específico para usar (opcional)
+	 * @return array|WP_Error Resultado de la operación
+	 */
+	public function resume_sync(?int $offset = null, ?int $batch_size = null): array|WP_Error {
+		$this->load_sync_status();
+
+		// Verificar si hay una sincronización en progreso o datos para recuperar
+		if (!$this->sync_status['current_sync']['in_progress'] && !$this->get_last_failed_batch()) {
+			return new \WP_Error(
+				'no_sync_to_resume',
+				__('No hay una sincronización para reanudar.', 'mi-integracion-api')
+			);
+		}
+
+		// Generar un nuevo ID de ejecución para la recuperación
+		$sync_run_id = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : uniqid('sync_recovery_', true);
+
+		// Si la sincronización no está marcada como en progreso, restablecerla
+		if (!$this->sync_status['current_sync']['in_progress']) {
+			// Obtener datos del último lote fallido
+			$last_batch = $this->get_last_failed_batch();
+			
+			if (!$last_batch) {
+				return new \WP_Error(
+					'no_recovery_data',
+					__('No hay datos de recuperación disponibles.', 'mi-integracion-api')
+				);
+			}
+			
+			// Usar los parámetros proporcionados o los del último lote fallido
+			$actual_offset = $offset ?? $last_batch['offset'];
+			$actual_batch_size = $batch_size ?? $last_batch['limit'];
+			
+			// Calcular el número de lote basado en el offset
+			$current_batch = floor($actual_offset / $actual_batch_size);
+			
+			// Actualizar estado para recuperación
+			$this->sync_status['current_sync']['in_progress'] = true;
+			$this->sync_status['current_sync']['run_id'] = $sync_run_id;
+			$this->sync_status['current_sync']['current_batch'] = $current_batch;
+			$this->sync_status['current_sync']['batch_size'] = $actual_batch_size;
+			$this->sync_status['current_sync']['recovery_enabled'] = true;
+			$this->sync_status['current_sync']['last_update'] = time();
+			$this->save_sync_status();
+
+			// Registrar recuperación
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-resume');
+				$logger->info(
+					'Reanudando sincronización desde punto de error previo',
+					[
+						'offset' => $actual_offset,
+						'batch_size' => $actual_batch_size,
+						'current_batch' => $current_batch,
+						'run_id' => $sync_run_id
+					]
+				);
+			}
+		} else {
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-continue');
+				$logger->info(
+					'Continuando sincronización en progreso',
+					[
+						'current_batch' => $this->sync_status['current_sync']['current_batch'],
+						'total_batches' => $this->sync_status['current_sync']['total_batches'],
+						'items_synced' => $this->sync_status['current_sync']['items_synced'],
+						'run_id' => $this->sync_status['current_sync']['run_id']
+					]
+				);
+			}
+		}
+
+		// Procesar el siguiente lote en modo recuperación
+		return $this->process_next_batch(true);
+	}
+
+	/**
+	 * Valida la conexión y parámetros de API antes de iniciar una sincronización completa.
+	 *
+	 * @param string $entity Entidad a sincronizar ('products' o 'orders')
+	 * @param string $direction Dirección de la sincronización
+	 * @param array $filters Filtros a utilizar
+	 * @return array|WP_Error Resultado de la validación
+	 */
+	public function validate_sync_prerequisites(string $entity, string $direction, array $filters = []): array|WP_Error {
+		$results = [
+			'api_connection' => false,
+			'params_valid' => false,
+			'count_test' => false,
+			'sample_data' => false,
+			'issues' => [],
+			'warnings' => [],
+			'sample_response' => null
+		];
+
+		// 1. Verificar credenciales de API
+		if (!$this->api_connector->has_valid_credentials()) {
+			$results['issues'][] = __('No hay credenciales válidas para Verial.', 'mi-integracion-api');
+			return $results;
+		}
+		$results['api_connection'] = true;
+
+		// 2. Validar parámetros básicos
+		if (!in_array($entity, ['products', 'orders'])) {
+			$results['issues'][] = __('Entidad inválida. Debe ser "products" o "orders".', 'mi-integracion-api');
+		}
+		
+		if (!in_array($direction, ['wc_to_verial', 'verial_to_wc'])) {
+			$results['issues'][] = __('Dirección inválida. Debe ser "wc_to_verial" o "verial_to_wc".', 'mi-integracion-api');
+		}
+		
+		if (empty($results['issues'])) {
+			$results['params_valid'] = true;
+		} else {
+			return $results;
+		}
+
+		// 3. Probar conteo de elementos (con un tiempo de espera menor)
+		try {
+			// Para productos de Verial, probar GetNumArticulosWS
+			if ($entity === 'products' && $direction === 'verial_to_wc') {
+				$count_result = $this->count_verial_products($filters);
+				
+				if (is_wp_error($count_result)) {
+					$results['issues'][] = sprintf(
+						__('Error al contar productos: %s', 'mi-integracion-api'),
+						$count_result->get_error_message()
+					);
+				} else {
+					$results['count_test'] = true;
+					$results['item_count'] = $count_result;
+					
+					// Advertencia si el conteo es muy alto
+					if ($count_result > 5000) {
+						$results['warnings'][] = sprintf(
+							__('El número de productos es muy alto (%d). Considere utilizar filtros para reducir el volumen.', 'mi-integracion-api'),
+							$count_result
+						);
+					}
+				}
+				
+				// 4. Probar obtención de muestra de datos
+				// Intentar obtener un pequeño lote de prueba
+				$params = [
+					'inicio' => 1, 
+					'fin' => 3,
+					// Parámetro de sesión según requisito del manual v1.8 (debe ser 'x')
+					'x' => $this->api_connector->get_session_number()
+				];
+				
+				// Añadir filtros de fecha/hora si existen
+				if (!empty($filters['modified_after'])) {
+					$params['fecha'] = date('Y-m-d', $filters['modified_after']);
+					if (!empty($filters['modified_after_time'])) {
+						$params['hora'] = $filters['modified_after_time'];
+					}
+				}
+				
+				$response = $this->api_connector->get('GetArticulosWS', $params);
+				
+				if (is_wp_error($response)) {
+					$results['issues'][] = sprintf(
+						__('Error al obtener datos de muestra: %s', 'mi-integracion-api'),
+						$response->get_error_message()
+					);
+				} else {
+					$body = wp_remote_retrieve_body($response);
+					$data = json_decode($body, true);
+					
+					if (isset($data['InfoError']) && $data['InfoError']['Codigo'] != 0) {
+						$results['issues'][] = sprintf(
+							__('Error de API al obtener datos de muestra: %s', 'mi-integracion-api'),
+							$data['InfoError']['Descripcion']
+						);
+					} else if (!isset($data['Articulos'])) {
+						$results['issues'][] = __('Respuesta sin datos de productos.', 'mi-integracion-api');
+					} else {
+						$results['sample_data'] = true;
+						$results['sample_count'] = count($data['Articulos']);
+						// Guardar un extracto de la respuesta (solo primeros 2 productos)
+						if (!empty($data['Articulos'])) {
+							$sample = array_slice($data['Articulos'], 0, 2);
+							// Filtrar campos sensibles o innecesarios
+							foreach ($sample as &$item) {
+								unset($item['Texto']); // Eliminar descripciones largas
+							}
+							$results['sample_response'] = $sample;
+						}
+					}
+				}
+			} else {
+				// Para otras combinaciones, por ahora solo validar conexión
+				$results['warnings'][] = __('Validación completa solo disponible para productos de Verial.', 'mi-integracion-api');
+			}
+		} catch (\Throwable $e) {
+			$results['issues'][] = sprintf(
+				__('Excepción durante validación: %s', 'mi-integracion-api'),
+				$e->getMessage()
+			);
+		}
+		
+		// Calcular estado general
+		$results['success'] = $results['api_connection'] &&
+							 $results['params_valid'] &&
+							 $results['count_test'] &&
+							 empty($results['issues']);
+		
+		return $results;
+	}
+
+	/**
+	 * Obtiene métricas de rendimiento de la sincronización actual o más reciente.
+	 *
+	 * @param string|null $run_id ID específico de ejecución (opcional)
+	 * @return array Métricas de rendimiento
+	 */
+	public function get_sync_performance_metrics(?string $run_id = null): array {
+		$this->load_sync_status();
+		
+		// Recopilar métricas del estado actual o historial
+		$current_metrics = [];
+		
+		// Si hay una sincronización en progreso, usar sus métricas
+		if ($this->sync_status['current_sync']['in_progress']) {
+			$sync_data = $this->sync_status['current_sync'];
+			
+			// Si se especificó un run_id diferente, buscarlo en el historial
+			if ($run_id && $run_id !== $sync_data['run_id']) {
+				$history = $this->get_sync_history(100);
+				foreach ($history as $entry) {
+					if (isset($entry['run_id']) && $entry['run_id'] === $run_id) {
+						$sync_data = $entry;
+						break;
+					}
+				}
+			}
+			
+			// Calcular duración hasta ahora
+			$duration = time() - $sync_data['start_time'];
+			$items_per_second = $duration > 0 ? $sync_data['items_synced'] / $duration : 0;
+			$estimated_total_time = $items_per_second > 0 ? $sync_data['total_items'] / $items_per_second : 0;
+			$estimated_remaining = $estimated_total_time - $duration;
+			
+			$current_metrics = [
+				'run_id' => $sync_data['run_id'] ?? null,
+				'entity' => $sync_data['entity'] ?? '',
+				'direction' => $sync_data['direction'] ?? '',
+				'batch_size' => $sync_data['batch_size'] ?? 0,
+				'items_synced' => $sync_data['items_synced'] ?? 0,
+				'total_items' => $sync_data['total_items'] ?? 0,
+				'current_batch' => $sync_data['current_batch'] ?? 0,
+				'total_batches' => $sync_data['total_batches'] ?? 0,
+				'errors' => $sync_data['errors'] ?? 0,
+				'duration_seconds' => $duration,
+				'duration_formatted' => sprintf(
+					'%02d:%02d:%02d',
+					floor($duration / 3600),
+					floor(($duration % 3600) / 60),
+					$duration % 60
+				),
+				'items_per_second' => round($items_per_second, 2),
+				'items_per_minute' => round($items_per_second * 60, 2),
+				'estimated_total_time' => $estimated_total_time,
+				'estimated_total_formatted' => sprintf(
+					'%02d:%02d:%02d',
+					floor($estimated_total_time / 3600),
+					floor(($estimated_total_time % 3600) / 60),
+					$estimated_total_time % 60
+				),
+				'estimated_remaining' => $estimated_remaining,
+				'estimated_remaining_formatted' => sprintf(
+					'%02d:%02d:%02d',
+					floor($estimated_remaining / 3600),
+					floor(($estimated_remaining % 3600) / 60),
+					$estimated_remaining % 60
+				),
+				'percent_complete' => $sync_data['total_items'] > 0
+					? round(($sync_data['items_synced'] / $sync_data['total_items']) * 100, 2)
+					: 0,
+				'in_progress' => $this->sync_status['current_sync']['in_progress'],
+				'error_rate' => $sync_data['items_synced'] > 0
+					? round(($sync_data['errors'] / $sync_data['items_synced']) * 100, 2)
+					: 0,
+			];
+		} else {
+			// No hay sincronización activa, buscar en el historial
+			$history = $this->get_sync_history(100);
+			$found_entry = null;
+			
+			if ($run_id) {
+				// Buscar entrada específica por run_id
+				foreach ($history as $entry) {
+					if (isset($entry['run_id']) && $entry['run_id'] === $run_id) {
+						$found_entry = $entry;
+						break;
+					}
+				}
+			} else if (!empty($history)) {
+				// Usar la entrada más reciente
+				$found_entry = $history[count($history) - 1];
+			}
+			
+			if ($found_entry) {
+				$duration = $found_entry['duration'] ?? ($found_entry['end_time'] - $found_entry['start_time']);
+				$items_per_second = $duration > 0 ? $found_entry['items_synced'] / $duration : 0;
+				
+				$current_metrics = [
+					'run_id' => $found_entry['run_id'] ?? null,
+					'entity' => $found_entry['entity'] ?? '',
+					'direction' => $found_entry['direction'] ?? '',
+					'batch_size' => $found_entry['batch_size'] ?? 0,
+					'items_synced' => $found_entry['items_synced'] ?? 0,
+					'total_items' => $found_entry['total_items'] ?? 0,
+					'errors' => $found_entry['errors'] ?? 0,
+					'duration_seconds' => $duration,
+					'duration_formatted' => sprintf(
+						'%02d:%02d:%02d',
+						floor($duration / 3600),
+						floor(($duration % 3600) / 60),
+						$duration % 60
+					),
+					'items_per_second' => round($items_per_second, 2),
+					'items_per_minute' => round($items_per_second * 60, 2),
+					'percent_complete' => $found_entry['total_items'] > 0
+						? round(($found_entry['items_synced'] / $found_entry['total_items']) * 100, 2)
+						: 0,
+					'in_progress' => false,
+					'completed' => true,
+					'status' => $found_entry['status'] ?? 'completed',
+					'error_rate' => $found_entry['items_synced'] > 0
+						? round(($found_entry['errors'] / $found_entry['items_synced']) * 100, 2)
+						: 0,
+				];
+			} else {
+				$current_metrics = [
+					'in_progress' => false,
+					'completed' => false,
+					'message' => __('No se encontraron datos de sincronización.', 'mi-integracion-api')
+				];
+			}
+		}
+		
+		return $current_metrics;
+	}
+
+	/**
+	 * Obtiene estadísticas de errores de sincronización.
+	 *
+	 * @param string|null $run_id ID específico de ejecución (opcional)
+	 * @param int $limit Límite de resultados por tipo de error
+	 * @return array Estadísticas de errores
+	 */
+	public function get_sync_error_stats(?string $run_id = null, int $limit = 10): array {
+		global $wpdb;
+		$table_name = $wpdb->prefix . Installer::SYNC_ERRORS_TABLE;
+
+		// Base de la consulta
+		$sql_base = "FROM {$table_name}";
+		$where = [];
+		$params = [];
+
+		// Filtrar por run_id si se proporciona
+		if ($run_id) {
+			$where[] = "sync_run_id = %s";
+			$params[] = $run_id;
+		}
+
+		// Construir cláusula WHERE
+		$where_clause = '';
+		if (!empty($where)) {
+			$where_clause = 'WHERE ' . implode(' AND ', $where);
+		}
+
+		// Obtener recuento total de errores
+		$total_errors = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) {$sql_base} {$where_clause}",
+				$params
+			)
+		);
+
+		// Obtener distribución por código de error
+		$error_distribution = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT error_code, COUNT(*) as count
+				{$sql_base}
+				{$where_clause}
+				GROUP BY error_code
+				ORDER BY count DESC
+				LIMIT %d",
+				array_merge($params, [$limit])
+			),
+			ARRAY_A
+		);
+
+		// Obtener errores más recientes
+		$recent_errors = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, sync_run_id, item_sku, error_code, error_message, timestamp
+				{$sql_base}
+				{$where_clause}
+				ORDER BY timestamp DESC
+				LIMIT %d",
+				array_merge($params, [$limit])
+			),
+			ARRAY_A
+		);
+
+		// Obtener SKUs con más errores
+		$problem_skus = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT item_sku, COUNT(*) as error_count
+				{$sql_base}
+				{$where_clause}
+				GROUP BY item_sku
+				ORDER BY error_count DESC
+				LIMIT %d",
+				array_merge($params, [$limit])
+			),
+			ARRAY_A
+		);
+
+		return [
+			'total_errors' => (int) $total_errors,
+			'error_distribution' => $error_distribution,
+			'recent_errors' => $recent_errors,
+			'problem_skus' => $problem_skus,
+			'run_id' => $run_id,
+			'generated_at' => current_time('mysql')
+		];
+	}
+	
+	/**
+	 * Obtener estadísticas de rangos saltados durante la sincronización
+	 */
+	public function get_skipped_ranges_statistics() {
+		$this->load_sync_status();
+		
+		$stats = [
+			'total_skipped_ranges' => 0,
+			'total_skipped_products' => 0,
+			'skipped_ranges' => [],
+			'reasons' => []
+		];
+		
+		if (isset($this->sync_status['current_sync']['skipped_ranges'])) {
+			$skipped_ranges = $this->sync_status['current_sync']['skipped_ranges'];
+			$stats['total_skipped_ranges'] = count($skipped_ranges);
+			
+			foreach ($skipped_ranges as $skipped) {
+				$range_size = $skipped['range'][1] - $skipped['range'][0] + 1;
+				$stats['total_skipped_products'] += $range_size;
+				$stats['skipped_ranges'][] = $skipped;
+				
+				if (!isset($stats['reasons'][$skipped['reason']])) {
+					$stats['reasons'][$skipped['reason']] = 0;
+				}
+				$stats['reasons'][$skipped['reason']]++;
+			}
+		}
+		
+		return $stats;
+	}
+	
+	/**
+	 * Diagnostica la causa de un timeout en la API de Verial
+	 * 
+	 * @param int $inicio Número de producto inicial
+	 * @param int $fin Número de producto final  
+	 * @param array $params Parámetros de la consulta
+	 * @param int $retry_count Número de reintentos realizados
+	 * @return array Resultado del diagnóstico con mensaje y datos
+	 */
+	private function diagnose_timeout_cause($inicio, $fin, $params, $retry_count) {
+		$logger = class_exists('\MiIntegracionApi\Helpers\Logger') ? 
+			new \MiIntegracionApi\Helpers\Logger('sync-diagnostic') : null;
+			
+		if ($logger) {
+			$logger->info('Iniciando diagnóstico de timeout', [
+				'rango' => [$inicio, $fin],
+				'batch_size' => $fin - $inicio + 1,
+				'retry_count' => $retry_count
+			]);
+		}
+		
+		// 1. PRUEBA DE CONECTIVIDAD BÁSICA
+		$connectivity_test = $this->test_api_connectivity();
+		
+		// 2. PRUEBA CON RANGO MÁS PEQUEÑO
+		$small_batch_test = null;
+		if (($fin - $inicio + 1) > 1) {
+			$small_batch_test = $this->test_small_batch($inicio, min($inicio + 1, $fin));
+		}
+		
+		// 3. PRUEBA DE PRODUCTO INDIVIDUAL
+		$individual_test = $this->test_individual_product($inicio);
+		
+		// 4. ANÁLISIS DE PATRONES
+		$pattern_analysis = $this->analyze_timeout_patterns($inicio, $fin);
+		
+		// 5. GENERAR DIAGNÓSTICO Y RECOMENDACIONES
+		$diagnosis = $this->generate_diagnosis([
+			'connectivity' => $connectivity_test,
+			'small_batch' => $small_batch_test,
+			'individual' => $individual_test,
+			'patterns' => $pattern_analysis,
+			'original_range' => [$inicio, $fin],
+			'retry_count' => $retry_count
+		]);
+		
+		if ($logger) {
+			$logger->info('Diagnóstico completado', $diagnosis);
+		}
+		
+		// Registrar el fallo por timeout para optimización futura
+		$original_range = $test_results['original_range'];
+		$batch_size = $original_range[1] - $original_range[0] + 1;
+		$this->record_sync_result($original_range[0], $original_range[1], $batch_size, false, 'timeout');
+		
+		return $diagnosis;
+	}
+	
+	/**
+	 * Prueba la conectividad básica con la API
+	 */
+	private function test_api_connectivity() {
+		try {
+			// Hacer una llamada simple para verificar que la API responde
+			$test_params = [
+				'inicio' => 1,
+				'fin' => 1,
+				'x' => $this->api_connector->get_session_number(),
+			];
+			
+			$response = $this->api_connector->get_articulos($test_params, ['timeout' => 15]);
+			
+			return [
+				'success' => !is_wp_error($response),
+				'error' => is_wp_error($response) ? $response->get_error_message() : null,
+				'response_time' => microtime(true)
+			];
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'error' => $e->getMessage()
+			];
+		}
+	}
+	
+	/**
+	 * Prueba con un lote más pequeño
+	 */
+	private function test_small_batch($inicio, $fin) {
+		try {
+			$test_params = [
+				'inicio' => $inicio,
+				'fin' => $fin,
+				'x' => $this->api_connector->get_session_number(),
+			];
+			
+			$response = $this->api_connector->get_articulos($test_params, ['timeout' => 30]);
+			
+			return [
+				'success' => !is_wp_error($response) && !empty(wp_remote_retrieve_body($response)),
+				'error' => is_wp_error($response) ? $response->get_error_message() : null,
+				'empty_response' => !is_wp_error($response) && empty(wp_remote_retrieve_body($response))
+			];
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'error' => $e->getMessage()
+			];
+		}
+	}
+	
+	/**
+	 * Prueba acceso a un producto individual
+	 */
+	private function test_individual_product($product_id) {
+		try {
+			$test_params = [
+				'inicio' => $product_id,
+				'fin' => $product_id,
+				'x' => $this->api_connector->get_session_number(),
+			];
+			
+			$response = $this->api_connector->get_articulos($test_params, ['timeout' => 20]);
+			
+			return [
+				'success' => !is_wp_error($response) && !empty(wp_remote_retrieve_body($response)),
+				'error' => is_wp_error($response) ? $response->get_error_message() : null,
+				'has_data' => false
+			];
+		} catch (Exception $e) {
+			return [
+				'success' => false,
+				'error' => $e->getMessage()
+			];
+		}
+	}
+	
+	/**
+	 * Analiza patrones de timeouts
+	 */
+	private function analyze_timeout_patterns($inicio, $fin) {
+		// Verificar si es un rango históricamente problemático
+		$known_problematic_ranges = [
+			[2501, 2600], [2701, 2800], [2901, 3000], [3101, 3200],
+			[3301, 3400], [3501, 3600], [3701, 3800], [3801, 3900]
+		];
+		
+		$is_known_problematic = false;
+		foreach ($known_problematic_ranges as $range) {
+			if ($inicio >= $range[0] && $inicio <= $range[1]) {
+				$is_known_problematic = true;
+				break;
+			}
+		}
+		
+		return [
+			'is_known_problematic_range' => $is_known_problematic,
+			'batch_size' => $fin - $inicio + 1,
+			'is_large_batch' => ($fin - $inicio + 1) > 20,
+			'range_analysis' => sprintf('Rango %d-%d', $inicio, $fin)
+		];
+	}
+	
+	/**
+	 * Genera el diagnóstico final y recomendaciones
+	 */
+	private function generate_diagnosis($test_results) {
+		$connectivity = $test_results['connectivity'];
+		$small_batch = $test_results['small_batch'];
+		$individual = $test_results['individual'];
+		$patterns = $test_results['patterns'];
+		$original_range = $test_results['original_range'];
+		
+		// Determinar la causa más probable
+		if (!$connectivity['success']) {
+			return [
+				'message' => __('Error de conectividad con la API de Verial. Verifique la configuración de conexión.', 'mi-integracion-api'),
+				'data' => [
+					'cause' => 'connectivity_failure',
+					'api_error' => $connectivity['error'],
+					'recommendation' => 'verify_api_settings'
+				]
+			];
+		}
+		
+		if ($small_batch && $small_batch['success']) {
+			return [
+				'message' => sprintf(__('El rango %d-%d requiere un lote más pequeño. La API responde correctamente con lotes menores.', 'mi-integracion-api'), 
+					$original_range[0], $original_range[1]),
+				'data' => [
+					'cause' => 'batch_size_too_large',
+					'recommendation' => 'reduce_batch_size',
+					'suggested_size' => 1,
+					'current_size' => $patterns['batch_size']
+				]
+			];
+		}
+		
+		if ($individual['success']) {
+			return [
+				'message' => sprintf(__('Productos individuales responden correctamente, pero el lote %d-%d causa timeout. Posible problema de rendimiento del servidor.', 'mi-integracion-api'), 
+					$original_range[0], $original_range[1]),
+				'data' => [
+					'cause' => 'server_performance',
+					'recommendation' => 'use_individual_sync',
+					'range' => $original_range
+				]
+			];
+		}
+		
+		if ($patterns['is_known_problematic_range']) {
+			return [
+				'message' => sprintf(__('El rango %d-%d es conocido por causar problemas. Posibles datos corruptos o productos con información problemática.', 'mi-integracion-api'), 
+					$original_range[0], $original_range[1]),
+				'data' => [
+					'cause' => 'problematic_data_range',
+					'recommendation' => 'contact_verial_support',
+					'range' => $original_range,
+					'action' => 'skip_and_log'
+				]
+			];
+		}
+		
+		// Diagnóstico general
+		return [
+			'message' => sprintf(__('Timeout persistente en rango %d-%d. Causa no determinada - requiere investigación manual.', 'mi-integracion-api'), 
+				$original_range[0], $original_range[1]),
+			'data' => [
+				'cause' => 'undetermined_timeout',
+				'recommendation' => 'manual_investigation',
+				'test_results' => $test_results,
+				'range' => $original_range
+			]
+		];
+	}
+
+	/**
+	 * Optimiza automáticamente el tamaño de lote basado en timeouts históricos
+	 * 
+	 * @param int $current_batch_size Tamaño actual del lote
+	 * @param int $range_start Inicio del rango problemático
+	 * @param int $range_end Final del rango problemático
+	 * @return int Nuevo tamaño de lote optimizado
+	 */
+	private function optimize_batch_size_for_range($current_batch_size, $range_start, $range_end) {
+		$logger = class_exists('\MiIntegracionApi\Helpers\Logger') ? 
+			new \MiIntegracionApi\Helpers\Logger('sync-batch-optimizer') : null;
+		
+		// Obtener historial de timeouts para este rango
+		$timeout_history = get_option('mia_timeout_history', []);
+		
+		// Si es un rango conocido por timeouts, usar un tamaño más pequeño
+		$range_key = floor($range_start / 100) * 100; // Agrupar por centenarios
+		
+		if (isset($timeout_history[$range_key])) {
+			$range_data = $timeout_history[$range_key];
+			$timeout_count = $range_data['timeout_count'] ?? 0;
+			$last_successful_size = $range_data['last_successful_size'] ?? null;
+			
+			if ($timeout_count > 3 && $last_successful_size) {
+				// Si hay muchos timeouts, usar el último tamaño exitoso
+				$optimized_size = min($last_successful_size, $current_batch_size);
+				
+				if ($logger) {
+					$logger->info('Optimizando tamaño de lote basado en historial', [
+						'range' => [$range_start, $range_end],
+						'current_size' => $current_batch_size,
+						'optimized_size' => $optimized_size,
+						'timeout_count' => $timeout_count,
+						'last_successful_size' => $last_successful_size
+					]);
+				}
+				
+				return $optimized_size;
+			}
+		}
+		
+		// Estrategia progresiva: reducir gradualmente
+		if ($current_batch_size > 20) {
+			return 20;
+		} elseif ($current_batch_size > 10) {
+			return 10;
+		} elseif ($current_batch_size > 5) {
+			return 5;
+		} else {
+			return 1; // Último recurso: productos individuales
+		}
+	}
+	
+	/**
+	 * Registra el resultado de una operación de sincronización para optimización futura
+	 */
+	private function record_sync_result($range_start, $range_end, $batch_size, $success, $error_type = null) {
+		$timeout_history = get_option('mia_timeout_history', []);
+		$range_key = floor($range_start / 100) * 100;
+		
+		if (!isset($timeout_history[$range_key])) {
+			$timeout_history[$range_key] = [
+				'timeout_count' => 0,
+				'success_count' => 0,
+				'last_successful_size' => null,
+				'last_update' => time()
+			];
+		}
+		
+		if ($success) {
+			$timeout_history[$range_key]['success_count']++;
+			$timeout_history[$range_key]['last_successful_size'] = $batch_size;
+		} else {
+			if ($error_type === 'timeout' || $error_type === 'empty_response') {
+				$timeout_history[$range_key]['timeout_count']++;
+			}
+		}
+		
+		$timeout_history[$range_key]['last_update'] = time();
+		
+		// Limpiar datos antiguos (más de 30 días)
+		foreach ($timeout_history as $key => $data) {
+			if (time() - $data['last_update'] > 30 * 24 * 3600) {
+				unset($timeout_history[$key]);
+			}
+		}
+		
+		update_option('mia_timeout_history', $timeout_history);
+	}
+	
+	/**
+	 * Función de emergencia para manejar timeouts persistentes automáticamente
+	 * 
+	 * @param int $inicio
+	 * @param int $fin
+	 * @param array $filters
+	 * @param int $max_depth Profundidad máxima de división recursiva
+	 * @return array|WP_Error
+	 */
+	private function emergency_timeout_handler($inicio, $fin, $filters = [], $max_depth = 3) {
+		$logger = class_exists('\MiIntegracionApi\Helpers\Logger') ? 
+			new \MiIntegracionApi\Helpers\Logger('emergency-timeout') : null;
+		
+		if ($logger) {
+			$logger->warning(
+				sprintf('Activando manejador de emergencia para rango %d-%d', $inicio, $fin),
+				[
+					'range_size' => $fin - $inicio + 1,
+					'max_depth' => $max_depth,
+					'filters' => $filters
+				]
+			);
+		}
+		
+		// Si el rango es de 1 producto y aún falla, marcarlo como problemático
+		if (($fin - $inicio + 1) <= 1) {
+			$this->mark_product_as_problematic($inicio);
+			
+			return [
+				'count' => 0,
+				'errors' => 1,
+				'batch' => [$inicio, $fin],
+				'emergency_skip' => true,
+				'reason' => 'single_product_timeout'
+			];
+		}
+		
+		// Si hemos alcanzado la profundidad máxima, procesar productos individualmente
+		if ($max_depth <= 0) {
+			return $this->process_products_individually($inicio, $fin, $filters);
+		}
+		
+		// Dividir el rango por la mitad
+		$mid_point = $inicio + floor(($fin - $inicio) / 2);
+		
+		$total_processed = 0;
+		$total_errors = 0;
+		$sub_ranges_processed = [];
+		
+		// Procesar primera mitad
+		$first_result = $this->emergency_timeout_handler($inicio, $mid_point, $filters, $max_depth - 1);
+		if (!is_wp_error($first_result)) {
+			$total_processed += $first_result['count'];
+			$total_errors += $first_result['errors'];
+			$sub_ranges_processed[] = [$inicio, $mid_point];
+		}
+		
+		// Procesar segunda mitad  
+		$second_result = $this->emergency_timeout_handler($mid_point + 1, $fin, $filters, $max_depth - 1);
+		if (!is_wp_error($second_result)) {
+			$total_processed += $second_result['count'];
+			$total_errors += $second_result['errors'];
+			$sub_ranges_processed[] = [$mid_point + 1, $fin];
+		}
+		
+		if ($logger) {
+			$logger->info(
+				sprintf('Manejador de emergencia completado para %d-%d: %d procesados, %d errores', 
+					$inicio, $fin, $total_processed, $total_errors),
+				[
+					'sub_ranges' => $sub_ranges_processed,
+					'emergency_mode' => true
+				]
+			);
+		}
+		
+		return [
+			'count' => $total_processed,
+			'errors' => $total_errors,
+			'batch' => [$inicio, $fin],
+			'emergency_processed' => true,
+			'sub_ranges' => $sub_ranges_processed
+		];
+	}
+	
+	/**
+	 * Marca un producto como problemático para omitirlo en futuras sincronizaciones
+	 */
+	private function mark_product_as_problematic($product_id) {
+		$problematic_products = get_option('mia_problematic_products', []);
+		$problematic_products[$product_id] = [
+			'timestamp' => time(),
+			'reason' => 'persistent_timeout',
+			'attempts' => ($problematic_products[$product_id]['attempts'] ?? 0) + 1
+		];
+		
+		update_option('mia_problematic_products', $problematic_products);
+	}
+	
+	/**
+	 * Procesa productos individualmente con timeout extendido
+	 */
+	private function process_products_individually($inicio, $fin, $filters = []) {
+		$processed = 0;
+		$errors = 0;
+		
+		for ($i = $inicio; $i <= $fin; $i++) {
+			$result = $this->sync_products_from_verial_range($i, $i, $filters);
+			
+			if (is_wp_error($result)) {
+				$errors++;
+				$this->mark_product_as_problematic($i);
+			} else {
+				$processed++;
+			}
+			
+			// Pequeña pausa entre productos para no saturar la API
+			usleep(100000); // 0.1 segundos
+		}
+		
+		return [
+			'count' => $processed,
+			'errors' => $errors,
+			'batch' => [$inicio, $fin],
+			'individual_processing' => true
+		];
+	}
+}

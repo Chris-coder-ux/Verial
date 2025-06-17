@@ -19,169 +19,64 @@ class Sync_Single_Product {
 	 * @param \MiIntegracionApi\Core\ApiConnector $api_connector El conector de API
 	 * @param string                              $sku SKU del producto a sincronizar
 	 * @param string                              $nombre Nombre del producto a sincronizar
-	 * @param string                              $categoria ID de la categoría del producto (opcional)
-	 * @param string                              $fabricante ID del fabricante del producto (opcional)
 	 * @return array<string, mixed> Resultado de la sincronización con claves 'success' y 'message'
 	 */
-	public function sync( \MiIntegracionApi\Core\ApiConnector $api_connector, string $sku = '', string $nombre = '', string $categoria = '', string $fabricante = '' ): array {
+	public static function sync( \MiIntegracionApi\Core\ApiConnector $api_connector, string $sku = '', string $nombre = '' ): array {
 		if ( ! class_exists( 'WooCommerce' ) ) {
 			return array(
 				'success' => false,
 				'message' => 'WooCommerce no está activo.',
 			);
 		}
-		// Verificar si hay un lock de sincronización activo
-		$sync_locked = \MiIntegracionApi\Sync\SyncLock::is_locked('batch');
-		if ($sync_locked) {
-		    $logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
-		    $logger->warning('Intento de sincronización mientras hay un proceso batch activo', [
-		        'sku' => $sku,
-		        'nombre' => $nombre
-		    ]);
-		    
-		    return array(
-				'success' => false,
-				'message' => __( 'Ya hay una sincronización masiva en curso. Por favor, intenta de nuevo cuando finalice.', 'mi-integracion-api' ),
-			);
-		}
-		
-		// Para sincronización individual permitimos reemplazar locks anteriores
-		if (\MiIntegracionApi\Sync\SyncLock::is_locked('single')) {
-		    \MiIntegracionApi\Sync\SyncLock::release('single');
-		}
-		
-		// Adquirir un nuevo lock para esta sincronización
-		if ( ! \MiIntegracionApi\Sync\SyncLock::acquire('single', 300) ) { // 5 minutos timeout
+		if ( ! MI_Sync_Lock::acquire() ) {
 			return array(
 				'success' => false,
-				'message' => __( 'No se pudo obtener acceso exclusivo para la sincronización. Intenta nuevamente.', 'mi-integracion-api' ),
+				'message' => __( 'Ya hay una sincronización en curso.', 'mi-integracion-api' ),
 			);
 		}
-		
 		try {
 			/**
 			 * Obtener artículos de la API
 			 */
-			 
-			// Verificar si hay algún parámetro de búsqueda
-			if (empty($sku) && empty($nombre) && empty($categoria) && empty($fabricante)) {
-			    return array(
-			        'success' => false,
-			        'message' => __('Debes proporcionar al menos un parámetro de búsqueda.', 'mi-integracion-api'),
-			    );
-			}
-			
-			// Iniciar el logger para diagnóstico
-			$logger = new \MiIntegracionApi\helpers\Logger('single-product-sync');
-			$logger->info(
-			    '[Sync_Single_Product] Iniciando sincronización con parámetros: ' . 
-			    json_encode(['sku' => $sku, 'nombre' => $nombre, 'categoria' => $categoria, 'fabricante' => $fabricante]), 
-			    ['context' => 'sync-product']
-			);
-			
-			// Construir filtros adicionales para la búsqueda
-			$filtros_adicionales = [];
-			
-			if (!empty($categoria)) {
-			    $filtros_adicionales['ID_Categoria'] = $categoria;
-			    $logger->info(
-			        '[Sync_Single_Product] Añadiendo filtro de categoría: ' . $categoria, 
-			        ['context' => 'sync-product-params']
-			    );
-			}
-			
-			if (!empty($fabricante)) {
-			    $filtros_adicionales['ID_Fabricante'] = $fabricante;
-			    $logger->info(
-			        '[Sync_Single_Product] Añadiendo filtro de fabricante: ' . $fabricante, 
-			        ['context' => 'sync-product-params']
-			    );
-			}
-			
-			// Usar el nuevo método de búsqueda escalonada para tener mejores resultados
-			$logger->info(
-			    '[Sync_Single_Product] Ejecutando búsqueda escalonada por prioridad', 
-			    ['context' => 'sync-product']
-			);
-			
-			$productos = $api_connector->searchProductEscalonado($sku, $nombre, $filtros_adicionales);
-			
-			// Verificar errores en la respuesta
-			if (is_wp_error($productos)) {
+			$productos = $api_connector->get_articulos();
+			/** @phpstan-ignore-next-line */
+			if ( is_wp_error( $productos ) ) {
+				/** @phpstan-ignore-next-line */
 				$error_message = $productos->get_error_message();
-				$error_message = is_string($error_message) ? $error_message : 'Error desconocido';
-				
-				$logger->error(
-				    '[Sync_Single_Product] Error en API: ' . $error_message,
-				    ['context' => 'sync-product']
-				);
-				
+				$error_message = is_string( $error_message ) ? $error_message : 'Error desconocido';
 				return array(
 					'success' => false,
 					'message' => $error_message,
 				);
 			}
-			
-			// Depurar resumen de la respuesta
-			$logger->debug(
-			    '[Sync_Single_Product] Respuesta de API recibida',
-			    [
-			        'context' => 'sync-product',
-			        'tiene_articulos' => isset($productos['Articulos']),
-			        'cantidad' => isset($productos['Articulos']) ? count($productos['Articulos']) : 0
-			    ]
-			);
-			
-			// Verificar que la estructura de respuesta sea válida
-			if (!is_array($productos) || empty($productos) || !isset($productos['Articulos'])) {
-				$logger->warning(
-				    '[Sync_Single_Product] Formato de respuesta inesperado o sin artículos',
-				    ['context' => 'sync-product']
-				);
-				
+			/** @phpstan-ignore-next-line */
+			if ( ! is_array( $productos ) || empty( $productos ) ) {
 				return array(
 					'success' => false,
-					'message' => __('No se obtuvieron productos de Verial o formato de respuesta inesperado.', 'mi-integracion-api'),
+					'message' => __( 'No se obtuvieron productos de Verial.', 'mi-integracion-api' ),
 				);
 			}
-			
-			// Extraer la lista de artículos
-			$articulos = $productos['Articulos'];
-			
-			// Verificar si se encontraron productos
-			if (empty($articulos)) {
-				$logger->warning(
-				    '[Sync_Single_Product] No se encontraron artículos',
-				    ['context' => 'sync-product']
-				);
-				
+			/** @var array<string, mixed>|null $producto */
+			$producto = null;
+			/** @var array<string, mixed> $p */
+			foreach ( $productos as $p ) {
+				if ( $sku && isset( $p['Referencia'] ) && is_string( $p['Referencia'] ) && $p['Referencia'] === $sku ) {
+					$producto = $p;
+					break;
+				}
+				if ( $nombre && isset( $p['Nombre'] ) && is_string( $p['Nombre'] ) && stripos( $p['Nombre'], $nombre ) !== false ) {
+					$producto = $p;
+					break;
+				}
+			}
+			if ( ! $producto ) {
+				$error_message = __( 'No se encontró el producto solicitado.', 'mi-integracion-api' );
+				$error_message = is_string( $error_message ) ? $error_message : 'No se encontró el producto solicitado.';
 				return array(
 					'success' => false,
-					'message' => __('No se encontró el producto solicitado.', 'mi-integracion-api'),
+					'message' => $error_message,
 				);
 			}
-			
-			$logger->info(
-			    '[Sync_Single_Product] Artículos encontrados: ' . count($articulos),
-			    ['context' => 'sync-product']
-			);
-			
-			// Seleccionar el producto más relevante
-			// La búsqueda escalonada ya devuelve resultados ordenados por relevancia,
-			// así que tomamos el primero como el más relevante
-			$producto = $articulos[0];
-			
-			$logger->info(
-			    sprintf(
-			        '[Sync_Single_Product] Producto seleccionado: ID %s, ReferenciaBarras: %s, Nombre: %s',
-			        $producto['Id'] ?? 'no-id',
-			        $producto['ReferenciaBarras'] ?? 'no-ref',
-			        $producto['Nombre'] ?? 'sin-nombre'
-			    ),
-			    ['context' => 'sync-product']
-			);
-			
-			// Continuar con el procesamiento del producto
 			/** @var array<string, mixed> $wc_data */
 			$wc_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc( $producto );
 			if ( isset( $wc_data['type'] ) && $wc_data['type'] === 'variable' ) {
@@ -410,10 +305,6 @@ class Sync_Single_Product {
                         $new_product->set_sku( $sku );
                     }
 
-                    // CRÍTICO: Establecer estado y visibilidad para que aparezca en la tienda
-                    $new_product->set_status( 'publish' );
-                    $new_product->set_catalog_visibility( 'visible' );
-
                     // Establecer nombre
                     if ( isset( $wc_data['name'] ) && is_string( $wc_data['name'] ) ) {
                         $new_product->set_name( $wc_data['name'] );
@@ -603,8 +494,7 @@ class Sync_Single_Product {
 				'message' => $e->getMessage(),
 			);
 		} finally {
-			// Liberar el bloqueo específico de sincronización individual
-			SyncLock::release('single');
+			MI_Sync_Lock::release();
 		}
 	}
 }

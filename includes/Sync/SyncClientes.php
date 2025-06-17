@@ -5,6 +5,13 @@ use MiIntegracionApi\Helpers\Logger;
 use MiIntegracionApi\Helpers\Map_Customer;
 use MiIntegracionApi\Helpers\Validation;
 use MiIntegracionApi\Sync\MI_Sync_Lock;
+use MiIntegracionApi\Core\SyncError;
+use MiIntegracionApi\Core\Validation\CustomerValidator;
+use MiIntegracionApi\Core\BatchProcessor;
+use MiIntegracionApi\Core\MemoryManager;
+use MiIntegracionApi\Core\RetryManager;
+use MiIntegracionApi\Core\TransactionManager;
+use MiIntegracionApi\Core\ConfigManager;
 
 /**
  * Clase para la sincronización de clientes
@@ -17,7 +24,22 @@ use MiIntegracionApi\Sync\MI_Sync_Lock;
  * @since 1.0.0
  */
 
-class SyncClientes {
+class SyncClientes extends BatchProcessor {
+	private CustomerValidator $validator;
+	private MemoryManager $memory;
+	private RetryManager $retry;
+	private TransactionManager $transaction;
+	private Logger $logger;
+
+	public function __construct() {
+		parent::__construct();
+		$this->validator = new CustomerValidator();
+		$this->memory = new MemoryManager();
+		$this->retry = new RetryManager();
+		$this->transaction = new TransactionManager();
+		$this->logger = new Logger();
+	}
+
 	const RETRY_OPTION = 'mia_sync_clientes_retry';
 	const MAX_RETRIES  = 3;
 	const RETRY_DELAY  = 300; // segundos entre reintentos (5 min)
@@ -536,6 +558,273 @@ class SyncClientes {
 			}
 			\MiIntegracionApi\helpers\Logger::info( 'Cliente restaurado tras rollback (ID: ' . $id . ')', array( 'context' => 'sync-clientes-batch' ) );
 		}
+	}
+
+	/**
+	 * Sincroniza un cliente con la API externa
+	 * 
+	 * @param array $cliente Datos del cliente a sincronizar
+	 * @return array Resultado de la operación
+	 */
+	public function sync_cliente($cliente) {
+		$operation_id = uniqid('cliente_sync_');
+		$this->metrics->startOperation($operation_id, 'clientes', 'push');
+		
+		try {
+			if (empty($cliente['dni'])) {
+				throw new SyncError('DNI del cliente no proporcionado', 400);
+			}
+
+			// Verificar memoria antes de procesar
+			if (!$this->metrics->checkMemoryUsage($operation_id)) {
+				throw new SyncError('Umbral de memoria alcanzado', 500);
+			}
+
+			// Ejecutar la sincronización dentro de una transacción
+			$result = TransactionManager::getInstance()->executeInTransaction(
+				function() use ($cliente, $operation_id) {
+					return $this->retryOperation(
+						function() use ($cliente) {
+							return $this->sincronizarCliente($cliente);
+						},
+						[
+							'operation_id' => $operation_id,
+							'dni' => $cliente['dni'],
+							'cliente_id' => $cliente['id'] ?? null
+						]
+					);
+				},
+				'clientes',
+				$operation_id
+			);
+
+			$this->metrics->recordItemProcessed($operation_id, true);
+			return [
+				'success' => true,
+				'message' => 'Cliente sincronizado correctamente',
+				'data' => $result
+			];
+
+		} catch (SyncError $e) {
+			$this->metrics->recordError(
+				$operation_id,
+				'sync_error',
+				$e->getMessage(),
+				['dni' => $cliente['dni'] ?? 'unknown'],
+				$e->getCode()
+			);
+			$this->metrics->recordItemProcessed($operation_id, false, $e->getMessage());
+			
+			$this->logger->error("Error sincronizando cliente", [
+				'dni' => $cliente['dni'] ?? 'unknown',
+				'error' => $e->getMessage()
+			]);
+			
+			return [
+				'success' => false,
+				'error' => $e->getMessage(),
+				'error_code' => $e->getCode()
+			];
+		} catch (\Exception $e) {
+			$this->metrics->recordError(
+				$operation_id,
+				'unexpected_error',
+				$e->getMessage(),
+				['dni' => $cliente['dni'] ?? 'unknown'],
+				$e->getCode()
+			);
+			$this->metrics->recordItemProcessed($operation_id, false, $e->getMessage());
+			
+			$this->logger->error("Error inesperado sincronizando cliente", [
+				'dni' => $cliente['dni'] ?? 'unknown',
+				'error' => $e->getMessage(),
+				'trace' => $e->getTraceAsString()
+			]);
+			
+			return [
+				'success' => false,
+				'error' => 'Error inesperado: ' . $e->getMessage(),
+				'error_code' => $e->getCode()
+			];
+		}
+	}
+
+	/**
+	 * Ejecuta una operación con reintentos automáticos
+	 * 
+	 * @param callable $operation Operación a ejecutar
+	 * @param array $context Contexto de la operación
+	 * @param int $maxRetries Número máximo de reintentos
+	 * @return mixed Resultado de la operación
+	 * @throws \Exception Si la operación falla después de todos los reintentos
+	 */
+	private function retryOperation(callable $operation, array $context = [], int $maxRetries = 3) {
+		$attempts = 0;
+		$lastError = null;
+		
+		while ($attempts < $maxRetries) {
+			try {
+				$result = $operation();
+				
+				if (is_array($result) && isset($result['success']) && !$result['success']) {
+					throw new SyncError(
+						$result['error'] ?? 'Error desconocido',
+						$result['error_code'] ?? 0,
+						$context
+					);
+				}
+				
+				return $result;
+				
+			} catch (SyncError $e) {
+				$lastError = $e;
+				$attempts++;
+				
+				$this->metrics->recordError(
+					$context['operation_id'] ?? 'unknown',
+					'retry_attempt',
+					$e->getMessage(),
+					array_merge($context, [
+						'attempt' => $attempts,
+						'max_retries' => $maxRetries,
+						'error_code' => $e->getCode()
+					]),
+					$e->getCode()
+				);
+				
+				$this->logger->warning("Reintentando operación", [
+					'attempt' => $attempts,
+					'max_retries' => $maxRetries,
+					'error' => $e->getMessage(),
+					'context' => $context
+				]);
+				
+				if ($attempts >= $maxRetries) {
+					break;
+				}
+				
+				$delay = pow(2, $attempts) + rand(0, 1000) / 1000;
+				usleep($delay * 1000000);
+			}
+		}
+		
+		$this->metrics->recordError(
+			$context['operation_id'] ?? 'unknown',
+			'max_retries_exceeded',
+			$lastError ? $lastError->getMessage() : 'Error desconocido',
+			array_merge($context, [
+				'attempts' => $attempts,
+				'max_retries' => $maxRetries
+			]),
+			$lastError ? $lastError->getCode() : 0
+		);
+		
+		throw $lastError ?? new SyncError(
+			'Error después de ' . $maxRetries . ' reintentos',
+			0,
+			$context
+		);
+	}
+
+	/**
+	 * Procesa un lote de clientes
+	 * 
+	 * @param array<int, array<string, mixed>> $batch Lote de clientes
+	 * @param string $direction Dirección de sincronización
+	 * @param array<string, mixed> $options Opciones adicionales
+	 * @return array<string, mixed> Resultado del procesamiento
+	 */
+	protected function processBatch(array $batch, string $direction, array $options = []): array
+	{
+		$results = [
+			'success' => true,
+			'processed' => 0,
+			'errors' => 0,
+			'details' => []
+		];
+
+		foreach ($batch as $index => $cliente) {
+			try {
+				// Validar cliente
+				$this->validator->validate($cliente);
+
+				// Verificar memoria disponible
+				if (!$this->memory->checkMemory()) {
+					throw SyncError::memoryError(
+						"Memoria insuficiente para procesar el cliente"
+					);
+				}
+
+				// Iniciar transacción para el cliente
+				$this->transaction->beginTransaction(
+					'customer',
+					"sync_customer_{$cliente['email']}"
+				);
+
+				// Procesar cliente con reintentos
+				$result = $this->retry->executeWithRetry(
+					fn() => $this->processItem($cliente),
+					"sync_customer_{$cliente['email']}",
+					['email' => $cliente['email']]
+				);
+
+				// Confirmar transacción
+				$this->transaction->commit('customer');
+
+				$results['processed']++;
+				$results['details'][] = [
+					'email' => $cliente['email'],
+					'success' => true,
+					'result' => $result
+				];
+
+			} catch (SyncError $e) {
+				// Revertir transacción en caso de error
+				if ($this->transaction->isActive()) {
+					$this->transaction->rollback('customer');
+				}
+
+				$this->logger->error(
+					"Error al procesar cliente en lote",
+					[
+						'email' => $cliente['email'] ?? 'unknown',
+						'error' => $e->getMessage(),
+						'code' => $e->getCode()
+					]
+				);
+
+				$results['errors']++;
+				$results['details'][] = [
+					'email' => $cliente['email'] ?? 'unknown',
+					'success' => false,
+					'error' => $e->getMessage(),
+					'code' => $e->getCode()
+				];
+
+				if (!$e->isRetryable()) {
+					$results['success'] = false;
+				}
+			}
+		}
+
+		// Limpiar memoria después del lote
+		$this->memory->cleanup();
+
+		return $results;
+	}
+
+	/**
+	 * Procesa un cliente individual
+	 * 
+	 * @param array<string, mixed> $cliente Datos del cliente
+	 * @return array<string, mixed> Resultado del procesamiento
+	 * @throws SyncError Si ocurre un error durante el procesamiento
+	 */
+	protected function processItem(array $cliente): array
+	{
+		// Implementar lógica específica de procesamiento
+		// Este método debe ser implementado según los requisitos específicos
+		throw new \RuntimeException('Método processItem debe ser implementado');
 	}
 }
 // Fin de la clase MI_Sync_Clientes
