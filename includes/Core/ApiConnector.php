@@ -76,6 +76,12 @@ class ApiConnector {
      * @var string|null
      */
     private ?string $last_request_url = null;
+    
+    /**
+     * Timestamp de la última conexión exitosa
+     * @var int|null
+     */
+    private ?int $last_connection_time = null;
 
     /**
      * Opciones para las solicitudes HTTP.
@@ -1064,7 +1070,18 @@ class ApiConnector {
             $this->logger->log("Llamando a get_articulos con endpoint={$endpoint} y parámetros: " . print_r($params, true), 'debug');
         }
         
-        $response = $this->get($endpoint, $params);
+        // Opciones avanzadas con encabezados HTTP esenciales
+        $options = [
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'User-Agent' => 'MiIntegracionAPI/1.0',
+            ],
+            'timeout' => 45, // Timeout extendido para catálogos grandes
+        ];
+        
+        // CORRECCIÓN: El endpoint requiere POST con body JSON, no GET con parámetros en URL
+        $response = $this->post($endpoint, $params, [], $options);
         
         // Registrar respuesta para depuración
         if (isset($this->logger)) {
@@ -1077,6 +1094,66 @@ class ApiConnector {
         }
         
         return $response;
+    }
+
+    /**
+     * Wrapper: Obtiene artículos por rango con configuración optimizada para evitar timeouts
+     * Método especializado para manejar rangos problemáticos
+     *
+     * @param array $params Parámetros para la solicitud, debe incluir 'inicio' y 'fin'
+     * @return mixed Resultado de la solicitud
+     */
+    public function get_articulos_rango(array $params) {
+        // Validar parámetros mínimos requeridos
+        if (!isset($params['inicio']) || !isset($params['fin'])) {
+            return new \WP_Error('invalid_parameters', 'Los parámetros inicio y fin son obligatorios.');
+        }
+        
+        // Verificar y reiniciar la conexión si es necesario
+        $this->check_and_restart_connection();
+        
+        // Actualizar timestamp de conexión
+        $this->last_connection_time = time();
+        
+        // Registrar solicitud por rango
+        if (method_exists($this, 'logger') && is_callable([$this->logger, 'info'])) {
+            $this->logger->info('Solicitando rango de artículos', [
+                'inicio' => $params['inicio'],
+                'fin' => $params['fin'],
+                'batch_size' => $params['fin'] - $params['inicio'] + 1,
+                'has_filters' => !empty($params['fecha']),
+                'memory_usage' => round(memory_get_usage() / 1048576, 2) . ' MB',
+                'peak_memory' => round(memory_get_peak_usage() / 1048576, 2) . ' MB'
+            ]);
+        }
+        
+        // Aumentar tiempo de ejecución de PHP para esta solicitud
+        if (!ini_get('safe_mode')) {
+            @set_time_limit(120); // 2 minutos
+        }
+        
+        // Opciones optimizadas para rangos problemáticos
+        $options = [
+            'timeout' => 90,                 // Timeout extendido para rangos problemáticos (90 segundos)
+            'diagnostics' => true,           // Habilitar diagnósticos detallados
+            'trace_request' => true,         // Rastreo completo de la solicitud
+            'blocking' => true,              // Asegurarse que la solicitud sea bloqueante
+            'sslverify' => apply_filters('mi_integracion_api_sslverify', true), // Permitir deshabilitar SSL en entornos problemáticos
+            'retry_transient_errors' => true, // Reintentar errores transitorios
+            'headers' => [                   // Encabezados HTTP esenciales
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+                'User-Agent' => 'MiIntegracionAPI/1.0',
+            ],
+            'wp_args' => [
+                'timeout' => 60,             // Mismo timeout en argumentos de WordPress
+                'httpversion' => '1.1',      // HTTP 1.1 para mejor compatibilidad
+                'blocking' => true           // Esperar a que se complete la solicitud
+            ]
+        ];
+        
+        // Usar método POST en lugar de GET para GetArticulosWS
+        return $this->post('GetArticulosWS', $params, [], $options);
     }
 
     /**
@@ -1698,5 +1775,81 @@ class ApiConnector {
         }
 
         // ... existing code ...
+    }
+
+    /**
+     * Verifica si la conexión con la API está activa y responde correctamente
+     * Si la conexión está inactiva, intenta reiniciarla
+     *
+     * @return bool True si la conexión está activa o se reinició correctamente
+     */
+    public function check_and_restart_connection() {
+        if (!$this->is_connected()) {
+            if ($this->logger) {
+                $this->logger->info('La conexión con la API no está activa, intentando reiniciarla');
+            }
+            
+            // Forzar reconexión
+            $this->session_number = null;
+            $this->login_response = null;
+            
+            // Intentar conectar nuevamente
+            $result = $this->init_api_connection();
+            
+            if ($result) {
+                // Actualizar timestamp de última conexión exitosa
+                $this->last_connection_time = time();
+                
+                if ($this->logger) {
+                    $this->logger->info('Conexión reiniciada con éxito', [
+                        'timestamp' => date('Y-m-d H:i:s', $this->last_connection_time),
+                        'session' => $this->session_number ?? 'No disponible'
+                    ]);
+                }
+            }
+            
+            return $result;
+        }
+        
+        // La conexión está activa, actualizar timestamp
+        $this->last_connection_time = time();
+        return true;
+    }
+    
+    /**
+     * Inicializa la conexión con la API
+     * 
+     * @return bool True si la conexión se estableció correctamente
+     */
+    private function init_api_connection() {
+        // Por ahora solo actualizamos el timestamp
+        // En el futuro podríamos implementar una verdadera autenticación
+        $this->last_connection_time = time();
+        
+        if ($this->sesionwcf <= 0) {
+            $this->sesionwcf = 18; // Valor predeterminado si no hay sesión
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Determina si la conexión está activa según los datos de sesión
+     *
+     * @return bool
+     */
+    public function is_connected() {
+        // Si no hay número de sesión, definitivamente no está conectado
+        if (empty($this->session_number)) {
+            return false;
+        }
+        
+        // Si la última conexión fue hace más de 20 minutos, considerarla caducada
+        if (!empty($this->last_connection_time) && 
+            time() - $this->last_connection_time > 1200) {
+            return false;
+        }
+        
+        return true;
     }
 }

@@ -218,10 +218,17 @@ class WooCommerceHooks {
         add_action('mi_integracion_api_before_sync', [$this, 'before_sync']);
         add_action('mi_integracion_api_after_sync', [$this, 'after_sync']);
         
+        // Registrar filtros para WooCommerce
+        self::register_woocommerce_filters();
+        
         // Filtros
         add_filter('mi_integracion_api_product_data', [$this, 'filter_product_data'], 10, 2);
         add_filter('mi_integracion_api_order_data', [$this, 'filter_order_data'], 10, 2);
         add_filter('mi_integracion_api_customer_data', [$this, 'filter_customer_data'], 10, 2);
+
+        // Asegurar que el límite de productos relacionados sea siempre un entero
+        // Esto corrige el error "Invalid limit type passed to wc_get_related_products".
+        add_filter('woocommerce_related_products_args', [self::class, 'ensure_related_products_limit_is_integer'], 99);
     }
 
     public function on_product_created($product_id) {
@@ -1177,6 +1184,31 @@ class WooCommerceHooks {
     public function filter_customer_data(array $customer_data, int $customer_id): array {
         return apply_filters('mi_integracion_api_customer_data', $customer_data, $customer_id);
     }
+
+    /**
+	 * Asegurar que el límite de productos relacionados sea siempre un entero
+	 * Esto corrige el error "Invalid limit type passed to wc_get_related_products".
+	 *
+	 * @since 1.3.1
+	 * @param array $args Los argumentos para los productos relacionados.
+	 * @return array Los argumentos filtrados.
+	 */
+	public static function ensure_related_products_limit_is_integer($args) {
+		if (isset($args['posts_per_page']) && !is_int($args['posts_per_page'])) {
+			$args['posts_per_page'] = intval($args['posts_per_page']);
+		}
+		
+		return $args;
+	}
+
+	/**
+	 * Registrar filtros para WooCommerce
+	 *
+	 * @since 1.3.1
+	 */
+	public static function register_woocommerce_filters() {
+		add_filter('woocommerce_related_products_args', [self::class, 'ensure_related_products_limit_is_integer'], 99);
+	}
 }
 
 // Registrar los handlers de Action Scheduler fuera de la clase:

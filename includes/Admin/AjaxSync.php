@@ -1344,24 +1344,80 @@ class AjaxSync {
      * Devuelve progreso, errores y mensajes claros.
      */
     public static function sync_products_batch() {
-    	// Validar nonce y permisos
-    	check_ajax_referer( MiIntegracionApi_NONCE_PREFIX . 'dashboard', 'nonce' );
-    	if ( ! current_user_can( 'manage_options' ) ) {
-    		wp_send_json_error( [ 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ], 403 );
-    	}
-  
+    	// Variable para almacenar el logger y poder usarlo en caso de error
+    	$logger = null;
+    	
     	try {
-    	      // Crear un logger específico para esta operación
-    	      $logger = new Logger('sync_products_batch');
-    	      $logger->info('Iniciando sincronización de productos por lotes', [
-    	          'request' => $_REQUEST,
-    	          'user_id' => get_current_user_id()
-    	      ]);
+    	    // Crear un logger específico para esta operación
+    	    $logger = new Logger('sync_products_batch');
+    	    $logger->info('Iniciando sincronización de productos por lotes', [
+    	        'timestamp' => date('Y-m-d H:i:s'),
+    	        'user_id' => get_current_user_id()
+    	    ]);
+    	      
+    	    // Verificar si hay una sesión PHP activa
+            if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+                @session_start();
+            }
+    	      
+    	    // Validar nonce y permisos con mensajes detallados
+    	    if (!isset($_REQUEST['nonce'])) {
+    	        $logger->error('Error: Nonce no proporcionado en la petición AJAX');
+    	        wp_send_json_error([
+    	            'message' => __('Error de seguridad: falta el token de verificación.', 'mi-integracion-api'),
+    	            'technical_details' => 'El parámetro nonce no está presente en la petición AJAX.'
+    	        ], 403);
+    	        return;
+    	    }
+    	      
+    	    $nonce_check = check_ajax_referer(MiIntegracionApi_NONCE_PREFIX . 'dashboard', 'nonce', false);
+    	    if (!$nonce_check) {
+    	        $logger->error('Error: Nonce inválido en la petición AJAX', [
+    	            'nonce_provided' => $_REQUEST['nonce'] ?? 'No disponible'
+    	        ]);
+    	        wp_send_json_error([
+    	            'message' => __('Error de seguridad: token de verificación inválido o expirado.', 'mi-integracion-api'),
+    	            'technical_details' => 'El nonce de WordPress no es válido o ha expirado. Intente recargar la página.'
+    	        ], 403);
+    	        return;
+    	    }
+    	      
+    	    if (!current_user_can('manage_options')) {
+    	        $logger->error('Error de permisos: El usuario no tiene capacidad manage_options', [
+    	            'user_id' => get_current_user_id(),
+    	            'capabilities' => get_userdata(get_current_user_id())->allcaps ?? 'No disponible'
+    	        ]);
+    	        wp_send_json_error([
+    	            'message' => __('No tienes permisos suficientes para realizar esta acción.', 'mi-integracion-api'),
+    	            'technical_details' => 'Se requiere el rol de administrador para realizar la sincronización.'
+    	        ], 403);
+    	        return;
+    	    }
+    	      
+    	    // Registrar la recepción de la petición AJAX con información detallada
+    	    $logger->debug('Petición AJAX recibida y validada correctamente', [
+    	        'headers' => getallheaders(),
+    	        'post' => $_POST,
+    	        'get' => $_GET,
+    	        'request' => $_REQUEST,
+    	        'server' => [
+    	            'HTTP_USER_AGENT' => $_SERVER['HTTP_USER_AGENT'] ?? 'No disponible',
+    	            'REMOTE_ADDR' => $_SERVER['REMOTE_ADDR'] ?? 'No disponible',
+    	            'REQUEST_TIME' => $_SERVER['REQUEST_TIME'] ?? 'No disponible'
+    	        ]
+    	    ]);
     	      
     		// Asegurar que la clase Sync_Manager esté disponible con el namespace correcto
   if (!class_exists('\MiIntegracionApi\Core\Sync_Manager')) {
    $logger->info('Cargando clase Sync_Manager desde: ' . dirname(__DIR__) . '/Core/Sync_Manager.php');
    require_once dirname(__DIR__) . '/Core/Sync_Manager.php';
+  }
+  
+  // Verificar que la clase se cargó correctamente
+  if (!class_exists('\MiIntegracionApi\Core\Sync_Manager')) {
+      $logger->error('No se pudo cargar la clase Sync_Manager');
+      wp_send_json_error(['message' => 'No se pudo cargar el gestor de sincronización'], 500);
+      return;
   }
   
   // Obtener instancia del gestor de sincronización
@@ -1380,13 +1436,44 @@ class AjaxSync {
     		if (!$status['current_sync']['in_progress']) {
     			// Es una nueva sincronización
     			$logger->info('Iniciando nueva sincronización de productos');
-    			$result = $sync_manager->start_sync('products', 'verial_to_wc', $filters);
+    			
+    			// Extraer el tamaño del lote si está especificado
+    			$batch_size = isset($_REQUEST['batch_size']) ? (int)$_REQUEST['batch_size'] : null;
+    			if ($batch_size) {
+    			    $logger->info('Tamaño de lote solicitado: ' . $batch_size);
+    			    // Asegurarse de que el tamaño del lote es razonable
+    			    if ($batch_size < 1 || $batch_size > 100) {
+    			        $logger->warning('Tamaño de lote fuera de rango, se usará el valor por defecto');
+    			        $batch_size = null;
+    			    }
+    			}
+    			
+    			try {
+    			    $result = $sync_manager->start_sync('products', 'verial_to_wc', $filters);
+    			    $logger->debug('Resultado de start_sync', ['result' => $result]);
+    			} catch (\Exception $e) {
+    			    $logger->error('Excepción en start_sync', [
+    			        'message' => $e->getMessage(),
+    			        'trace' => $e->getTraceAsString()
+    			    ]);
+    			    throw $e; // Re-lanzar para ser capturada por el try-catch principal
+    			}
     		} else {
     			// Ya hay una sincronización en progreso
     			$logger->info('Continuando sincronización en progreso, procesando siguiente lote');
     			// Verificar si estamos en modo de recuperación
     			$recovery_mode = !empty($_REQUEST['recovery_mode']);
-    			$result = $sync_manager->process_next_batch($recovery_mode);
+    			
+    			try {
+    			    $result = $sync_manager->process_next_batch($recovery_mode);
+    			    $logger->debug('Resultado de process_next_batch', ['result' => $result]);
+    			} catch (\Exception $e) {
+    			    $logger->error('Excepción en process_next_batch', [
+    			        'message' => $e->getMessage(),
+    			        'trace' => $e->getTraceAsString()
+    			    ]);
+    			    throw $e; // Re-lanzar para ser capturada por el try-catch principal
+    			}
     		}
     		
     		$logger->info('Resultado de la operación de sincronización', [
@@ -1459,15 +1546,69 @@ class AjaxSync {
     			if (!empty($trace[0]['class'])) {
     				$error_context['class'] = $trace[0]['class'];
     			}
+    			if (!empty($trace[0]['args'])) {
+    			    // Capturar argumentos con seguridad para evitar recursión o errores
+    			    $args_info = [];
+    			    foreach ($trace[0]['args'] as $idx => $arg) {
+    			        if (is_scalar($arg)) {
+    			            $args_info["arg{$idx}"] = $arg;
+    			        } elseif (is_array($arg)) {
+    			            $args_info["arg{$idx}"] = 'Array(' . count($arg) . ')';
+    			        } elseif (is_object($arg)) {
+    			            $args_info["arg{$idx}"] = 'Object(' . get_class($arg) . ')';
+    			        } else {
+    			            $args_info["arg{$idx}"] = gettype($arg);
+    			        }
+    			    }
+    			    $error_context['args_info'] = $args_info;
+    			}
     		}
+    		
+    		// Preparar mensaje de error según el tipo de excepción
+    		$error_message = __('Error inesperado durante la sincronización.', 'mi-integracion-api');
+    		$suggestion = __('Por favor, revise los registros para más detalles.', 'mi-integracion-api');
+    		
+    		// Personalizar el mensaje según el tipo de excepción
+    		if ($e instanceof \PDOException || strpos($e->getMessage(), 'SQL') !== false) {
+    		    $error_message = __('Error en la base de datos durante la sincronización.', 'mi-integracion-api');
+    		    $suggestion = __('Puede haber un problema con alguna tabla de WordPress o con los permisos de la base de datos.', 'mi-integracion-api');
+    		} else if ($e instanceof \RuntimeException && strpos($e->getMessage(), 'API') !== false) {
+    		    $error_message = __('Error en la comunicación con la API de Verial.', 'mi-integracion-api');
+    		    $suggestion = __('Verifique las credenciales y la conectividad con el servidor de Verial.', 'mi-integracion-api');
+    		} else if ($e instanceof \Exception && (strpos($e->getMessage(), 'timeout') !== false || strpos($e->getMessage(), 'tiempo') !== false)) {
+    		    $error_message = __('La operación excedió el tiempo máximo de espera.', 'mi-integracion-api');
+    		    $suggestion = __('Intente con un tamaño de lote menor o verifique la carga del servidor.', 'mi-integracion-api');
+    		}
+    		
+    		// Añadir información de recuperación al log y respuesta
+    		$recovery_info = [];
+    		$has_recovery = false;
+    		
+    		// Verificar si podemos ofrecer recuperación para ciertos errores
+    		if (strpos($e->getMessage(), 'timeout') !== false || 
+    		    strpos($e->getMessage(), 'tiempo') !== false ||
+    		    strpos($e->getMessage(), 'memory') !== false) {
+    		    $has_recovery = true;
+    		    $recovery_info = [
+    		        'can_retry' => true,
+    		        'retry_suggestion' => __('Intente con un tamaño de lote menor o en un momento de menor carga.', 'mi-integracion-api')
+    		    ];
+    		}
+    		
+    		$logger->info('Enviando respuesta de error detallada al cliente', [
+    		    'error_message' => $error_message,
+    		    'has_recovery' => $has_recovery,
+    		    'suggestions' => $suggestion
+    		]);
   
     		wp_send_json_error([
-    			'message' => __('Error inesperado durante la sincronización. Por favor, revise los registros para más detalles.', 'mi-integracion-api'),
+    			'message' => $error_message . ' ' . $suggestion,
     			'technical_details' => $e->getMessage(),
     			'code' => 'exception',
     			'context' => $error_context,
     			'file' => basename($e->getFile()),
-    			'line' => $e->getLine()
+    			'line' => $e->getLine(),
+    			'recovery' => $has_recovery ? $recovery_info : null
     		], 500);
     	}
     }

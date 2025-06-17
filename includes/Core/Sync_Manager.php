@@ -1021,7 +1021,8 @@ class Sync_Manager {
 				];
 			}
 			
-			$response = $this->api_connector->get('GetArticulosWS', $params, $api_options);
+			// CORRECCIÓN: GetArticulosWS requiere POST con body JSON, no GET con parámetros
+			$response = $this->api_connector->post('GetArticulosWS', $params, [], $api_options);
 			
 			// Si no hay error, salir del bucle
 			if (!is_wp_error($response)) {
@@ -2073,7 +2074,8 @@ class Sync_Manager {
 					}
 				}
 				
-				$response = $this->api_connector->get('GetArticulosWS', $params);
+				// CORRECCIÓN: GetArticulosWS requiere POST con body JSON, no GET con parámetros
+				$response = $this->api_connector->post('GetArticulosWS', $params, []);
 				
 				if (is_wp_error($response)) {
 					$results['issues'][] = sprintf(
@@ -2998,7 +3000,7 @@ class Sync_Manager {
 				}
 			}
 			
-			// Obtener productos con retries integrados
+			// Obtener productos con retries integrados y pausas progresivas
 			$max_retries = 3;
 			$retry_count = 0;
 			$response = null;
@@ -3006,6 +3008,28 @@ class Sync_Manager {
 			
 			while ($retry_count < $max_retries) {
 				try {
+					// Liberamos memoria antes de cada solicitud
+					if (function_exists('gc_collect_cycles')) {
+					    gc_collect_cycles();
+					}
+					
+					// Si no es el primer intento, hacer una pausa progresiva antes de reintentar
+					if ($retry_count > 0) {
+						$wait_time = $retry_count * 2000000; // 2s, 4s, 6s en microsegundos
+						if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+							$logger = new \MiIntegracionApi\Helpers\Logger('sync-retry');
+							$logger->info("Esperando {$wait_time}μs antes del reintento #{$retry_count}", [
+								'inicio' => $inicio,
+								'fin' => $fin
+							]);
+						}
+						usleep($wait_time);
+					}
+					
+					// Establecemos un heartbeat para mostrar que el proceso sigue vivo
+					update_option('mi_integracion_last_heartbeat', time());
+					update_option('mi_integracion_current_operation', "Consultando API rango: {$inicio}-{$fin}");
+					
 					$response = $this->api_connector->get_articulos_rango($params);
 					if (!is_wp_error($response)) {
 						break; // Éxito, salir del bucle
