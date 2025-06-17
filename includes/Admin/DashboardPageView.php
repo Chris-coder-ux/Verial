@@ -99,11 +99,10 @@ class DashboardPageView {
 					<div class="mi-batch-size-selector">
 						<label for="mi-batch-size"><?php esc_html_e('Productos por lote:', 'mi-integracion-api'); ?></label>
 						<select id="mi-batch-size" name="mi-batch-size" <?php echo $in_progress ? 'disabled' : ''; ?>>
-							<option value="10">10</option>
-							<option value="20" selected>20</option>
-							<option value="30">30</option>
-							<option value="50">50</option>
-							<option value="100">100</option>
+							<option value="1">1</option>
+							<option value="5">5</option>
+							<option value="10" selected>10</option>
+							<option value="20">20</option>
 						</select>
 					</div>
 					<button id="mi-batch-sync-products" class="button button-primary" <?php echo $in_progress ? 'disabled' : ''; ?>>

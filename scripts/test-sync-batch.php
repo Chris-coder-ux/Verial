@@ -7,10 +7,59 @@
  */
 
 // Bootstrap WordPress para acceder a sus funciones
-if (file_exists(dirname(__FILE__) . '/../../../../../wp-load.php')) {
-    require_once(dirname(__FILE__) . '/../../../../../wp-load.php');
-} else {
-    die('No se puede cargar WordPress. Verifica la ruta relativa.');
+// Buscar wp-load.php en varias ubicaciones relativas posibles
+$wp_load_paths = [
+    dirname(__FILE__) . '/../../../../../wp-load.php',  // Ruta estándar 5 niveles arriba
+    dirname(__FILE__) . '/../../../../wp-load.php',     // 4 niveles arriba
+    dirname(__FILE__) . '/../../../wp-load.php',        // 3 niveles arriba
+    dirname(__FILE__) . '/../../wp-load.php',           // 2 niveles arriba
+    '/var/www/html/wp-load.php',                        // Ruta típica en servidores Linux
+];
+
+$wp_loaded = false;
+foreach ($wp_load_paths as $path) {
+    if (file_exists($path)) {
+        require_once($path);
+        $wp_loaded = true;
+        echo "WordPress cargado desde: " . $path . "\n";
+        break;
+    }
+}
+
+if (!$wp_loaded) {
+    // Intento alternativo: buscar en directorios parent
+    $current_dir = dirname(__FILE__);
+    $max_depth = 6; // Limitar la búsqueda para evitar bucles infinitos
+    
+    for ($i = 0; $i < $max_depth; $i++) {
+        $parent_dir = dirname($current_dir);
+        $possible_path = $parent_dir . '/wp-load.php';
+        
+        if (file_exists($possible_path)) {
+            require_once($possible_path);
+            $wp_loaded = true;
+            echo "WordPress cargado desde: " . $possible_path . "\n";
+            break;
+        }
+        
+        $current_dir = $parent_dir;
+        if ($current_dir == '/' || empty($current_dir)) {
+            break; // Llegamos a la raíz del sistema
+        }
+    }
+}
+
+// Si no se encuentra WordPress, intentar ejecutar sin él con funcionalidad limitada
+if (!$wp_loaded) {
+    echo "ADVERTENCIA: No se pudo cargar WordPress. El script ejecutará con funcionalidad limitada.\n";
+    echo "Este script está diseñado para ejecutarse dentro de un entorno WordPress.\n";
+    
+    // Definir funciones de compatibilidad básicas para evitar errores fatales
+    if (!function_exists('is_wp_error')) {
+        function is_wp_error($thing) {
+            return false;
+        }
+    }
 }
 
 // Configurar para mostrar errores

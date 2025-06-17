@@ -598,9 +598,34 @@ class ApiConnector {
         
         // Añadir datos al cuerpo para métodos que lo soportan
         if (in_array($method, ['POST', 'PUT', 'PATCH']) && !empty($data)) {
-            $args['body'] = json_encode($data);
+            // Guardar el JSON generado para depuración con opciones para manejo adecuado de UTF-8
+            $json_body = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            
+            // Verificar si hubo error en la codificación JSON
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $json_error = json_last_error_msg();
+                $this->logger->error('Error al codificar datos en JSON', [
+                    'error' => $json_error,
+                    'data_sample' => print_r(array_slice($data, 0, 3, true), true)
+                ]);
+            }
+            
+            $this->logger->debug('JSON generado para API Verial', [
+                'endpoint' => $endpoint,
+                'json' => $json_body
+            ]);
+            
+            $args['body'] = $json_body;
+            
+            // Asegurar que estén presentes todos los encabezados esenciales
             if (!isset($args['headers']['Content-Type'])) {
                 $args['headers']['Content-Type'] = 'application/json';
+            }
+            if (!isset($args['headers']['Accept'])) {
+                $args['headers']['Accept'] = 'application/json';
+            }
+            if (!isset($args['headers']['User-Agent'])) {
+                $args['headers']['User-Agent'] = 'MiIntegracionAPI/1.0';
             }
         }
         
@@ -982,11 +1007,20 @@ class ApiConnector {
             $decoded_data = json_decode($response, true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 return $decoded_data;
+            } else {
+                // Registrar error de decodificación JSON para diagnóstico
+                $json_error = json_last_error_msg();
+                $this->logger->error('Error al decodificar JSON de respuesta', [
+                    'error' => $json_error,
+                    'response_sample' => substr($response, 0, 500) . (strlen($response) > 500 ? '...' : '')
+                ]);
+                
+                return [
+                    'status_code' => $http_code,
+                    'body' => $response,
+                    'json_error' => $json_error
+                ];
             }
-            return [
-                'status_code' => $http_code,
-                'body' => $response
-            ];
         }
         
         // Si es un error, devolver WP_Error

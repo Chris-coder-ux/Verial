@@ -111,6 +111,11 @@ cp -r includes "$BUILD_DIR/"
 cp -r languages "$BUILD_DIR/"
 cp -r lib "$BUILD_DIR/"
 
+# Crear directorio de logs con permisos adecuados
+mkdir -p "$BUILD_DIR/logs"
+chmod 755 "$BUILD_DIR/logs"
+echo "📂 Creado directorio de logs con permisos adecuados"
+
 # Excluir archivos de diagnóstico/debug
 echo "🔍 Excluyendo archivos de diagnóstico y desarrollo..."
 if [ -f "debug-assets.php" ]; then

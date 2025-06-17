@@ -407,6 +407,9 @@ class Logger implements ILogger {
      * @throws \InvalidArgumentException Si el nivel no es válido
      */
     public function log($message, $level = self::LEVEL_INFO, $context = array()) {
+        // Primero normalizar el nivel para aceptar tanto constantes como cadenas de texto
+        $normalized_level = $this->normalizeLevel($level);
+        
         $valid_levels = [
             self::LEVEL_DEBUG,
             self::LEVEL_INFO,
@@ -417,10 +420,51 @@ class Logger implements ILogger {
             self::LEVEL_ALERT,
             self::LEVEL_NOTICE
         ];
-        if (!in_array($level, $valid_levels, true)) {
+        
+        if (!in_array($normalized_level, $valid_levels, true)) {
             throw new \InvalidArgumentException('Invalid log level provided.');
         }
-        self::writeLog($level, $message, $context, $this->category);
+        
+        self::writeLog($normalized_level, $message, $context, $this->category);
+    }
+    
+    /**
+     * Normaliza el nivel de log para aceptar tanto constantes como cadenas
+     *
+     * @param string $level Nivel de log
+     * @return string Nivel normalizado
+     */
+    private function normalizeLevel($level)
+    {
+        // Si ya es una constante válida, devolverla directamente
+        $valid_levels = [
+            self::LEVEL_DEBUG,
+            self::LEVEL_INFO,
+            self::LEVEL_WARNING,
+            self::LEVEL_ERROR,
+            self::LEVEL_CRITICAL,
+            self::LEVEL_EMERGENCY,
+            self::LEVEL_ALERT,
+            self::LEVEL_NOTICE
+        ];
+        
+        if (in_array($level, $valid_levels, true)) {
+            return $level;
+        }
+        
+        // Si es una cadena de texto como 'info', 'debug', etc., convertirla a constante
+        $level_map = [
+            'debug'     => self::LEVEL_DEBUG,
+            'info'      => self::LEVEL_INFO,
+            'notice'    => self::LEVEL_NOTICE,
+            'warning'   => self::LEVEL_WARNING,
+            'error'     => self::LEVEL_ERROR,
+            'critical'  => self::LEVEL_CRITICAL,
+            'alert'     => self::LEVEL_ALERT,
+            'emergency' => self::LEVEL_EMERGENCY
+        ];
+        
+        return $level_map[strtolower($level)] ?? self::LEVEL_INFO;
     }
     
     /**

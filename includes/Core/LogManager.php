@@ -27,6 +27,16 @@ class LogManager
     private array $defaultContext = [];
     private int $minLevel;
 
+    /**
+     * Obtiene la instancia subyacente del Logger
+     * 
+     * @return Logger La instancia interna de Logger
+     */
+    public function get_logger_instance(): Logger
+    {
+        return $this->logger;
+    }
+
     public function __construct(string $context, array $defaultContext = [], string $minLevel = 'info')
     {
         $this->logger = new Logger($context);
@@ -149,8 +159,33 @@ class LogManager
         $context['timestamp'] = date('Y-m-d H:i:s');
         $context['level'] = strtoupper($level);
         $context['context'] = $this->context;
-
-        $this->logger->log($level, $this->formatMessage($message, $context), $context);
+        
+        // Convertir el nivel de texto a la constante correspondiente en Logger
+        $loggerLevel = $this->mapLogLevel($level);
+        
+        $this->logger->log($loggerLevel, $this->formatMessage($message, $context), $context);
+    }
+    
+    /**
+     * Mapea un nivel de log textual a la constante correspondiente en Logger
+     *
+     * @param string $level Nivel de log textual
+     * @return string Constante de nivel equivalente en Logger
+     */
+    private function mapLogLevel(string $level): string
+    {
+        $levelMap = [
+            'debug'     => Logger::LEVEL_DEBUG,
+            'info'      => Logger::LEVEL_INFO,
+            'notice'    => Logger::LEVEL_NOTICE,
+            'warning'   => Logger::LEVEL_WARNING,
+            'error'     => Logger::LEVEL_ERROR,
+            'critical'  => Logger::LEVEL_CRITICAL,
+            'alert'     => Logger::LEVEL_ALERT,
+            'emergency' => Logger::LEVEL_EMERGENCY
+        ];
+        
+        return $levelMap[$level] ?? Logger::LEVEL_INFO;
     }
 
     /**

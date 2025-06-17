@@ -1,0 +1,10 @@
+=== TEST DE SINCRONIZACIÓN DE PRECIOS POR LOTES ===
+2025-06-17 10:45:21
+
+[2025-06-17 10:45:21] Iniciando prueba de sincronización de precios por lotes
+[2025-06-17 10:45:21] Tamaño de lote: 5
+[2025-06-17 10:45:21] Lotes máximos a procesar: 3
+[2025-06-17 10:45:21] Total máximo de productos: 15
+[2025-06-17 10:45:21] ERROR: No se encontró la clase Sync_Manager. Verificando rutas...
+[2025-06-17 10:45:21] Buscando autoloader en: /home/christian/Documentos/Poyectos/mi-integracion-api/scripts/../includes/Autoloader.php
+[2025-06-17 10:45:21] Autoloader encontrado, cargando...

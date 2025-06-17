@@ -113,6 +113,11 @@ if (file_exists(__DIR__ . '/includes/compatibility.php')) {
     require_once __DIR__ . '/includes/compatibility.php';
 }
 
+// Cargar definiciones de alias para compatibilidad entre namespaces
+if (file_exists(__DIR__ . '/includes/alias.php')) {
+    require_once __DIR__ . '/includes/alias.php';
+}
+
 // Cargar registro manual de comandos WP-CLI
 if (file_exists(__DIR__ . '/includes/register-commands-manual.php')) {
     require_once __DIR__ . '/includes/register-commands-manual.php';
