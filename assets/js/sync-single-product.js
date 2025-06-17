@@ -139,7 +139,7 @@ function initSyncScript($) {
             url: ajaxurl,
             method: 'POST',
             data: {
-                action: 'mi_sync_get_categorias',
+                action: 'mi_get_categorias',
                 _ajax_nonce: getNonceValue(),
                 nonce: getNonceValue(),
                 _wpnonce: getNonceValue()
@@ -147,7 +147,7 @@ function initSyncScript($) {
             beforeSend: function(xhr) {
                 console.log('[DEBUG] Antes de enviar petición de categorías:');
                 console.log('- URL:', ajaxurl);
-                console.log('- Action:', 'mi_sync_get_categorias');
+                console.log('- Action:', 'mi_get_categorias');
                 console.log('- Nonce:', getNonceValue());
             },
             success: function(response) {
@@ -203,7 +203,7 @@ function initSyncScript($) {
             url: ajaxurl,
             method: 'POST',
             data: {
-                action: 'mi_sync_get_fabricantes',
+                action: 'mi_get_fabricantes',
                 _ajax_nonce: getNonceValue(),
                 nonce: getNonceValue(),
                 _wpnonce: getNonceValue()
@@ -211,7 +211,7 @@ function initSyncScript($) {
             beforeSend: function(xhr) {
                 console.log('[DEBUG] Antes de enviar petición de fabricantes:');
                 console.log('- URL:', ajaxurl);
-                console.log('- Action:', 'mi_sync_get_fabricantes');
+                console.log('- Action:', 'mi_get_fabricantes');
                 console.log('- Nonce:', getNonceValue());
             },
             success: function(response) {
@@ -269,6 +269,8 @@ function initSyncScript($) {
     
     /**
      * Rellena un select con opciones
+     * @param {jQuery} $select - El elemento select a rellenar
+     * @param {Array|Object} items - Los datos para las opciones (puede ser array u objeto)
      */
     function populateSelect($select, items) {
         console.log('[DEBUG] Rellenando select:', $select.attr('id'));
@@ -277,7 +279,7 @@ function initSyncScript($) {
         // Verificar si items es válido
         if (!items) {
             console.error('[ERROR] Items es nulo o indefinido');
-            // Mantener el valor por defecto sin mostrar error al usuario
+            // Mantener la opción por defecto sin mostrar error al usuario
             return;
         }
         
@@ -290,7 +292,7 @@ function initSyncScript($) {
         let itemsProcessed = {};
         
         try {
-            // Caso 1: Ya es un objeto plano con format {id: nombre}
+            // Caso 1: Ya es un objeto plano con formato {id: nombre}
             if ($.isPlainObject(items) && !Array.isArray(items)) {
                 console.log('[DEBUG] Usando items como objeto plano');
                 itemsProcessed = items;
@@ -299,14 +301,18 @@ function initSyncScript($) {
             else if (Array.isArray(items)) {
                 console.log('[DEBUG] Convirtiendo array a objeto clave-valor');
                 items.forEach(function(item) {
-                    const id = item.id || item.Id || item.value || '';
-                    const nombre = item.nombre || item.Nombre || item.name || item.label || '';
+                    // Buscar propiedades id y nombre con diferentes variaciones
+                    const id = item.id || item.Id || item.value || item.Value || '';
+                    const nombre = item.nombre || item.Nombre || item.name || item.Name || item.label || item.Label || '';
+                    
                     if (id && nombre) {
                         itemsProcessed[id] = nombre;
+                    } else {
+                        console.warn('[ADVERTENCIA] Item sin id o nombre válidos:', item);
                     }
                 });
             }
-            // Caso 3: Es un solo objeto con campos numerados (0,1,2...)
+            // Caso 3: Es un objeto con estructura anidada
             else if (typeof items === 'object') {
                 console.log('[DEBUG] Procesando objeto con estructura desconocida');
                 
@@ -317,10 +323,12 @@ function initSyncScript($) {
                         console.log('[DEBUG] Encontró array en clave:', key);
                         foundArray = true;
                         value.forEach(function(item) {
-                            const id = item.id || item.Id || '';
-                            const nombre = item.nombre || item.Nombre || '';
+                            const id = item.id || item.Id || item.value || item.Value || '';
+                            const nombre = item.nombre || item.Nombre || item.name || item.Name || item.label || item.Label || '';
                             if (id && nombre) {
                                 itemsProcessed[id] = nombre;
+                            } else {
+                                console.warn('[ADVERTENCIA] Item en array anidado sin id o nombre válidos:', item);
                             }
                         });
                         return false; // Break del each
@@ -386,9 +394,13 @@ function initSyncScript($) {
                 const searchData = {
                     action: 'mi_sync_search_product',
                     _ajax_nonce: getNonceValue(),
+                    nonce: getNonceValue(),
+                    _wpnonce: getNonceValue(),
                     search: request.term,
                     field: field
                 };
+                
+                console.log('[DEBUG] Datos para búsqueda:', searchData);
                 
                 // Nueva función recursiva para permitir reintentos automáticos
                 function executeSearch(retryCount) {
@@ -415,17 +427,30 @@ function initSyncScript($) {
                             method: 'POST',
                             data: searchData,
                             beforeSend: function(xhr) {
+                                console.log('[DEBUG] Enviando petición de búsqueda a:', ajaxurl);
                                 searchConfig.isRequestInProgress = true;
                             },
                             success: function(data) {
                                 searchConfig.isRequestInProgress = false;
                                 searchConfig.currentRetryCount = 0; // Resetear contador de reintentos
                                 
+                                console.log('[DEBUG] Respuesta recibida:', data);
+                                
                                 if (data && Array.isArray(data)) {
                                     console.log(`[INFO] Productos encontrados: ${data.length}`);
                                     response(data);
+                                } else if (data && data.success === false) {
+                                    console.warn('[WARN] Error en respuesta:', data.data?.message || 'Error desconocido');
+                                    
+                                    // Verificar si debemos reintentar
+                                    if (retryCount < searchConfig.maxRetries) {
+                                        console.log('[INFO] Reintentar debido a respuesta de error');
+                                        executeSearch(retryCount + 1);
+                                    } else {
+                                        response([]);
+                                    }
                                 } else {
-                                    console.warn('[WARN] Respuesta no válida desde la búsqueda de productos');
+                                    console.warn('[WARN] Respuesta no válida desde la búsqueda de productos:', data);
                                     
                                     // Verificar si debemos reintentar
                                     if (retryCount < searchConfig.maxRetries) {
@@ -445,7 +470,11 @@ function initSyncScript($) {
                                     return;
                                 }
                                 
-                                console.error(`[ERROR] Error en búsqueda: ${error} (status: ${status})`);
+                                console.error('[ERROR] Error en búsqueda:', {
+                                    status: status,
+                                    error: error,
+                                    responseText: xhr.responseText
+                                });
                                 
                                 // Intentar de nuevo en caso de errores de red/servidor
                                 if (['timeout', 'error', 'parsererror'].includes(status) && retryCount < searchConfig.maxRetries) {
@@ -471,9 +500,9 @@ function initSyncScript($) {
                     $(this).val(ui.item.value);
                     
                     // Mostrar información adicional si existe
-                    if (ui.item.meta) {
+                    if (ui.item.desc) {
                         const $meta = $('<p class="description search-meta"></p>');
-                        $meta.html(`<strong>Info:</strong> ${ui.item.meta}`);
+                        $meta.html(`<strong>Info:</strong> ${ui.item.desc}`);
                         $(this).after($meta);
                         
                         setTimeout(() => {

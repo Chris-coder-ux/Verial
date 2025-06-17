@@ -1,0 +1,411 @@
+<?php
+/**
+ * Script de prueba para verificar la correcta obtención y aplicación de precios
+ * durante la sincronización por lotes
+ * 
+ * Este script se enfoca en analizar la estructura de precios y su correcto procesamiento
+ */
+
+// Bootstrap WordPress para acceder a sus funciones
+if (file_exists(dirname(__FILE__) . '/../../../../../wp-load.php')) {
+    require_once(dirname(__FILE__) . '/../../../../../wp-load.php');
+} else {
+    die('No se puede cargar WordPress. Verifica la ruta relativa.');
+}
+
+// Configurar para mostrar errores
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
+// Asegurarse de que solo se ejecuta en línea de comandos
+if (php_sapi_name() !== 'cli') {
+    die('Este script solo debe ejecutarse desde la línea de comandos.');
+}
+
+// Definir constantes
+define('LOG_FILE', dirname(__FILE__) . '/sync-prices-test.log');
+define('SAMPLE_SIZE', 5); // Número de productos a analizar
+
+// Limpiar y crear archivo de log
+file_put_contents(LOG_FILE, "=== TEST DE PRECIOS EN SINCRONIZACIÓN ===\n" . date('Y-m-d H:i:s') . "\n\n");
+
+// Función para escribir en el log
+function log_message($message, $data = null) {
+    $timestamp = date('Y-m-d H:i:s');
+    $formatted = "[{$timestamp}] {$message}";
+    
+    if ($data !== null) {
+        $formatted .= "\n" . print_r($data, true);
+    }
+    
+    echo $formatted . "\n";
+    file_put_contents(LOG_FILE, $formatted . "\n", FILE_APPEND);
+}
+
+// Función para convertir un objeto a array recursivamente
+function object_to_array($obj) {
+    if (is_object($obj)) {
+        $obj = (array) $obj;
+    }
+    if (is_array($obj)) {
+        $new = [];
+        foreach ($obj as $key => $val) {
+            $new[$key] = object_to_array($val);
+        }
+    } else {
+        $new = $obj;
+    }
+    return $new;
+}
+
+try {
+    // Verificar clases necesarias
+    log_message("Verificando disponibilidad de clases...");
+    
+    // Verificar que las clases necesarias estén disponibles
+    if (!class_exists('\MiIntegracionApi\Core\Sync_Manager')) {
+        // Intentar cargar autoloader
+        $autoloader_path = dirname(__FILE__) . '/../includes/Autoloader.php';
+        if (file_exists($autoloader_path)) {
+            require_once($autoloader_path);
+        } else {
+            die("No se encontró el autoloader.");
+        }
+    }
+    
+    // Obtener instancias necesarias
+    log_message("Obteniendo instancias...");
+    $sync_manager = \MiIntegracionApi\Core\Sync_Manager::get_instance();
+    $api_connector = $sync_manager->get_api_connector();
+    
+    if (!$api_connector) {
+        die("No se pudo obtener el API Connector.");
+    }
+    
+    log_message("Configuración de API:", [
+        'url' => $api_connector->get_api_base_url(),
+        'session' => $api_connector->get_session_id()
+    ]);
+    
+    // Obtener muestra de productos para análisis
+    log_message("\n=== OBTENIENDO MUESTRA DE PRODUCTOS ===");
+    $productos = $api_connector->get_articulos(['limit' => SAMPLE_SIZE]);
+    
+    if (is_wp_error($productos)) {
+        die("Error al obtener productos: " . $productos->get_error_message());
+    }
+    
+    // Normalizar estructura de productos
+    $articulos_normalizados = [];
+    
+    // Determinar formato de respuesta
+    if (isset($productos['Articulos']) && is_array($productos['Articulos'])) {
+        log_message("Formato detectado: Array con clave Articulos");
+        $articulos_normalizados = $productos['Articulos'];
+    } elseif (isset($productos[0])) {
+        log_message("Formato detectado: Array simple de productos");
+        $articulos_normalizados = $productos;
+    } else {
+        // Si es un único objeto de producto (no en array)
+        if (isset($productos['Id']) || isset($productos['ReferenciaBarras'])) {
+            log_message("Formato detectado: Producto único");
+            $articulos_normalizados = [$productos];
+        } else {
+            log_message("Formato desconocido:", array_keys($productos));
+            die("No se pudo determinar la estructura de la respuesta API.");
+        }
+    }
+    
+    log_message("Se analizarán " . count($articulos_normalizados) . " productos");
+    
+    // Analizar cada producto
+    $index = 1;
+    foreach ($articulos_normalizados as $producto) {
+        if (!isset($producto['Id'])) {
+            log_message("ADVERTENCIA: Producto sin ID detectado:", $producto);
+            continue;
+        }
+        
+        $id_producto = $producto['Id'];
+        $nombre = $producto['Nombre'] ?? "Producto #{$index}";
+        $referencia = $producto['Referencia'] ?? ($producto['ReferenciaBarras'] ?? "Sin referencia");
+        
+        log_message("\n=== PRODUCTO {$index}: {$nombre} (ID: {$id_producto}, REF: {$referencia}) ===");
+        
+        // 1. Verificar precio en estructura de producto original
+        log_message("1. Precio en estructura original:");
+        $precio_original = $producto['PVP'] ?? "No definido";
+        log_message("   Precio original (PVP): {$precio_original}");
+        
+        // 2. Obtener condiciones de tarifa
+        log_message("2. Obteniendo condiciones de tarifa...");
+        $condiciones = $api_connector->get_condiciones_tarifa($id_producto);
+        
+        if (is_wp_error($condiciones)) {
+            log_message("   ❌ Error al obtener condiciones de tarifa: " . $condiciones->get_error_message());
+            continue;
+        }
+        
+        // Convertir posibles objetos a arrays para una visualización consistente
+        $condiciones = object_to_array($condiciones);
+        
+        // 3. Analizar estructura de condiciones de tarifa
+        log_message("3. Análisis de estructura de condiciones:");
+        
+        // Verificar si tenemos la estructura anidada CondicionesTarifa
+        if (isset($condiciones['CondicionesTarifa']) && is_array($condiciones['CondicionesTarifa'])) {
+            log_message("   ✅ Estructura esperada: Array con clave CondicionesTarifa");
+            $condiciones_lista = $condiciones['CondicionesTarifa'];
+            
+            // Si no es un array sino un objeto único
+            if (isset($condiciones_lista['Precio'])) {
+                log_message("   ⚠️ Formato inusual: Condición única no en array");
+                
+                // Extraer precio
+                $precio_tarifa = $condiciones_lista['Precio'];
+                $descuento = $condiciones_lista['Dto'] ?? 0;
+                $descuento_euros = $condiciones_lista['DtoEurosXUd'] ?? 0;
+                
+                log_message("   Precio tarifa: {$precio_tarifa}");
+                log_message("   Descuento %: {$descuento}");
+                log_message("   Descuento €: {$descuento_euros}");
+                
+                $precio_final = $precio_tarifa;
+                
+                // Calcular descuentos
+                if ($descuento > 0) {
+                    $desc_valor = ($precio_tarifa * $descuento) / 100;
+                    $precio_final = $precio_tarifa - $desc_valor;
+                    log_message("   Precio con descuento %: {$precio_final}");
+                }
+                
+                if ($descuento_euros > 0) {
+                    $precio_final = $precio_tarifa - $descuento_euros;
+                    log_message("   Precio con descuento €: {$precio_final}");
+                }
+            }
+            // Si es un array de condiciones
+            elseif (!empty($condiciones_lista)) {
+                foreach ($condiciones_lista as $idx => $cond) {
+                    if (isset($cond['Precio']) && is_numeric($cond['Precio'])) {
+                        log_message("   ✅ Precio encontrado en condición #{$idx}: {$cond['Precio']}");
+                        
+                        $precio_tarifa = $cond['Precio'];
+                        $descuento = $cond['Dto'] ?? 0;
+                        $descuento_euros = $cond['DtoEurosXUd'] ?? 0;
+                        
+                        $precio_final = $precio_tarifa;
+                        
+                        // Calcular descuentos
+                        if ($descuento > 0) {
+                            $desc_valor = ($precio_tarifa * $descuento) / 100;
+                            $precio_final = $precio_tarifa - $desc_valor;
+                            log_message("   Precio con descuento %: {$precio_final}");
+                        }
+                        
+                        if ($descuento_euros > 0) {
+                            $precio_final = $precio_tarifa - $descuento_euros;
+                            log_message("   Precio con descuento €: {$precio_final}");
+                        }
+                    } else {
+                        log_message("   ⚠️ Condición sin precio válido:", $cond);
+                    }
+                }
+            } else {
+                log_message("   ❌ CondicionesTarifa está vacío");
+            }
+        } elseif (isset($condiciones[0])) {
+            // Array de condiciones directo
+            log_message("   ✅ Estructura alternativa: Array simple de condiciones");
+            
+            foreach ($condiciones as $idx => $cond) {
+                if (isset($cond['Precio']) && is_numeric($cond['Precio'])) {
+                    log_message("   ✅ Precio encontrado en condición #{$idx}: {$cond['Precio']}");
+                    
+                    // Extraer precio y descuentos
+                    $precio_tarifa = $cond['Precio'];
+                    $descuento = $cond['Dto'] ?? 0;
+                    $descuento_euros = $cond['DtoEurosXUd'] ?? 0;
+                    
+                    $precio_final = $precio_tarifa;
+                    
+                    // Calcular descuentos
+                    if ($descuento > 0) {
+                        $desc_valor = ($precio_tarifa * $descuento) / 100;
+                        $precio_final = $precio_tarifa - $desc_valor;
+                        log_message("   Precio con descuento %: {$precio_final}");
+                    }
+                    
+                    if ($descuento_euros > 0) {
+                        $precio_final = $precio_tarifa - $descuento_euros;
+                        log_message("   Precio con descuento €: {$precio_final}");
+                    }
+                }
+            }
+        } elseif (isset($condiciones['Precio']) && is_numeric($condiciones['Precio'])) {
+            // Condición única
+            log_message("   ✅ Estructura alternativa: Objeto condición única");
+            
+            $precio_tarifa = $condiciones['Precio'];
+            $descuento = $condiciones['Dto'] ?? 0;
+            $descuento_euros = $condiciones['DtoEurosXUd'] ?? 0;
+            
+            log_message("   Precio tarifa: {$precio_tarifa}");
+            
+            $precio_final = $precio_tarifa;
+            
+            // Calcular descuentos
+            if ($descuento > 0) {
+                $desc_valor = ($precio_tarifa * $descuento) / 100;
+                $precio_final = $precio_tarifa - $desc_valor;
+                log_message("   Precio con descuento %: {$precio_final}");
+            }
+            
+            if ($descuento_euros > 0) {
+                $precio_final = $precio_tarifa - $descuento_euros;
+                log_message("   Precio con descuento €: {$precio_final}");
+            }
+        } else {
+            log_message("   ❌ ESTRUCTURA DE CONDICIONES NO RECONOCIDA:", $condiciones);
+        }
+        
+        // 4. Simular mapeo a DTO como ocurriría en el proceso de sincronización
+        log_message("4. Simulando mapeo a DTO:");
+        
+        // Obtener y actualizar precio en el producto usando la lógica de Sync_Single_Product
+        if (isset($producto['Id']) && !empty($producto['Id'])) {
+            // Actualizar precios del producto si hay condiciones disponibles
+            $precio_actualizado = false;
+            
+            if (is_array($condiciones)) {
+                // Manejar la estructura específica que devuelve la API de Verial
+                $condiciones_lista = [];
+                
+                // Verificar si las condiciones vienen en formato CondicionesTarifa (formato oficial API Verial)
+                if (isset($condiciones['CondicionesTarifa']) && is_array($condiciones['CondicionesTarifa'])) {
+                    log_message("   Usando estructura CondicionesTarifa para mapeo");
+                    $condiciones_lista = $condiciones['CondicionesTarifa'];
+                } elseif (isset($condiciones[0])) {
+                    // Array de condiciones directo
+                    log_message("   Usando array de condiciones para mapeo");
+                    $condiciones_lista = $condiciones;
+                } elseif (isset($condiciones['Precio'])) {
+                    // Condición única
+                    log_message("   Usando condición única para mapeo");
+                    $condiciones_lista = [$condiciones];
+                }
+                
+                // Procesar la primera condición de tarifa encontrada
+                if (!empty($condiciones_lista)) {
+                    $condicion = is_array($condiciones_lista) ? $condiciones_lista[0] : $condiciones_lista;
+                    
+                    // Verificar si el precio existe en las condiciones
+                    if (isset($condicion['Precio']) && is_numeric($condicion['Precio']) && $condicion['Precio'] > 0) {
+                        $producto['PVP'] = $condicion['Precio'];
+                        log_message("   ✅ Precio actualizado en producto: {$condicion['Precio']}");
+                        $precio_actualizado = true;
+                        
+                        // Si hay descuento, calcular el precio final
+                        if (isset($condicion['Dto']) && is_numeric($condicion['Dto']) && $condicion['Dto'] > 0) {
+                            $descuento = ($condicion['Precio'] * $condicion['Dto']) / 100;
+                            $precio_final = $condicion['Precio'] - $descuento;
+                            log_message("   ✅ Precio con descuento %: {$precio_final}");
+                            $producto['PVPOferta'] = $precio_final;
+                        }
+                        
+                        // Si hay descuento en euros por unidad
+                        if (isset($condicion['DtoEurosXUd']) && is_numeric($condicion['DtoEurosXUd']) && $condicion['DtoEurosXUd'] > 0) {
+                            $precio_final = $condicion['Precio'] - $condicion['DtoEurosXUd'];
+                            log_message("   ✅ Precio con descuento €: {$precio_final}");
+                            $producto['PVPOferta'] = $precio_final;
+                        }
+                    } else {
+                        log_message("   ❌ No se encontró precio válido en las condiciones");
+                    }
+                } else {
+                    log_message("   ❌ Lista de condiciones vacía");
+                }
+            }
+            
+            if (!$precio_actualizado) {
+                log_message("   ⚠️ No se pudo actualizar el precio del producto");
+            }
+        }
+        
+        // 5. Intentar mapear usando MapProduct y verificar resultados
+        log_message("5. Simulando mapeo final a WooCommerce:");
+        
+        // Cargar MapProduct si está disponible
+        if (class_exists('\MiIntegracionApi\Helpers\MapProduct')) {
+            /** @var \MiIntegracionApi\DTOs\ProductDTO|null $wc_data_dto */
+            $wc_data_dto = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($producto);
+            
+            if (!$wc_data_dto) {
+                log_message("   ❌ Error al mapear producto a DTO");
+            } else {
+                // Convertir el DTO a array para verificar los precios
+                $wc_data = $wc_data_dto->toArray();
+                
+                log_message("   ✅ Precio regular en WooCommerce: " . ($wc_data['regular_price'] ?? 'No definido'));
+                log_message("   ✅ Precio oferta en WooCommerce: " . ($wc_data['sale_price'] ?? 'No definido'));
+                
+                // Verificar si los precios están correctos
+                if (isset($producto['PVP']) && (!isset($wc_data['regular_price']) || $wc_data['regular_price'] != $producto['PVP'])) {
+                    log_message("   ❌ DISCREPANCIA EN PRECIO REGULAR: Verial={$producto['PVP']}, WooCommerce={$wc_data['regular_price']}");
+                }
+                
+                if (isset($producto['PVPOferta']) && (!isset($wc_data['sale_price']) || $wc_data['sale_price'] != $producto['PVPOferta'])) {
+                    log_message("   ❌ DISCREPANCIA EN PRECIO OFERTA: Verial={$producto['PVPOferta']}, WooCommerce={$wc_data['sale_price']}");
+                }
+            }
+        } else {
+            log_message("   ❌ No se pudo realizar el mapeo final: Clase MapProduct no disponible");
+        }
+        
+        // Si el producto ya existe en WooCommerce, verificar precio actual
+        if (function_exists('wc_get_product_id_by_sku')) {
+            $sku = $producto['Referencia'] ?? ($producto['ReferenciaBarras'] ?? '');
+            
+            if (!empty($sku)) {
+                $wc_product_id = wc_get_product_id_by_sku($sku);
+                
+                if ($wc_product_id) {
+                    $wc_product = wc_get_product($wc_product_id);
+                    
+                    if ($wc_product) {
+                        log_message("6. Producto existente en WooCommerce (ID: {$wc_product_id}):");
+                        log_message("   Precio actual en WooCommerce: " . $wc_product->get_price());
+                        log_message("   Precio regular: " . $wc_product->get_regular_price());
+                        log_message("   Precio oferta: " . $wc_product->get_sale_price());
+                        
+                        // Comparar con precios de Verial
+                        if (isset($producto['PVP']) && $producto['PVP'] != $wc_product->get_regular_price()) {
+                            log_message("   ⚠️ DIFERENCIA DE PRECIO: Verial={$producto['PVP']}, WooCommerce={$wc_product->get_regular_price()}");
+                        } else {
+                            log_message("   ✅ Precio regular coincide");
+                        }
+                    }
+                } else {
+                    log_message("6. Producto no existe en WooCommerce");
+                }
+            }
+        }
+        
+        $index++;
+    }
+    
+    // Resumen y recomendaciones
+    log_message("\n=== RESUMEN DE ANÁLISIS DE PRECIOS ===");
+    log_message("Se analizaron " . ($index - 1) . " productos");
+    log_message("\nRecomendaciones:");
+    log_message("1. Verificar que la estructura 'CondicionesTarifa' se maneja correctamente en el código");
+    log_message("2. Asegurar que el campo 'PVP' se actualiza en el producto antes del mapeo");
+    log_message("3. Confirmar que tanto descuentos porcentuales como en euros se procesan adecuadamente");
+    log_message("4. Validar si los productos con discrepancias necesitan resincronización");
+    
+} catch (\Exception $e) {
+    log_message("ERROR CRÍTICO: " . $e->getMessage());
+    log_message("Traza: " . $e->getTraceAsString());
+}
+
+log_message("\nPrueba completada. Archivo de log guardado en: " . LOG_FILE);

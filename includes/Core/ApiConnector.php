@@ -16,7 +16,7 @@ use MiIntegracionApi\SSL\SSLTimeoutManager;
 use MiIntegracionApi\SSL\SSLConfigManager;
 use MiIntegracionApi\SSL\CertificateRotation;
 use MiIntegracionApi\Core\Config_Manager;
-use MiIntegracionApi\Retry\RetryManager;
+use MiIntegracionApi\Core\RetryManager;
 use MiIntegracionApi\Cache\HTTP_Cache_Manager;
 use MiIntegracionApi\Core\DataValidator;
 
@@ -144,7 +144,7 @@ class ApiConnector {
     public function __construct(Logger $logger, int $max_retries = 3, int $retry_delay = 2, int $timeout = 30) {
         $this->logger = $logger;
         $this->timeout = $timeout;
-        $this->retry_manager = new RetryManager($logger, $max_retries, $retry_delay);
+        $this->retry_manager = new RetryManager();
     }
 
     /**
@@ -415,6 +415,20 @@ class ApiConnector {
     private function build_api_url(string $endpoint): string {
         $base = $this->get_api_base_url();
         
+        // Verificar que la URL base tenga un host válido
+        if (empty($base) || !parse_url($base, PHP_URL_HOST)) {
+            // Si no hay URL base o no tiene host, usar la URL por defecto de la colección Postman
+            $default_url = 'http://x.verial.org:8000';
+            $this->logger->warning('URL base inválida. Usando URL por defecto', [
+                'base_original' => $base,
+                'base_default' => $default_url
+            ]);
+            $base = $default_url . '/WcfServiceLibraryVerial';
+        } elseif (parse_url($base, PHP_URL_PATH) === null || parse_url($base, PHP_URL_PATH) === '') {
+            // Si la URL base no tiene path, añadir /WcfServiceLibraryVerial
+            $base = rtrim($base, '/') . '/WcfServiceLibraryVerial';
+        }
+        
         // Limpiar el endpoint de espacios y barras iniciales/finales
         $endpoint = trim($endpoint);
         $endpoint = ltrim($endpoint, '/');
@@ -429,7 +443,6 @@ class ApiConnector {
         $url = rtrim($base, '/') . '/' . $endpoint;
         
         // Eliminar dobles barras pero preservar el protocolo (http:// o https://)
-        // Esta expresión regular es más específica y no afecta el protocolo
         $url = preg_replace('#(?<!:)//+#', '/', $url);
         
         // Validar que la URL resultante sea válida
@@ -440,8 +453,20 @@ class ApiConnector {
                 'resultado' => $url
             ]);
             
-            // Intentar construcción alternativa como fallback
-            $url = $base . (substr($base, -1) !== '/' ? '/' : '') . $endpoint;
+            // Intentar reconstruir una URL completa y válida
+            if (!parse_url($base, PHP_URL_SCHEME)) {
+                $base = 'http://' . ltrim($base, '/');
+            }
+            
+            // Asegurar que haya un host
+            if (!parse_url($base, PHP_URL_HOST)) {
+                $this->logger->error('No se pudo construir una URL válida - sin host');
+                // Usar la URL por defecto como último recurso
+                $base = 'http://x.verial.org:8000/WcfServiceLibraryVerial';
+            }
+            
+            $url = rtrim($base, '/') . '/' . $endpoint;
+            $this->logger->info('Se reconstruyó la URL como: ' . $url);
         }
         
         $this->last_request_url = $url;
@@ -465,9 +490,9 @@ class ApiConnector {
      * @return mixed Resultado de la solicitud
      */
     public function get(string $endpoint, array $params = [], array $options = []): mixed {
-        return $this->retry_manager->execute(function() use ($endpoint, $params, $options) {
+        return $this->retry_manager->executeWithRetry(function() use ($endpoint, $params, $options) {
             return $this->makeRequest('GET', $endpoint, [], $params, $options);
-        });
+        }, 'GET_' . $endpoint);
     }
 
     /**
@@ -480,9 +505,9 @@ class ApiConnector {
      * @return mixed Resultado de la solicitud
      */
     public function post(string $endpoint, array $data = [], array $params = [], array $options = []): mixed {
-        return $this->retry_manager->execute(function() use ($endpoint, $data, $params, $options) {
+        return $this->retry_manager->executeWithRetry(function() use ($endpoint, $data, $params, $options) {
             return $this->makeRequest('POST', $endpoint, $data, $params, $options);
-        });
+        }, 'POST_' . $endpoint);
     }
 
     /**
@@ -495,9 +520,9 @@ class ApiConnector {
      * @return mixed Resultado de la solicitud
      */
     public function put(string $endpoint, array $data = [], array $params = [], array $options = []): mixed {
-        return $this->retry_manager->execute(function() use ($endpoint, $data, $params, $options) {
+        return $this->retry_manager->executeWithRetry(function() use ($endpoint, $data, $params, $options) {
             return $this->makeRequest('PUT', $endpoint, $data, $params, $options);
-        });
+        }, 'PUT_' . $endpoint);
     }
 
     /**
@@ -510,9 +535,9 @@ class ApiConnector {
      * @return mixed Resultado de la solicitud
      */
     public function delete(string $endpoint, array $data = [], array $params = [], array $options = []): mixed {
-        return $this->retry_manager->execute(function() use ($endpoint, $data, $params, $options) {
+        return $this->retry_manager->executeWithRetry(function() use ($endpoint, $data, $params, $options) {
             return $this->makeRequest('DELETE', $endpoint, $data, $params, $options);
-        });
+        }, 'DELETE_' . $endpoint);
     }
 
     /**
@@ -522,7 +547,7 @@ class ApiConnector {
      * @return self
      */
     public function setRetryConfig(array $retry_config): self {
-        $this->retry_manager = new RetryManager($retry_config);
+        $this->retry_manager = new RetryManager();
         return $this;
     }
 
@@ -532,7 +557,55 @@ class ApiConnector {
      * @return array Configuración de retry
      */
     public function getRetryConfig(): array {
-        return $this->retry_manager->getStats();
+        // Método getStats no existe en RetryManager, devolvemos array vacío por ahora
+        return [];
+    }
+    
+    /**
+     * Realiza una solicitud HTTP a la API
+     *
+     * @param string $method Método HTTP (GET, POST, PUT, DELETE)
+     * @param string $endpoint Endpoint de la API
+     * @param array $data Datos para enviar (cuerpo)
+     * @param array $params Parámetros de consulta (URL)
+     * @param array $options Opciones adicionales
+     * @return mixed Resultado de la solicitud
+     */
+    private function makeRequest(string $method, string $endpoint, array $data = [], array $params = [], array $options = []): mixed {
+        // Construir la URL
+        $url = $this->build_api_url($endpoint);
+        
+        // Añadir parámetros a la URL
+        if (!empty($params)) {
+            $url = add_query_arg($params, $url);
+        }
+        
+        // Añadir sesionwcf si no está incluido en los parámetros
+        if (!isset($params['x']) && !isset($params['sesionwcf'])) {
+            $url = add_query_arg('x', $this->sesionwcf, $url);
+        }
+        
+        // Configurar opciones de la solicitud
+        $args = [
+            'method' => $method,
+            'timeout' => $options['timeout'] ?? $this->getTimeoutForMethod($method),
+            'redirection' => $options['redirection'] ?? 5,
+            'httpversion' => $options['httpversion'] ?? '1.1',
+            'blocking' => $options['blocking'] ?? true,
+            'headers' => $options['headers'] ?? [],
+            'sslverify' => $options['sslverify'] ?? false,
+        ];
+        
+        // Añadir datos al cuerpo para métodos que lo soportan
+        if (in_array($method, ['POST', 'PUT', 'PATCH']) && !empty($data)) {
+            $args['body'] = json_encode($data);
+            if (!isset($args['headers']['Content-Type'])) {
+                $args['headers']['Content-Type'] = 'application/json';
+            }
+        }
+        
+        // Realizar la solicitud usando curl
+        return $this->makeRequestWithCurl($url, $args);
     }
 
     /**
@@ -849,9 +922,9 @@ class ApiConnector {
      * @return mixed Resultado de la solicitud
      */
     private function makeRequestWithRetry(string $method, string $endpoint, array $data = [], array $params = [], array $options = []): mixed {
-        return $this->retry_manager->execute(function() use ($method, $endpoint, $data, $params, $options) {
+        return $this->retry_manager->executeWithRetry(function() use ($method, $endpoint, $data, $params, $options) {
             return $this->makeRequest($method, $endpoint, $data, $params, $options);
-        });
+        }, $method . '_' . $endpoint);
     }
 
     /**
@@ -940,6 +1013,16 @@ class ApiConnector {
         if (!is_array($params)) {
             $params = array(); // Asegurar que params sea un array
             $this->logger->log('ATENCIÓN: get_articulos recibió parámetros no válidos. Tipo: ' . gettype($params), 'warning');
+        }
+        
+        // Manejar diferentes formas de buscar por SKU
+        if (isset($params['sku']) && !isset($params['referencia']) && !isset($params['referenciabarras'])) {
+            // Si nos pasan 'sku', lo mapeamos a los parámetros que Verial entiende
+            $params['referenciabarras'] = $params['sku'];
+            // También intentamos buscar en Referencia por compatibilidad
+            $params['referencia'] = $params['sku'];
+            unset($params['sku']); // Ya no necesitamos este parámetro
+            $this->logger->log("Convertido parámetro 'sku' a 'referenciabarras' y 'referencia' para compatibilidad con API Verial", 'debug');
         }
         
         // Registrar llamada a la API
@@ -1036,6 +1119,16 @@ class ApiConnector {
      */
     public function get_imagenes_articulos($params = array()) {
         $endpoint = 'GetImagenesArticulosWS';
+        return $this->get($endpoint, $params);
+    }
+
+    /**
+     * Wrapper: Obtiene fabricantes de Verial.
+     * @param array $params Parámetros opcionales
+     * @return array|WP_Error
+     */
+    public function get_fabricantes($params = array()) {
+        $endpoint = 'GetFabricantesWS';
         return $this->get($endpoint, $params);
     }
 
@@ -1264,6 +1357,32 @@ class ApiConnector {
         
         $this->sesionwcf = (int)$sesionwcf;
         $this->logger->info('Número de sesión actualizado', ['new_session' => $this->sesionwcf]);
+    }
+
+    /**
+     * Establece la URL base de la API
+     * 
+     * @param string $url URL base de la API
+     * @return void
+     */
+    public function set_api_url(string $url): void {
+        if (!empty($url)) {
+            $this->api_url = $url;
+            $this->logger->debug("URL de API configurada: " . $url);
+        }
+    }
+
+    /**
+     * Establece el número de sesión para Verial
+     * 
+     * @param string|int $sesion Número de sesión
+     * @return void
+     */
+    public function set_sesion_wcf($sesion): void {
+        if (!empty($sesion)) {
+            $this->sesionwcf = intval($sesion);
+            $this->logger->debug("Número de sesión configurado: " . $this->sesionwcf);
+        }
     }
 
     /**

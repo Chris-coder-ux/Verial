@@ -41,7 +41,18 @@ class ApiConnectionChecker {
 		];
 		
 		try {
-			$this->api_connector = new ApiConnector($config);
+			// Crear un logger para ApiConnectionChecker
+			$logger = new \MiIntegracionApi\Helpers\Logger('api-connection-checker');
+			$this->api_connector = new ApiConnector($logger);
+			
+			// Configurar la API URL y sesión WCF
+			if (isset($config['api_url'])) {
+				$this->api_connector->set_api_url($config['api_url']);
+			}
+			if (isset($config['sesionwcf'])) {
+				$this->api_connector->set_sesion_wcf($config['sesionwcf']);
+			}
+			
 			$this->init_error = null;
 		} catch (\Exception $e) {
 			$this->api_connector = null;

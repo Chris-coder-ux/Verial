@@ -7,9 +7,16 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'eftec\\bladeone\\' => array($vendorDir . '/eftec/bladeone/lib'),
+    'SzepeViktor\\PHPStan\\WordPress\\' => array($vendorDir . '/szepeviktor/phpstan-wordpress/src'),
+    'Symfony\\Polyfill\\Php73\\' => array($vendorDir . '/symfony/polyfill-php73'),
+    'PhpParser\\' => array($vendorDir . '/nikic/php-parser/lib/PhpParser'),
     'Peast\\' => array($vendorDir . '/mck89/peast/lib/Peast'),
+    'PHPStan\\ExtensionInstaller\\' => array($vendorDir . '/phpstan/extension-installer/src'),
+    'PHPCSStandards\\Composer\\Plugin\\Installers\\PHPCodeSniffer\\' => array($vendorDir . '/dealerdirect/phpcodesniffer-composer-installer/src'),
     'MiIntegracionApi\\' => array($baseDir . '/includes'),
     'MabeEnum\\' => array($vendorDir . '/marc-mabe/php-enum/src'),
     'Gettext\\Languages\\' => array($vendorDir . '/gettext/languages/src'),
     'Gettext\\' => array($vendorDir . '/gettext/gettext/src'),
+    'Doctrine\\Instantiator\\' => array($vendorDir . '/doctrine/instantiator/src/Doctrine/Instantiator'),
+    'DeepCopy\\' => array($vendorDir . '/myclabs/deep-copy/src/DeepCopy'),
 );

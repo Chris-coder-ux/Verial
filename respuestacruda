@@ -1,0 +1,4760 @@
+Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:45 UTC] Mi Integración API: Sistema de hooks seguros inicializado
+[17-Jun-2025 07:38:45 UTC] Inicializando AdminMenu - 2025-06-17 07:38:45
+[17-Jun-2025 07:38:45 UTC] AdminMenu inicializado correctamente
+[17-Jun-2025 07:38:48 UTC] Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:48 UTC] Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:48 UTC] Mi Integración API: Sistema de hooks seguros inicializado
+[17-Jun-2025 07:38:48 UTC] Inicializando AdminMenu - 2025-06-17 07:38:48
+[17-Jun-2025 07:38:48 UTC] AdminMenu inicializado correctamente
+[17-Jun-2025 07:38:49 UTC] Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:49 UTC] Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:49 UTC] Mi Integración API: Sistema de hooks seguros inicializado
+[17-Jun-2025 07:38:49 UTC] Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:49 UTC] Mi Integración API: Autoloader de respaldo registrado correctamente
+[17-Jun-2025 07:38:49 UTC] Mi Integración API: Sistema de hooks seguros inicializado
+[17-Jun-2025 07:38:49 UTC] Inicializando AdminMenu - 2025-06-17 07:38:49
+[17-Jun-2025 07:38:49 UTC] AdminMenu inicializado correctamente
+[17-Jun-2025 07:38:49 UTC] Inicializando AdminMenu - 2025-06-17 07:38:49
+[17-Jun-2025 07:38:49 UTC] AdminMenu inicializado correctamente
+[17-Jun-2025 07:38:50 UTC] [MI] Respuesta cruda get_fabricantes: Array
+(
+    [Fabricantes] => Array
+        (
+            [0] => Array
+                (
+                    [Id] => 1
+                    [Nombre] => Faktoria K de Libros, S.A.
+                    [Tipo] => 2
+                )
+
+            [1] => Array
+                (
+                    [Id] => 2
+                    [Nombre] => Kalandraka Editora, S.L.
+                    [Tipo] => 2
+                )
+
+            [2] => Array
+                (
+                    [Id] => 3
+                    [Nombre] => Kalandraka Ediciones Andalucía, S.L.
+                    [Tipo] => 2
+                )
+
+            [3] => Array
+                (
+                    [Id] => 4
+                    [Nombre] => Tramuntana Editorial
+                    [Tipo] => 2
+                )
+
+            [4] => Array
+                (
+                    [Id] => 5
+                    [Nombre] => APILA Ediciones
+                    [Tipo] => 2
+                )
+
+            [5] => Array
+                (
+                    [Id] => 6
+                    [Nombre] => Coco Books
+                    [Tipo] => 2
+                )
+
+            [6] => Array
+                (
+                    [Id] => 7
+                    [Nombre] => Ekaré Europa S.L.
+                    [Tipo] => 2
+                )
+
+            [7] => Array
+                (
+                    [Id] => 8
+                    [Nombre] => Cuento de Luz sl
+                    [Tipo] => 2
+                )
+
+            [8] => Array
+                (
+                    [Id] => 9
+                    [Nombre] => Ediciones Jaguar, S.A.
+                    [Tipo] => 2
+                )
+
+            [9] => Array
+                (
+                    [Id] => 10
+                    [Nombre] => Takatuka
+                    [Tipo] => 2
+                )
+
+            [10] => Array
+                (
+                    [Id] => 11
+                    [Nombre] => Barbara Fiore Editora
+                    [Tipo] => 2
+                )
+
+            [11] => Array
+                (
+                    [Id] => 12
+                    [Nombre] => Thule Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [12] => Array
+                (
+                    [Id] => 13
+                    [Nombre] => Palabras Aladas
+                    [Tipo] => 2
+                )
+
+            [13] => Array
+                (
+                    [Id] => 14
+                    [Nombre] => Editorial Bambú
+                    [Tipo] => 2
+                )
+
+            [14] => Array
+                (
+                    [Id] => 15
+                    [Nombre] => Combel Editorial, S. A.
+                    [Tipo] => 2
+                )
+
+            [15] => Array
+                (
+                    [Id] => 16
+                    [Nombre] => César Ballesteros S.A.
+                    [Tipo] => 1
+                )
+
+            [16] => Array
+                (
+                    [Id] => 17
+                    [Nombre] => La Guarida
+                    [Tipo] => 2
+                )
+
+            [17] => Array
+                (
+                    [Id] => 18
+                    [Nombre] => Humberto Silva S.A.
+                    [Tipo] => 1
+                )
+
+            [18] => Array
+                (
+                    [Id] => 19
+                    [Nombre] => Editorial Luis Vives (Edelvives)
+                    [Tipo] => 2
+                )
+
+            [19] => Array
+                (
+                    [Id] => 20
+                    [Nombre] => Kókinos, S.A.
+                    [Tipo] => 2
+                )
+
+            [20] => Array
+                (
+                    [Id] => 21
+                    [Nombre] => Ediciones Minotauro
+                    [Tipo] => 2
+                )
+
+            [21] => Array
+                (
+                    [Id] => 22
+                    [Nombre] => Editorial Planeta, S.A.
+                    [Tipo] => 2
+                )
+
+            [22] => Array
+                (
+                    [Id] => 23
+                    [Nombre] => Ediciones Hiperión, S.L.
+                    [Tipo] => 2
+                )
+
+            [23] => Array
+                (
+                    [Id] => 24
+                    [Nombre] => Espasa-Calpe, S.A.
+                    [Tipo] => 2
+                )
+
+            [24] => Array
+                (
+                    [Id] => 25
+                    [Nombre] => Ediciones Temas de Hoy, S.A.
+                    [Tipo] => 2
+                )
+
+            [25] => Array
+                (
+                    [Id] => 26
+                    [Nombre] => Ediciones SM
+                    [Tipo] => 2
+                )
+
+            [26] => Array
+                (
+                    [Id] => 27
+                    [Nombre] => Grijalbo
+                    [Tipo] => 2
+                )
+
+            [27] => Array
+                (
+                    [Id] => 28
+                    [Nombre] => Ediciones Alfaguara
+                    [Tipo] => 2
+                )
+
+            [28] => Array
+                (
+                    [Id] => 29
+                    [Nombre] => Tusquets Editores
+                    [Tipo] => 2
+                )
+
+            [29] => Array
+                (
+                    [Id] => 30
+                    [Nombre] => Ediciones Destino, S.A.
+                    [Tipo] => 2
+                )
+
+            [30] => Array
+                (
+                    [Id] => 31
+                    [Nombre] => Publicaciones y Ediciones Salamandra, S.A.
+                    [Tipo] => 2
+                )
+
+            [31] => Array
+                (
+                    [Id] => 32
+                    [Nombre] => Domingo Ferrer S.L.
+                    [Tipo] => 1
+                )
+
+            [32] => Array
+                (
+                    [Id] => 33
+                    [Nombre] => Ediciones B, S.A.
+                    [Tipo] => 2
+                )
+
+            [33] => Array
+                (
+                    [Id] => 34
+                    [Nombre] => Vergara
+                    [Tipo] => 2
+                )
+
+            [34] => Array
+                (
+                    [Id] => 35
+                    [Nombre] => Zeta Bolsillo
+                    [Tipo] => 2
+                )
+
+            [35] => Array
+                (
+                    [Id] => 36
+                    [Nombre] => Erein
+                    [Tipo] => 2
+                )
+
+            [36] => Array
+                (
+                    [Id] => 37
+                    [Nombre] => Cénlit Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [37] => Array
+                (
+                    [Id] => 38
+                    [Nombre] => Anabella Ballesteros S.A.
+                    [Tipo] => 1
+                )
+
+            [38] => Array
+                (
+                    [Id] => 39
+                    [Nombre] => Libros del Zorro Rojo
+                    [Tipo] => 2
+                )
+
+            [39] => Array
+                (
+                    [Id] => 40
+                    [Nombre] => Parramón Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [40] => Array
+                (
+                    [Id] => 41
+                    [Nombre] => Océano Ambar, S.A.
+                    [Tipo] => 2
+                )
+
+            [41] => Array
+                (
+                    [Id] => 42
+                    [Nombre] => La Galera, S.A. Editorial
+                    [Tipo] => 2
+                )
+
+            [42] => Array
+                (
+                    [Id] => 43
+                    [Nombre] => Editorial Hispano Europea, S.A.
+                    [Tipo] => 2
+                )
+
+            [43] => Array
+                (
+                    [Id] => 44
+                    [Nombre] => Alamut Ediciones
+                    [Tipo] => 2
+                )
+
+            [44] => Array
+                (
+                    [Id] => 45
+                    [Nombre] => Suma de Letras
+                    [Tipo] => 2
+                )
+
+            [45] => Array
+                (
+                    [Id] => 46
+                    [Nombre] => Editorial Eleftheria
+                    [Tipo] => 2
+                )
+
+            [46] => Array
+                (
+                    [Id] => 47
+                    [Nombre] => Gaia Ediciones
+                    [Tipo] => 2
+                )
+
+            [47] => Array
+                (
+                    [Id] => 48
+                    [Nombre] => Aguilar
+                    [Tipo] => 2
+                )
+
+            [48] => Array
+                (
+                    [Id] => 49
+                    [Nombre] => Editorial Síntesis, S.A.
+                    [Tipo] => 2
+                )
+
+            [49] => Array
+                (
+                    [Id] => 50
+                    [Nombre] => Ediciones Robinbook, S.L.
+                    [Tipo] => 2
+                )
+
+            [50] => Array
+                (
+                    [Id] => 51
+                    [Nombre] => Editorial Laetoli, S.L.
+                    [Tipo] => 2
+                )
+
+            [51] => Array
+                (
+                    [Id] => 52
+                    [Nombre] => Editorial Desclée de Brouwer, S.A.
+                    [Tipo] => 2
+                )
+
+            [52] => Array
+                (
+                    [Id] => 53
+                    [Nombre] => Ma Non Troppo
+                    [Tipo] => 2
+                )
+
+            [53] => Array
+                (
+                    [Id] => 54
+                    [Nombre] => Editorial Trompa de Elefante
+                    [Tipo] => 2
+                )
+
+            [54] => Array
+                (
+                    [Id] => 55
+                    [Nombre] => Sílex Ediciones
+                    [Tipo] => 2
+                )
+
+            [55] => Array
+                (
+                    [Id] => 56
+                    [Nombre] => Editorial Timun Mas, S.A.
+                    [Tipo] => 2
+                )
+
+            [56] => Array
+                (
+                    [Id] => 57
+                    [Nombre] => Lunwerg Editores, S.A.
+                    [Tipo] => 2
+                )
+
+            [57] => Array
+                (
+                    [Id] => 58
+                    [Nombre] => Ediciones Dharma, S.L.
+                    [Tipo] => 2
+                )
+
+            [58] => Array
+                (
+                    [Id] => 59
+                    [Nombre] => Sahats Servicios Editoriales
+                    [Tipo] => 2
+                )
+
+            [59] => Array
+                (
+                    [Id] => 60
+                    [Nombre] => Plataforma Editorial S.L.
+                    [Tipo] => 2
+                )
+
+            [60] => Array
+                (
+                    [Id] => 61
+                    [Nombre] => Ediciones Urano, S.A.
+                    [Tipo] => 2
+                )
+
+            [61] => Array
+                (
+                    [Id] => 62
+                    [Nombre] => Esteban Plaza, Ricardo
+                    [Tipo] => 2
+                )
+
+            [62] => Array
+                (
+                    [Id] => 63
+                    [Nombre] => Bang Ediciones
+                    [Tipo] => 2
+                )
+
+            [63] => Array
+                (
+                    [Id] => 64
+                    [Nombre] => Ediciones El Jinete Azul
+                    [Tipo] => 2
+                )
+
+            [64] => Array
+                (
+                    [Id] => 65
+                    [Nombre] => Los Cuatro Azules
+                    [Tipo] => 2
+                )
+
+            [65] => Array
+                (
+                    [Id] => 66
+                    [Nombre] => Universidad Pontificia de Comillas de Madrid
+                    [Tipo] => 2
+                )
+
+            [66] => Array
+                (
+                    [Id] => 67
+                    [Nombre] => Empresa Activa
+                    [Tipo] => 2
+                )
+
+            [67] => Array
+                (
+                    [Id] => 68
+                    [Nombre] => Umbriel Editores
+                    [Tipo] => 2
+                )
+
+            [68] => Array
+                (
+                    [Id] => 69
+                    [Nombre] => Ediciones Obelisco, S.L.
+                    [Tipo] => 2
+                )
+
+            [69] => Array
+                (
+                    [Id] => 70
+                    [Nombre] => Picarona
+                    [Tipo] => 2
+                )
+
+            [70] => Array
+                (
+                    [Id] => 71
+                    [Nombre] => Editorial Hidra
+                    [Tipo] => 2
+                )
+
+            [71] => Array
+                (
+                    [Id] => 72
+                    [Nombre] => Pasado & Presente
+                    [Tipo] => 2
+                )
+
+            [72] => Array
+                (
+                    [Id] => 73
+                    [Nombre] => Duomo Ediciones S.L.
+                    [Tipo] => 2
+                )
+
+            [73] => Array
+                (
+                    [Id] => 74
+                    [Nombre] => Editorial Impedimenta
+                    [Tipo] => 2
+                )
+
+            [74] => Array
+                (
+                    [Id] => 75
+                    [Nombre] => Editorial Periférica
+                    [Tipo] => 2
+                )
+
+            [75] => Array
+                (
+                    [Id] => 76
+                    [Nombre] => Libros del Asteroide
+                    [Tipo] => 2
+                )
+
+            [76] => Array
+                (
+                    [Id] => 77
+                    [Nombre] => Lóguez Ediciones
+                    [Tipo] => 2
+                )
+
+            [77] => Array
+                (
+                    [Id] => 78
+                    [Nombre] => Marcombo, S.A.
+                    [Tipo] => 2
+                )
+
+            [78] => Array
+                (
+                    [Id] => 79
+                    [Nombre] => Editorial Juventud, S.A.
+                    [Tipo] => 2
+                )
+
+            [79] => Array
+                (
+                    [Id] => 80
+                    [Nombre] => Editorial Molino
+                    [Tipo] => 2
+                )
+
+            [80] => Array
+                (
+                    [Id] => 81
+                    [Nombre] => Editorial Corimbo, S.L.
+                    [Tipo] => 2
+                )
+
+            [81] => Array
+                (
+                    [Id] => 82
+                    [Nombre] => Anaya
+                    [Tipo] => 2
+                )
+
+            [82] => Array
+                (
+                    [Id] => 83
+                    [Nombre] => Edebé
+                    [Tipo] => 2
+                )
+
+            [83] => Array
+                (
+                    [Id] => 84
+                    [Nombre] => Editorial Bruño
+                    [Tipo] => 2
+                )
+
+            [84] => Array
+                (
+                    [Id] => 85
+                    [Nombre] => Ediciones San Pablo
+                    [Tipo] => 2
+                )
+
+            [85] => Array
+                (
+                    [Id] => 86
+                    [Nombre] => Editorial CCS
+                    [Tipo] => 2
+                )
+
+            [86] => Array
+                (
+                    [Id] => 87
+                    [Nombre] => Editorial Everest, S.A.
+                    [Tipo] => 2
+                )
+
+            [87] => Array
+                (
+                    [Id] => 88
+                    [Nombre] => Editora OQO
+                    [Tipo] => 2
+                )
+
+            [88] => Array
+                (
+                    [Id] => 89
+                    [Nombre] => Editorial Vicens-Vives, S.A.
+                    [Tipo] => 2
+                )
+
+            [89] => Array
+                (
+                    [Id] => 90
+                    [Nombre] => Ediciones Eneida
+                    [Tipo] => 2
+                )
+
+            [90] => Array
+                (
+                    [Id] => 91
+                    [Nombre] => Punto de Lectura, S.L.
+                    [Tipo] => 2
+                )
+
+            [91] => Array
+                (
+                    [Id] => 92
+                    [Nombre] => Ecologistas en Acción-Coordinadora Ecologistas Popular El Rincón
+                    [Tipo] => 2
+                )
+
+            [92] => Array
+                (
+                    [Id] => 93
+                    [Nombre] => Nube de Tinta
+                    [Tipo] => 2
+                )
+
+            [93] => Array
+                (
+                    [Id] => 94
+                    [Nombre] => B de BLOK
+                    [Tipo] => 2
+                )
+
+            [94] => Array
+                (
+                    [Id] => 95
+                    [Nombre] => Editorial Pre-Textos
+                    [Tipo] => 2
+                )
+
+            [95] => Array
+                (
+                    [Id] => 96
+                    [Nombre] => RBA LIBROS, S.A.
+                    [Tipo] => 2
+                )
+
+            [96] => Array
+                (
+                    [Id] => 97
+                    [Nombre] => Ediciones Paidós Ibérica, S.A.
+                    [Tipo] => 2
+                )
+
+            [97] => Array
+                (
+                    [Id] => 98
+                    [Nombre] => Titania
+                    [Tipo] => 2
+                )
+
+            [98] => Array
+                (
+                    [Id] => 99
+                    [Nombre] => Universidad de Deusto. Departamento de Publicaciones
+                    [Tipo] => 2
+                )
+
+            [99] => Array
+                (
+                    [Id] => 100
+                    [Nombre] => Ediciones Rialp, S.A.
+                    [Tipo] => 2
+                )
+
+            [100] => Array
+                (
+                    [Id] => 101
+                    [Nombre] => Páginas de Espuma, S.L.
+                    [Tipo] => 2
+                )
+
+            [101] => Array
+                (
+                    [Id] => 102
+                    [Nombre] => Brúixola
+                    [Tipo] => 2
+                )
+
+            [102] => Array
+                (
+                    [Id] => 103
+                    [Nombre] => Galaxia Gutenberg
+                    [Tipo] => 2
+                )
+
+            [103] => Array
+                (
+                    [Id] => 104
+                    [Nombre] => Bóveda
+                    [Tipo] => 2
+                )
+
+            [104] => Array
+                (
+                    [Id] => 105
+                    [Nombre] => Santillana, S. L.
+                    [Tipo] => 2
+                )
+
+            [105] => Array
+                (
+                    [Id] => 106
+                    [Nombre] => Amsterdam Llibres
+                    [Tipo] => 2
+                )
+
+            [106] => Array
+                (
+                    [Id] => 107
+                    [Nombre] => Grup Promotor d'Ensenyament i Difusió Català, S.L.
+                    [Tipo] => 2
+                )
+
+            [107] => Array
+                (
+                    [Id] => 108
+                    [Nombre] => Ediciones Obradoiro, S.A.
+                    [Tipo] => 2
+                )
+
+            [108] => Array
+                (
+                    [Id] => 109
+                    [Nombre] => Hércules Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [109] => Array
+                (
+                    [Id] => 110
+                    [Nombre] => Amat Editorial
+                    [Tipo] => 2
+                )
+
+            [110] => Array
+                (
+                    [Id] => 111
+                    [Nombre] => Alba Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [111] => Array
+                (
+                    [Id] => 112
+                    [Nombre] => Editorial Comanegra
+                    [Tipo] => 2
+                )
+
+            [112] => Array
+                (
+                    [Id] => 113
+                    [Nombre] => Edicions dels Quaderns Crema
+                    [Tipo] => 2
+                )
+
+            [113] => Array
+                (
+                    [Id] => 114
+                    [Nombre] => Edicions Cadí, S.L.
+                    [Tipo] => 2
+                )
+
+            [114] => Array
+                (
+                    [Id] => 115
+                    [Nombre] => Indicios Editores
+                    [Tipo] => 2
+                )
+
+            [115] => Array
+                (
+                    [Id] => 116
+                    [Nombre] => Pirueta
+                    [Tipo] => 2
+                )
+
+            [116] => Array
+                (
+                    [Id] => 117
+                    [Nombre] => Ediciones Siruela, S.A.
+                    [Tipo] => 2
+                )
+
+            [117] => Array
+                (
+                    [Id] => 118
+                    [Nombre] => Nuevas Ediciones de Bolsillo
+                    [Tipo] => 2
+                )
+
+            [118] => Array
+                (
+                    [Id] => 119
+                    [Nombre] => Caballo de Troya
+                    [Tipo] => 2
+                )
+
+            [119] => Array
+                (
+                    [Id] => 120
+                    [Nombre] => Ediciones Beascoa, S.A.
+                    [Tipo] => 2
+                )
+
+            [120] => Array
+                (
+                    [Id] => 121
+                    [Nombre] => Conecta
+                    [Tipo] => 2
+                )
+
+            [121] => Array
+                (
+                    [Id] => 122
+                    [Nombre] => Mondadori
+                    [Tipo] => 2
+                )
+
+            [122] => Array
+                (
+                    [Id] => 123
+                    [Nombre] => Montena
+                    [Tipo] => 2
+                )
+
+            [123] => Array
+                (
+                    [Id] => 124
+                    [Nombre] => Hermes Editora General, S.A. - Colimbo
+                    [Tipo] => 2
+                )
+
+            [124] => Array
+                (
+                    [Id] => 125
+                    [Nombre] => Integral
+                    [Tipo] => 2
+                )
+
+            [125] => Array
+                (
+                    [Id] => 126
+                    [Nombre] => Gadir Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [126] => Array
+                (
+                    [Id] => 127
+                    [Nombre] => Taurus Ediciones
+                    [Tipo] => 2
+                )
+
+            [127] => Array
+                (
+                    [Id] => 128
+                    [Nombre] => Sociedad General Española de Librería, S.A.
+                    [Tipo] => 2
+                )
+
+            [128] => Array
+                (
+                    [Id] => 129
+                    [Nombre] => Oz Editorial
+                    [Tipo] => 2
+                )
+
+            [129] => Array
+                (
+                    [Id] => 130
+                    [Nombre] => Editorial Popular, S.A.
+                    [Tipo] => 2
+                )
+
+            [130] => Array
+                (
+                    [Id] => 131
+                    [Nombre] => Cooperación Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [131] => Array
+                (
+                    [Id] => 132
+                    [Nombre] => Galerada Serveis d Edició i Traducció Sccl
+                    [Tipo] => 2
+                )
+
+            [132] => Array
+                (
+                    [Id] => 133
+                    [Nombre] => Pagés Editors, S.L.
+                    [Tipo] => 2
+                )
+
+            [133] => Array
+                (
+                    [Id] => 134
+                    [Nombre] => Editorial Pirineo
+                    [Tipo] => 2
+                )
+
+            [134] => Array
+                (
+                    [Id] => 135
+                    [Nombre] => Editorial Milenio (Arts Gràfiques Bobalá)
+                    [Tipo] => 2
+                )
+
+            [135] => Array
+                (
+                    [Id] => 136
+                    [Nombre] => Fundación Federico Fliedner
+                    [Tipo] => 2
+                )
+
+            [136] => Array
+                (
+                    [Id] => 137
+                    [Nombre] => Izana Editores
+                    [Tipo] => 2
+                )
+
+            [137] => Array
+                (
+                    [Id] => 138
+                    [Nombre] => Onada Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [138] => Array
+                (
+                    [Id] => 139
+                    [Nombre] => Llibres de l'Índex
+                    [Tipo] => 2
+                )
+
+            [139] => Array
+                (
+                    [Id] => 140
+                    [Nombre] => Editorial Base
+                    [Tipo] => 2
+                )
+
+            [140] => Array
+                (
+                    [Id] => 141
+                    [Nombre] => Edicions Cossetània (Imatge-9, S.L.)
+                    [Tipo] => 2
+                )
+
+            [141] => Array
+                (
+                    [Id] => 142
+                    [Nombre] => Editorial Herder, S.A.
+                    [Tipo] => 2
+                )
+
+            [142] => Array
+                (
+                    [Id] => 143
+                    [Nombre] => Quarentena Creacions Artistiques, S.L.
+                    [Tipo] => 2
+                )
+
+            [143] => Array
+                (
+                    [Id] => 144
+                    [Nombre] => Editorial Gustavo Gili, S.A.
+                    [Tipo] => 2
+                )
+
+            [144] => Array
+                (
+                    [Id] => 145
+                    [Nombre] => Ediciones Polígrafa, S.A.
+                    [Tipo] => 2
+                )
+
+            [145] => Array
+                (
+                    [Id] => 146
+                    [Nombre] => Editorial Nerea, S.A.
+                    [Tipo] => 2
+                )
+
+            [146] => Array
+                (
+                    [Id] => 147
+                    [Nombre] => Instituto Monsa de Ediciones,S.A.
+                    [Tipo] => 2
+                )
+
+            [147] => Array
+                (
+                    [Id] => 148
+                    [Nombre] => Index Book, S.L.
+                    [Tipo] => 2
+                )
+
+            [148] => Array
+                (
+                    [Id] => 149
+                    [Nombre] => Vaso Roto Ediciones
+                    [Tipo] => 2
+                )
+
+            [149] => Array
+                (
+                    [Id] => 150
+                    [Nombre] => Astisendo Grupo Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [150] => Array
+                (
+                    [Id] => 151
+                    [Nombre] => El Nadir, S.L.
+                    [Tipo] => 2
+                )
+
+            [151] => Array
+                (
+                    [Id] => 152
+                    [Nombre] => Asociación Los Libros de la Catarata
+                    [Tipo] => 2
+                )
+
+            [152] => Array
+                (
+                    [Id] => 153
+                    [Nombre] => Editorial Biblioteca Nueva, S.L.
+                    [Tipo] => 2
+                )
+
+            [153] => Array
+                (
+                    [Id] => 154
+                    [Nombre] => Tropo Editores S.L.
+                    [Tipo] => 2
+                )
+
+            [154] => Array
+                (
+                    [Id] => 155
+                    [Nombre] => Urco Editora
+                    [Tipo] => 2
+                )
+
+            [155] => Array
+                (
+                    [Id] => 156
+                    [Nombre] => Abada Editores, S.L.
+                    [Tipo] => 2
+                )
+
+            [156] => Array
+                (
+                    [Id] => 157
+                    [Nombre] => Libros de cabecera, S. L.
+                    [Tipo] => 2
+                )
+
+            [157] => Array
+                (
+                    [Id] => 158
+                    [Nombre] => Menoscuarto Ediciones
+                    [Tipo] => 2
+                )
+
+            [158] => Array
+                (
+                    [Id] => 159
+                    [Nombre] => Ediciones Tao
+                    [Tipo] => 2
+                )
+
+            [159] => Array
+                (
+                    [Id] => 160
+                    [Nombre] => Ediciones Neo-Person, S.L.
+                    [Tipo] => 2
+                )
+
+            [160] => Array
+                (
+                    [Id] => 161
+                    [Nombre] => Ediciones El Grano de Mostaza
+                    [Tipo] => 2
+                )
+
+            [161] => Array
+                (
+                    [Id] => 162
+                    [Nombre] => Icaria
+                    [Tipo] => 2
+                )
+
+            [162] => Array
+                (
+                    [Id] => 163
+                    [Nombre] => Editorial Sirio, S.A.
+                    [Tipo] => 2
+                )
+
+            [163] => Array
+                (
+                    [Id] => 164
+                    [Nombre] => Hojas de Luz
+                    [Tipo] => 2
+                )
+
+            [164] => Array
+                (
+                    [Id] => 165
+                    [Nombre] => Alienta
+                    [Tipo] => 2
+                )
+
+            [165] => Array
+                (
+                    [Id] => 166
+                    [Nombre] => Castellnou Edicions
+                    [Tipo] => 2
+                )
+
+            [166] => Array
+                (
+                    [Id] => 167
+                    [Nombre] => Hiria Liburuak, S.L.
+                    [Tipo] => 2
+                )
+
+            [167] => Array
+                (
+                    [Id] => 168
+                    [Nombre] => Circe Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [168] => Array
+                (
+                    [Id] => 169
+                    [Nombre] => Thomson Paraninfo,S.A.
+                    [Tipo] => 2
+                )
+
+            [169] => Array
+                (
+                    [Id] => 170
+                    [Nombre] => Editorial Pez de Plata
+                    [Tipo] => 2
+                )
+
+            [170] => Array
+                (
+                    [Id] => 171
+                    [Nombre] => Ediciones del Viento, S.L.
+                    [Tipo] => 2
+                )
+
+            [171] => Array
+                (
+                    [Id] => 172
+                    [Nombre] => Sexto Piso España, S.L.
+                    [Tipo] => 2
+                )
+
+            [172] => Array
+                (
+                    [Id] => 173
+                    [Nombre] => Rey Lear, S.L.
+                    [Tipo] => 2
+                )
+
+            [173] => Array
+                (
+                    [Id] => 174
+                    [Nombre] => Edicions i Produccions Multimedia Els Llums, SL
+                    [Tipo] => 2
+                )
+
+            [174] => Array
+                (
+                    [Id] => 175
+                    [Nombre] => Ediciones la Fragatina
+                    [Tipo] => 2
+                )
+
+            [175] => Array
+                (
+                    [Id] => 176
+                    [Nombre] => e.d.a. libros
+                    [Tipo] => 2
+                )
+
+            [176] => Array
+                (
+                    [Id] => 177
+                    [Nombre] => Adriana Hidalgo
+                    [Tipo] => 2
+                )
+
+            [177] => Array
+                (
+                    [Id] => 178
+                    [Nombre] => Ediciones Carena
+                    [Tipo] => 2
+                )
+
+            [178] => Array
+                (
+                    [Id] => 179
+                    [Nombre] => Editorial Enclave-Ele
+                    [Tipo] => 2
+                )
+
+            [179] => Array
+                (
+                    [Id] => 180
+                    [Nombre] => Ediciones Octaedro, S.L.
+                    [Tipo] => 2
+                )
+
+            [180] => Array
+                (
+                    [Id] => 181
+                    [Nombre] => Biblioteca de Autores Cristianos
+                    [Tipo] => 2
+                )
+
+            [181] => Array
+                (
+                    [Id] => 182
+                    [Nombre] => Cuatro Ediciones
+                    [Tipo] => 2
+                )
+
+            [182] => Array
+                (
+                    [Id] => 183
+                    [Nombre] => Poe Books
+                    [Tipo] => 2
+                )
+
+            [183] => Array
+                (
+                    [Id] => 184
+                    [Nombre] => Base ES
+                    [Tipo] => 2
+                )
+
+            [184] => Array
+                (
+                    [Id] => 185
+                    [Nombre] => Al Poste Ediciones
+                    [Tipo] => 2
+                )
+
+            [185] => Array
+                (
+                    [Id] => 186
+                    [Nombre] => Sushi Books
+                    [Tipo] => 2
+                )
+
+            [186] => Array
+                (
+                    [Id] => 187
+                    [Nombre] => Librodivo, S.L.
+                    [Tipo] => 2
+                )
+
+            [187] => Array
+                (
+                    [Id] => 188
+                    [Nombre] => Bainet Media, S.A.
+                    [Tipo] => 2
+                )
+
+            [188] => Array
+                (
+                    [Id] => 189
+                    [Nombre] => Ediciones del Laberinto, S.L.
+                    [Tipo] => 2
+                )
+
+            [189] => Array
+                (
+                    [Id] => 190
+                    [Nombre] => Ediciones Pamies
+                    [Tipo] => 2
+                )
+
+            [190] => Array
+                (
+                    [Id] => 191
+                    [Nombre] => Libros Disney
+                    [Tipo] => 2
+                )
+
+            [191] => Array
+                (
+                    [Id] => 192
+                    [Nombre] => Ediciones Nauta, S.A.
+                    [Tipo] => 2
+                )
+
+            [192] => Array
+                (
+                    [Id] => 193
+                    [Nombre] => Editorial Crítica
+                    [Tipo] => 2
+                )
+
+            [193] => Array
+                (
+                    [Id] => 194
+                    [Nombre] => Ediciones Oniro, S.A.
+                    [Tipo] => 2
+                )
+
+            [194] => Array
+                (
+                    [Id] => 195
+                    [Nombre] => Ediciones Deusto, S.A.(Barcelona)
+                    [Tipo] => 2
+                )
+
+            [195] => Array
+                (
+                    [Id] => 196
+                    [Nombre] => Editorial El Drac, S.L.
+                    [Tipo] => 2
+                )
+
+            [196] => Array
+                (
+                    [Id] => 197
+                    [Nombre] => Ediciones Tutor, S.A.
+                    [Tipo] => 2
+                )
+
+            [197] => Array
+                (
+                    [Id] => 198
+                    [Nombre] => Anaya Multimedia-Anaya Interactiva
+                    [Tipo] => 2
+                )
+
+            [198] => Array
+                (
+                    [Id] => 199
+                    [Nombre] => Ediciones Omega, S.A.
+                    [Tipo] => 2
+                )
+
+            [199] => Array
+                (
+                    [Id] => 200
+                    [Nombre] => Norma Editorial S.A.
+                    [Tipo] => 2
+                )
+
+            [200] => Array
+                (
+                    [Id] => 201
+                    [Nombre] => Ediciones JC Clementine
+                    [Tipo] => 2
+                )
+
+            [201] => Array
+                (
+                    [Id] => 202
+                    [Nombre] => Ézaro
+                    [Tipo] => 2
+                )
+
+            [202] => Array
+                (
+                    [Id] => 203
+                    [Nombre] => Fulgencio Pimentel SL
+                    [Tipo] => 2
+                )
+
+            [203] => Array
+                (
+                    [Id] => 204
+                    [Nombre] => Universidad del País Vasco. Servicio Editorial
+                    [Tipo] => 2
+                )
+
+            [204] => Array
+                (
+                    [Id] => 205
+                    [Nombre] => Adams
+                    [Tipo] => 2
+                )
+
+            [205] => Array
+                (
+                    [Id] => 206
+                    [Nombre] => Ediciones Medici, S.A.
+                    [Tipo] => 2
+                )
+
+            [206] => Array
+                (
+                    [Id] => 207
+                    [Nombre] => Errata Naturae Editores, S.L.
+                    [Tipo] => 2
+                )
+
+            [207] => Array
+                (
+                    [Id] => 208
+                    [Nombre] => Proyectos y Producciones Editoriales Cyan, S.L.
+                    [Tipo] => 2
+                )
+
+            [208] => Array
+                (
+                    [Id] => 209
+                    [Nombre] => La Palma
+                    [Tipo] => 2
+                )
+
+            [209] => Array
+                (
+                    [Id] => 210
+                    [Nombre] => Confluencias
+                    [Tipo] => 2
+                )
+
+            [210] => Array
+                (
+                    [Id] => 211
+                    [Nombre] => Ediciones Cálamo, S.L.
+                    [Tipo] => 2
+                )
+
+            [211] => Array
+                (
+                    [Id] => 212
+                    [Nombre] => Larousse Editorial, S.A.
+                    [Tipo] => 2
+                )
+
+            [212] => Array
+                (
+                    [Id] => 213
+                    [Nombre] => SIAL EDICIONES, S. L.
+                    [Tipo] => 2
+                )
+
+            [213] => Array
+                (
+                    [Id] => 214
+                    [Nombre] => N.A. Editorial
+                    [Tipo] => 2
+                )
+
+            [214] => Array
+                (
+                    [Id] => 215
+                    [Nombre] => Ediciones Linteo, S.L.
+                    [Tipo] => 2
+                )
+
+            [215] => Array
+                (
+                    [Id] => 216
+                    [Nombre] => Alianza Editorial, S.A.
+                    [Tipo] => 2
+                )
+
+            [216] => Array
+                (
+                    [Id] => 217
+                    [Nombre] => Fantascy
+                    [Tipo] => 2
+                )
+
+            [217] => Array
+                (
+                    [Id] => 218
+                    [Nombre] => Algaida Editores, S.A.
+                    [Tipo] => 2
+                )
+
+            [218] => Array
+                (
+                    [Id] => 219
+                    [Nombre] => Ideaspropias Editorial
+                    [Tipo] => 2
+                )
+
+            [219] => Array
+                (
+                    [Id] => 220
+                    [Nombre] => Susaeta Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [220] => Array
+                (
+                    [Id] => 221
+                    [Nombre] => Heinemann Iberia, S.A.
+                    [Tipo] => 2
+                )
+
+            [221] => Array
+                (
+                    [Id] => 222
+                    [Nombre] => Editorial Edaf, S.A.
+                    [Tipo] => 2
+                )
+
+            [222] => Array
+                (
+                    [Id] => 223
+                    [Nombre] => Editorial Tecnos
+                    [Tipo] => 2
+                )
+
+            [223] => Array
+                (
+                    [Id] => 224
+                    [Nombre] => Ediciones Sígueme, S.A.
+                    [Tipo] => 2
+                )
+
+            [224] => Array
+                (
+                    [Id] => 225
+                    [Nombre] => Editorial Alas
+                    [Tipo] => 2
+                )
+
+            [225] => Array
+                (
+                    [Id] => 226
+                    [Nombre] => Ediciones Altea
+                    [Tipo] => 2
+                )
+
+            [226] => Array
+                (
+                    [Id] => 227
+                    [Nombre] => Editorial Toxosoutos, S.L.
+                    [Tipo] => 2
+                )
+
+            [227] => Array
+                (
+                    [Id] => 228
+                    [Nombre] => Edicions de La Magrana
+                    [Tipo] => 2
+                )
+
+            [228] => Array
+                (
+                    [Id] => 229
+                    [Nombre] => La Cañamería Global, S.L.
+                    [Tipo] => 2
+                )
+
+            [229] => Array
+                (
+                    [Id] => 230
+                    [Nombre] => Tomas Ballesteros S.A.
+                    [Tipo] => 1
+                )
+
+            [230] => Array
+                (
+                    [Id] => 231
+                    [Nombre] => Ediciones Kiwi
+                    [Tipo] => 2
+                )
+
+            [231] => Array
+                (
+                    [Id] => 232
+                    [Nombre] => Reino de Cordelia, S.L.
+                    [Tipo] => 2
+                )
+
+            [232] => Array
+                (
+                    [Id] => 233
+                    [Nombre] => Ediciones Fortuna
+                    [Tipo] => 2
+                )
+
+            [233] => Array
+                (
+                    [Id] => 234
+                    [Nombre] => Txalaparta Argitaletxea, S.L.
+                    [Tipo] => 2
+                )
+
+            [234] => Array
+                (
+                    [Id] => 235
+                    [Nombre] => Editorial Gran Vía
+                    [Tipo] => 2
+                )
+
+            [235] => Array
+                (
+                    [Id] => 236
+                    [Nombre] => Los Libros del LInce
+                    [Tipo] => 2
+                )
+
+            [236] => Array
+                (
+                    [Id] => 237
+                    [Nombre] => Jorge A. Mestas. Ediciones Escolares
+                    [Tipo] => 2
+                )
+
+            [237] => Array
+                (
+                    [Id] => 238
+                    [Nombre] => Ediciones Palabra, S.A.
+                    [Tipo] => 2
+                )
+
+            [238] => Array
+                (
+                    [Id] => 239
+                    [Nombre] => Corre la Voz
+                    [Tipo] => 2
+                )
+
+            [239] => Array
+                (
+                    [Id] => 240
+                    [Nombre] => Tursen, S.A. Hermann Blume Ediciones
+                    [Tipo] => 2
+                )
+
+            [240] => Array
+                (
+                    [Id] => 241
+                    [Nombre] => Editorial Miguel A. Salvatella , S.A.
+                    [Tipo] => 2
+                )
+
+            [241] => Array
+                (
+                    [Id] => 242
+                    [Nombre] => Editorial Q
+                    [Tipo] => 2
+                )
+
+            [242] => Array
+                (
+                    [Id] => 243
+                    [Nombre] => Editorial Alreves sl
+                    [Tipo] => 2
+                )
+
+            [243] => Array
+                (
+                    [Id] => 244
+                    [Nombre] => Nórdica Libros
+                    [Tipo] => 2
+                )
+
+            [244] => Array
+                (
+                    [Id] => 245
+                    [Nombre] => Baile del Sol, Ediciones S.L.
+                    [Tipo] => 2
+                )
+
+            [245] => Array
+                (
+                    [Id] => 246
+                    [Nombre] => La Factoría de Ideas
+                    [Tipo] => 2
+                )
+
+            [246] => Array
+                (
+                    [Id] => 247
+                    [Nombre] => Planeta De Agostini Comics
+                    [Tipo] => 2
+                )
+
+            [247] => Array
+                (
+                    [Id] => 248
+                    [Nombre] => Planeta-De Agostini
+                    [Tipo] => 2
+                )
+
+            [248] => Array
+                (
+                    [Id] => 249
+                    [Nombre] => Editorial Ariel, S.A.
+                    [Tipo] => 2
+                )
+
+            [249] => Array
+                (
+                    [Id] => 250
+                    [Nombre] => Santillana Français
+                    [Tipo] => 2
+                )
+
+            [250] => Array
+                (
+                    [Id] => 251
+                    [Nombre] => Editorial Reverté, S.A.
+                    [Tipo] => 2
+                )
+
+            [251] => Array
+                (
+                    [Id] => 252
+                    [Nombre] => Quorum Editores
+                    [Tipo] => 2
+                )
+
+            [252] => Array
+                (
+                    [Id] => 253
+                    [Nombre] => Editorial Gredos, S.A.
+                    [Tipo] => 2
+                )
+
+            [253] => Array
+                (
+                    [Id] => 254
+                    [Nombre] => Creación
+                    [Tipo] => 2
+                )
+
+            [254] => Array
+                (
+                    [Id] => 255
+                    [Nombre] => 66 RPM Edicions
+                    [Tipo] => 2
+                )
+
+            [255] => Array
+                (
+                    [Id] => 256
+                    [Nombre] => Erasmus Ediciones
+                    [Tipo] => 2
+                )
+
+            [256] => Array
+                (
+                    [Id] => 257
+                    [Nombre] => Anthropos, Editorial del Hombre
+                    [Tipo] => 2
+                )
+
+            [257] => Array
+                (
+                    [Id] => 258
+                    [Nombre] => Ken
+                    [Tipo] => 2
+                )
+
+            [258] => Array
+                (
+                    [Id] => 259
+                    [Nombre] => Casimiro Libros
+                    [Tipo] => 2
+                )
+
+            [259] => Array
+                (
+                    [Id] => 260
+                    [Nombre] => El Desvelo Ediciones S.C.
+                    [Tipo] => 2
+                )
+
+            [260] => Array
+                (
+                    [Id] => 261
+                    [Nombre] => Editorial Pasos Perdidos
+                    [Tipo] => 2
+                )
+
+            [261] => Array
+                (
+                    [Id] => 262
+                    [Nombre] => Xordica Editorial
+                    [Tipo] => 2
+                )
+
+            [262] => Array
+                (
+                    [Id] => 263
+                    [Nombre] => Nocturna Ediciones SL
+                    [Tipo] => 2
+                )
+
+            [263] => Array
+                (
+                    [Id] => 264
+                    [Nombre] => Cuadernos del Vigía
+                    [Tipo] => 2
+                )
+
+            [264] => Array
+                (
+                    [Id] => 265
+                    [Nombre] => Editorial Pálido Fuego S.L.
+                    [Tipo] => 2
+                )
+
+            [265] => Array
+                (
+                    [Id] => 266
+                    [Nombre] => Editorial Evidencia Médica, S.L.
+                    [Tipo] => 2
+                )
+
+            [266] => Array
+                (
+                    [Id] => 267
+                    [Nombre] => Ediciones Turner, S.A.
+                    [Tipo] => 2
+                )
+
+            [267] => Array
+                (
+                    [Id] => 268
+                    [Nombre] => Puck
+                    [Tipo] => 2
+                )
+
+            [268] => Array
+                (
+                    [Id] => 269
+                    [Nombre] => Books4pocket
+                    [Tipo] => 2
+                )
+
+            [269] => Array
+                (
+                    [Id] => 270
+                    [Nombre] => J de J Editores
+                    [Tipo] => 2
+                )
+
+            [270] => Array
+                (
+                    [Id] => 271
+                    [Nombre] => La Vanguardia Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [271] => Array
+                (
+                    [Id] => 272
+                    [Nombre] => Columna Edicions, Llibres i Comunicació, S.A.
+                    [Tipo] => 2
+                )
+
+            [272] => Array
+                (
+                    [Id] => 273
+                    [Nombre] => Panini España S.A.
+                    [Tipo] => 2
+                )
+
+            [273] => Array
+                (
+                    [Id] => 274
+                    [Nombre] => Ediciones Nowtilus, S.L.
+                    [Tipo] => 2
+                )
+
+            [274] => Array
+                (
+                    [Id] => 275
+                    [Nombre] => Ediciones Martínez Roca, S.A.
+                    [Tipo] => 2
+                )
+
+            [275] => Array
+                (
+                    [Id] => 276
+                    [Nombre] => Spes Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [276] => Array
+                (
+                    [Id] => 277
+                    [Nombre] => Amaranto Editores, S.L.
+                    [Tipo] => 2
+                )
+
+            [277] => Array
+                (
+                    [Id] => 278
+                    [Nombre] => Editorial Comares, S.L.
+                    [Tipo] => 2
+                )
+
+            [278] => Array
+                (
+                    [Id] => 279
+                    [Nombre] => Todolibro Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [279] => Array
+                (
+                    [Id] => 280
+                    [Nombre] => Pearson
+                    [Tipo] => 2
+                )
+
+            [280] => Array
+                (
+                    [Id] => 281
+                    [Nombre] => Editorial Acanto, S.A.
+                    [Tipo] => 2
+                )
+
+            [281] => Array
+                (
+                    [Id] => 282
+                    [Nombre] => Art Blume, S.L.
+                    [Tipo] => 2
+                )
+
+            [282] => Array
+                (
+                    [Id] => 283
+                    [Nombre] => Naturart, S.A.
+                    [Tipo] => 2
+                )
+
+            [283] => Array
+                (
+                    [Id] => 284
+                    [Nombre] => Editorial Debate
+                    [Tipo] => 2
+                )
+
+            [284] => Array
+                (
+                    [Id] => 285
+                    [Nombre] => Editorial Lumen, S.A.
+                    [Tipo] => 2
+                )
+
+            [285] => Array
+                (
+                    [Id] => 286
+                    [Nombre] => Roca Editorial de Libros, S.L.
+                    [Tipo] => 2
+                )
+
+            [286] => Array
+                (
+                    [Id] => 287
+                    [Nombre] => Edicions Proa, S.A.
+                    [Tipo] => 2
+                )
+
+            [287] => Array
+                (
+                    [Id] => 288
+                    [Nombre] => Labutxaca
+                    [Tipo] => 2
+                )
+
+            [288] => Array
+                (
+                    [Id] => 289
+                    [Nombre] => Estrella Polar
+                    [Tipo] => 2
+                )
+
+            [289] => Array
+                (
+                    [Id] => 290
+                    [Nombre] => Mater Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [290] => Array
+                (
+                    [Id] => 291
+                    [Nombre] => Brief Editorial
+                    [Tipo] => 2
+                )
+
+            [291] => Array
+                (
+                    [Id] => 292
+                    [Nombre] => Valdemar
+                    [Tipo] => 2
+                )
+
+            [292] => Array
+                (
+                    [Id] => 293
+                    [Nombre] => Moreno y Conde Sports
+                    [Tipo] => 2
+                )
+
+            [293] => Array
+                (
+                    [Id] => 294
+                    [Nombre] => Libros de Seda S.L.
+                    [Tipo] => 2
+                )
+
+            [294] => Array
+                (
+                    [Id] => 295
+                    [Nombre] => Difusión Centro de Investigación y Publicaciones de Idiomas, S.L.
+                    [Tipo] => 2
+                )
+
+            [295] => Array
+                (
+                    [Id] => 296
+                    [Nombre] => Ara Llibres, S.L.
+                    [Tipo] => 2
+                )
+
+            [296] => Array
+                (
+                    [Id] => 297
+                    [Nombre] => Editorial Empuries
+                    [Tipo] => 2
+                )
+
+            [297] => Array
+                (
+                    [Id] => 298
+                    [Nombre] => Fanbooks
+                    [Tipo] => 2
+                )
+
+            [298] => Array
+                (
+                    [Id] => 299
+                    [Nombre] => Editorial Pòrtic, S.A.
+                    [Tipo] => 2
+                )
+
+            [299] => Array
+                (
+                    [Id] => 300
+                    [Nombre] => Diego Pun Ediciones
+                    [Tipo] => 2
+                )
+
+            [300] => Array
+                (
+                    [Id] => 301
+                    [Nombre] => Centro de Cultura Tradicional
+                    [Tipo] => 2
+                )
+
+            [301] => Array
+                (
+                    [Id] => 302
+                    [Nombre] => Fundación Pablo Iglesias (Madrid)
+                    [Tipo] => 2
+                )
+
+            [302] => Array
+                (
+                    [Id] => 303
+                    [Nombre] => A Buen Paso
+                    [Tipo] => 2
+                )
+
+            [303] => Array
+                (
+                    [Id] => 304
+                    [Nombre] => Editorial Melusina S.L.
+                    [Tipo] => 2
+                )
+
+            [304] => Array
+                (
+                    [Id] => 305
+                    [Nombre] => Ediciones Nobel, S.A.
+                    [Tipo] => 2
+                )
+
+            [305] => Array
+                (
+                    [Id] => 306
+                    [Nombre] => Traspies, C.B.
+                    [Tipo] => 2
+                )
+
+            [306] => Array
+                (
+                    [Id] => 307
+                    [Nombre] => Alfaqueque Ediciones
+                    [Tipo] => 2
+                )
+
+            [307] => Array
+                (
+                    [Id] => 308
+                    [Nombre] => Editorial Xplora
+                    [Tipo] => 2
+                )
+
+            [308] => Array
+                (
+                    [Id] => 309
+                    [Nombre] => Rinoceronte Editora
+                    [Tipo] => 2
+                )
+
+            [309] => Array
+                (
+                    [Id] => 310
+                    [Nombre] => Editorial Teide, S.A.
+                    [Tipo] => 2
+                )
+
+            [310] => Array
+                (
+                    [Id] => 311
+                    [Nombre] => Editorial Casals, S.A.
+                    [Tipo] => 2
+                )
+
+            [311] => Array
+                (
+                    [Id] => 312
+                    [Nombre] => Ediciones Baula
+                    [Tipo] => 2
+                )
+
+            [312] => Array
+                (
+                    [Id] => 313
+                    [Nombre] => Everest Galicia, S.L.
+                    [Tipo] => 2
+                )
+
+            [313] => Array
+                (
+                    [Id] => 314
+                    [Nombre] => Foca, Ediciones y Distribuciones Generales S.L.
+                    [Tipo] => 2
+                )
+
+            [314] => Array
+                (
+                    [Id] => 315
+                    [Nombre] => Ediciones Gestión 2000, S.A.
+                    [Tipo] => 2
+                )
+
+            [315] => Array
+                (
+                    [Id] => 316
+                    [Nombre] => Sans Soleil Ediciones
+                    [Tipo] => 2
+                )
+
+            [316] => Array
+                (
+                    [Id] => 317
+                    [Nombre] => Satori Ediciones
+                    [Tipo] => 2
+                )
+
+            [317] => Array
+                (
+                    [Id] => 318
+                    [Nombre] => Instituto de Autor
+                    [Tipo] => 2
+                )
+
+            [318] => Array
+                (
+                    [Id] => 319
+                    [Nombre] => Harlequín Ibérica, S.A.
+                    [Tipo] => 2
+                )
+
+            [319] => Array
+                (
+                    [Id] => 320
+                    [Nombre] => Editorial De Vecchi, S.A.U.
+                    [Tipo] => 2
+                )
+
+            [320] => Array
+                (
+                    [Id] => 321
+                    [Nombre] => Nivola Libros y Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [321] => Array
+                (
+                    [Id] => 322
+                    [Nombre] => Edicións Morgante
+                    [Tipo] => 2
+                )
+
+            [322] => Array
+                (
+                    [Id] => 323
+                    [Nombre] => McGraw-Hill / Interamericana de España, S.A.
+                    [Tipo] => 2
+                )
+
+            [323] => Array
+                (
+                    [Id] => 324
+                    [Nombre] => Salsa Books
+                    [Tipo] => 2
+                )
+
+            [324] => Array
+                (
+                    [Id] => 325
+                    [Nombre] => Ediciones El Toro Mítico, S.L.
+                    [Tipo] => 2
+                )
+
+            [325] => Array
+                (
+                    [Id] => 326
+                    [Nombre] => Edhasa
+                    [Tipo] => 2
+                )
+
+            [326] => Array
+                (
+                    [Id] => 327
+                    [Nombre] => LID Editorial Empresarial, S.L.
+                    [Tipo] => 2
+                )
+
+            [327] => Array
+                (
+                    [Id] => 328
+                    [Nombre] => Navona Editorial
+                    [Tipo] => 2
+                )
+
+            [328] => Array
+                (
+                    [Id] => 329
+                    [Nombre] => Editorial Castalia, S.A.
+                    [Tipo] => 2
+                )
+
+            [329] => Array
+                (
+                    [Id] => 330
+                    [Nombre] => Almena Ediciones
+                    [Tipo] => 2
+                )
+
+            [330] => Array
+                (
+                    [Id] => 331
+                    [Nombre] => Aizkorri Argitaletxea, S.L.
+                    [Tipo] => 2
+                )
+
+            [331] => Array
+                (
+                    [Id] => 332
+                    [Nombre] => Instituto de Estudios Vigueses. Fundación Provigo
+                    [Tipo] => 2
+                )
+
+            [332] => Array
+                (
+                    [Id] => 333
+                    [Nombre] => Editorial Verbo Divino
+                    [Tipo] => 2
+                )
+
+            [333] => Array
+                (
+                    [Id] => 334
+                    [Nombre] => Reino de Redonda, S.L.
+                    [Tipo] => 2
+                )
+
+            [334] => Array
+                (
+                    [Id] => 335
+                    [Nombre] => Lata de Sal Editorial S.L.
+                    [Tipo] => 2
+                )
+
+            [335] => Array
+                (
+                    [Id] => 336
+                    [Nombre] => Universidad de Navarra. Servicio de Publicaciones
+                    [Tipo] => 2
+                )
+
+            [336] => Array
+                (
+                    [Id] => 337
+                    [Nombre] => Ediciones Kraken
+                    [Tipo] => 2
+                )
+
+            [337] => Array
+                (
+                    [Id] => 338
+                    [Nombre] => Ediciones La Uña Rota
+                    [Tipo] => 2
+                )
+
+            [338] => Array
+                (
+                    [Id] => 339
+                    [Nombre] => Alpuerto, S.A.
+                    [Tipo] => 2
+                )
+
+            [339] => Array
+                (
+                    [Id] => 340
+                    [Nombre] => Formación Alcalá, S.L.
+                    [Tipo] => 2
+                )
+
+            [340] => Array
+                (
+                    [Id] => 341
+                    [Nombre] => Notorious Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [341] => Array
+                (
+                    [Id] => 342
+                    [Nombre] => Los Libros del Cristal
+                    [Tipo] => 2
+                )
+
+            [342] => Array
+                (
+                    [Id] => 343
+                    [Nombre] => Creaciones Vincent Gabrielle
+                    [Tipo] => 2
+                )
+
+            [343] => Array
+                (
+                    [Id] => 344
+                    [Nombre] => La Oveja Roja
+                    [Tipo] => 2
+                )
+
+            [344] => Array
+                (
+                    [Id] => 345
+                    [Nombre] => Enclave de Libros Ediciones
+                    [Tipo] => 2
+                )
+
+            [345] => Array
+                (
+                    [Id] => 346
+                    [Nombre] => Eutelequia
+                    [Tipo] => 2
+                )
+
+            [346] => Array
+                (
+                    [Id] => 347
+                    [Nombre] => Candaya Narrativa
+                    [Tipo] => 2
+                )
+
+            [347] => Array
+                (
+                    [Id] => 348
+                    [Nombre] => Ra-Ma, Librería y Editorial Microinformática
+                    [Tipo] => 2
+                )
+
+            [348] => Array
+                (
+                    [Id] => 349
+                    [Nombre] => Toy Story, S.L.
+                    [Tipo] => 2
+                )
+
+            [349] => Array
+                (
+                    [Id] => 350
+                    [Nombre] => Analca Ediciones
+                    [Tipo] => 2
+                )
+
+            [350] => Array
+                (
+                    [Id] => 351
+                    [Nombre] => Editorial Futbol De Libro SL
+                    [Tipo] => 2
+                )
+
+            [351] => Array
+                (
+                    [Id] => 352
+                    [Nombre] => Ediciones Maeva, S.A.
+                    [Tipo] => 2
+                )
+
+            [352] => Array
+                (
+                    [Id] => 353
+                    [Nombre] => Universidad de Salamanca. Ediciones Universidad Salamanca
+                    [Tipo] => 2
+                )
+
+            [353] => Array
+                (
+                    [Id] => 354
+                    [Nombre] => Anaya-Touring Club
+                    [Tipo] => 2
+                )
+
+            [354] => Array
+                (
+                    [Id] => 355
+                    [Nombre] => Educaula
+                    [Tipo] => 2
+                )
+
+            [355] => Array
+                (
+                    [Id] => 356
+                    [Nombre] => Edicions de 1984, S.A.
+                    [Tipo] => 2
+                )
+
+            [356] => Array
+                (
+                    [Id] => 357
+                    [Nombre] => Arcadia / Atmarcadia, S.L.
+                    [Tipo] => 2
+                )
+
+            [357] => Array
+                (
+                    [Id] => 358
+                    [Nombre] => Ediciones Aljibe
+                    [Tipo] => 2
+                )
+
+            [358] => Array
+                (
+                    [Id] => 359
+                    [Nombre] => Imaginarium-Círculo de Lectores
+                    [Tipo] => 2
+                )
+
+            [359] => Array
+                (
+                    [Id] => 360
+                    [Nombre] => Documenta Balear, S.A.
+                    [Tipo] => 2
+                )
+
+            [360] => Array
+                (
+                    [Id] => 361
+                    [Nombre] => Edicions El cep i la Nansa
+                    [Tipo] => 2
+                )
+
+            [361] => Array
+                (
+                    [Id] => 362
+                    [Nombre] => Edicions Cal·lígraf
+                    [Tipo] => 2
+                )
+
+            [362] => Array
+                (
+                    [Id] => 363
+                    [Nombre] => Libros del Atril, S.L.
+                    [Tipo] => 2
+                )
+
+            [363] => Array
+                (
+                    [Id] => 364
+                    [Nombre] => Estudio Didáctico
+                    [Tipo] => 2
+                )
+
+            [364] => Array
+                (
+                    [Id] => 365
+                    [Nombre] => Adesiara Editorial
+                    [Tipo] => 2
+                )
+
+            [365] => Array
+                (
+                    [Id] => 366
+                    [Nombre] => Editorial Editex, S.A.
+                    [Tipo] => 2
+                )
+
+            [366] => Array
+                (
+                    [Id] => 367
+                    [Nombre] => Arco Libros, S.L.
+                    [Tipo] => 2
+                )
+
+            [367] => Array
+                (
+                    [Id] => 368
+                    [Nombre] => Editorial Club Universitario
+                    [Tipo] => 2
+                )
+
+            [368] => Array
+                (
+                    [Id] => 369
+                    [Nombre] => Editorial La Muralla, S.A.
+                    [Tipo] => 2
+                )
+
+            [369] => Array
+                (
+                    [Id] => 370
+                    [Nombre] => Blanca Márquez S.L.
+                    [Tipo] => 1
+                )
+
+            [370] => Array
+                (
+                    [Id] => 371
+                    [Nombre] => Editorial Clie
+                    [Tipo] => 2
+                )
+
+            [371] => Array
+                (
+                    [Id] => 372
+                    [Nombre] => Castilla y León. Consejería de Educación y Cultura
+                    [Tipo] => 2
+                )
+
+            [372] => Array
+                (
+                    [Id] => 373
+                    [Nombre] => La Línea del Horizonte Ediciones
+                    [Tipo] => 2
+                )
+
+            [373] => Array
+                (
+                    [Id] => 374
+                    [Nombre] => Iberautor Promociones Culturales, S.L.
+                    [Tipo] => 2
+                )
+
+            [374] => Array
+                (
+                    [Id] => 375
+                    [Nombre] => Fábulas de Albión
+                    [Tipo] => 2
+                )
+
+            [375] => Array
+                (
+                    [Id] => 376
+                    [Nombre] => Quaterni
+                    [Tipo] => 2
+                )
+
+            [376] => Array
+                (
+                    [Id] => 377
+                    [Nombre] => Hoja de Lata Editorial
+                    [Tipo] => 2
+                )
+
+            [377] => Array
+                (
+                    [Id] => 378
+                    [Nombre] => Al-Andaluz y el Mediterraneo
+                    [Tipo] => 2
+                )
+
+            [378] => Array
+                (
+                    [Id] => 379
+                    [Nombre] => Alberti, Editor
+                    [Tipo] => 2
+                )
+
+            [379] => Array
+                (
+                    [Id] => 380
+                    [Nombre] => Publicacions Abadía Montserrat, S.A.
+                    [Tipo] => 2
+                )
+
+            [380] => Array
+                (
+                    [Id] => 381
+                    [Nombre] => Sansy Ediciones
+                    [Tipo] => 2
+                )
+
+            [381] => Array
+                (
+                    [Id] => 382
+                    [Nombre] => Alevosía
+                    [Tipo] => 2
+                )
+
+            [382] => Array
+                (
+                    [Id] => 383
+                    [Nombre] => Marvel Ediciones
+                    [Tipo] => 2
+                )
+
+            [383] => Array
+                (
+                    [Id] => 384
+                    [Nombre] => Sua Edizioak
+                    [Tipo] => 2
+                )
+
+            [384] => Array
+                (
+                    [Id] => 385
+                    [Nombre] => Ttarttalo, S. L.
+                    [Tipo] => 2
+                )
+
+            [385] => Array
+                (
+                    [Id] => 386
+                    [Nombre] => Ayuntamiento de Pamplona
+                    [Tipo] => 2
+                )
+
+            [386] => Array
+                (
+                    [Id] => 387
+                    [Nombre] => Monsalvez2007 S.L.
+                    [Tipo] => 2
+                )
+
+            [387] => Array
+                (
+                    [Id] => 388
+                    [Nombre] => University of Daytion Publishing
+                    [Tipo] => 2
+                )
+
+            [388] => Array
+                (
+                    [Id] => 389
+                    [Nombre] => Meettok
+                    [Tipo] => 2
+                )
+
+            [389] => Array
+                (
+                    [Id] => 390
+                    [Nombre] => Gulaab
+                    [Tipo] => 2
+                )
+
+            [390] => Array
+                (
+                    [Id] => 391
+                    [Nombre] => Cultura Clásica
+                    [Tipo] => 2
+                )
+
+            [391] => Array
+                (
+                    [Id] => 392
+                    [Nombre] => Tikal
+                    [Tipo] => 2
+                )
+
+            [392] => Array
+                (
+                    [Id] => 393
+                    [Nombre] => Luciérnaga, S.L.
+                    [Tipo] => 2
+                )
+
+            [393] => Array
+                (
+                    [Id] => 394
+                    [Nombre] => Ibaizabal Edelvives, S. A.
+                    [Tipo] => 2
+                )
+
+            [394] => Array
+                (
+                    [Id] => 395
+                    [Nombre] => Luces de Gálibo
+                    [Tipo] => 2
+                )
+
+            [395] => Array
+                (
+                    [Id] => 396
+                    [Nombre] => dEpoca
+                    [Tipo] => 2
+                )
+
+            [396] => Array
+                (
+                    [Id] => 397
+                    [Nombre] => RC Libros
+                    [Tipo] => 2
+                )
+
+            [397] => Array
+                (
+                    [Id] => 398
+                    [Nombre] => Alcalá Grupo Editorial y Distribuidos de Libros, S.L.
+                    [Tipo] => 2
+                )
+
+            [398] => Array
+                (
+                    [Id] => 399
+                    [Nombre] => Hotel Papel Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [399] => Array
+                (
+                    [Id] => 400
+                    [Nombre] => Publicep Libros Digitales, S.L.
+                    [Tipo] => 2
+                )
+
+            [400] => Array
+                (
+                    [Id] => 401
+                    [Nombre] => Marcial Pons, Ediciones de Historia, S.A.
+                    [Tipo] => 2
+                )
+
+            [401] => Array
+                (
+                    [Id] => 402
+                    [Nombre] => Automática Editorial
+                    [Tipo] => 2
+                )
+
+            [402] => Array
+                (
+                    [Id] => 403
+                    [Nombre] => Edicions La Campana, S.L.
+                    [Tipo] => 2
+                )
+
+            [403] => Array
+                (
+                    [Id] => 404
+                    [Nombre] => Edicions Dau
+                    [Tipo] => 2
+                )
+
+            [404] => Array
+                (
+                    [Id] => 405
+                    [Nombre] => Libros de Pizarra
+                    [Tipo] => 2
+                )
+
+            [405] => Array
+                (
+                    [Id] => 406
+                    [Nombre] => Rodeira
+                    [Tipo] => 2
+                )
+
+            [406] => Array
+                (
+                    [Id] => 407
+                    [Nombre] => Vaughan Systems, S.L.
+                    [Tipo] => 2
+                )
+
+            [407] => Array
+                (
+                    [Id] => 408
+                    [Nombre] => Marjal
+                    [Tipo] => 2
+                )
+
+            [408] => Array
+                (
+                    [Id] => 409
+                    [Nombre] => Ediciones Invisibles
+                    [Tipo] => 2
+                )
+
+            [409] => Array
+                (
+                    [Id] => 410
+                    [Nombre] => Xerme Edicions, S.L.
+                    [Tipo] => 2
+                )
+
+            [410] => Array
+                (
+                    [Id] => 411
+                    [Nombre] => Editorial Paidotribo, S.L.
+                    [Tipo] => 2
+                )
+
+            [411] => Array
+                (
+                    [Id] => 412
+                    [Nombre] => Edicions Bromera
+                    [Tipo] => 2
+                )
+
+            [412] => Array
+                (
+                    [Id] => 413
+                    [Nombre] => Altamar
+                    [Tipo] => 2
+                )
+
+            [413] => Array
+                (
+                    [Id] => 414
+                    [Nombre] => Editorial Constitución y Leyes, S.A.
+                    [Tipo] => 2
+                )
+
+            [414] => Array
+                (
+                    [Id] => 415
+                    [Nombre] => Caro Raggio, Editor
+                    [Tipo] => 2
+                )
+
+            [415] => Array
+                (
+                    [Id] => 416
+                    [Nombre] => Ediciones Corintia S.R.L.
+                    [Tipo] => 2
+                )
+
+            [416] => Array
+                (
+                    [Id] => 417
+                    [Nombre] => Malinké Libros
+                    [Tipo] => 2
+                )
+
+            [417] => Array
+                (
+                    [Id] => 418
+                    [Nombre] => Editorial Gedisa, S.A.
+                    [Tipo] => 2
+                )
+
+            [418] => Array
+                (
+                    [Id] => 419
+                    [Nombre] => Editorial Cruïlla, S.A.
+                    [Tipo] => 2
+                )
+
+            [419] => Array
+                (
+                    [Id] => 420
+                    [Nombre] => Documenta Universitaria
+                    [Tipo] => 2
+                )
+
+            [420] => Array
+                (
+                    [Id] => 421
+                    [Nombre] => Algar Editorial (Feditres, S.L.)
+                    [Tipo] => 2
+                )
+
+            [421] => Array
+                (
+                    [Id] => 422
+                    [Nombre] => Cuadernos de Langre, S.L.
+                    [Tipo] => 2
+                )
+
+            [422] => Array
+                (
+                    [Id] => 423
+                    [Nombre] => Centro de Investigaciones Sociológicas
+                    [Tipo] => 2
+                )
+
+            [423] => Array
+                (
+                    [Id] => 424
+                    [Nombre] => Editorial Cuarto Centenario, S.L.
+                    [Tipo] => 2
+                )
+
+            [424] => Array
+                (
+                    [Id] => 425
+                    [Nombre] => Ediciones del Lunar
+                    [Tipo] => 2
+                )
+
+            [425] => Array
+                (
+                    [Id] => 426
+                    [Nombre] => GaliNova Editorial,S.L.
+                    [Tipo] => 2
+                )
+
+            [426] => Array
+                (
+                    [Id] => 427
+                    [Nombre] => Ediciones del Serbal, S.A.
+                    [Tipo] => 2
+                )
+
+            [427] => Array
+                (
+                    [Id] => 428
+                    [Nombre] => Obrador Edèndum
+                    [Tipo] => 2
+                )
+
+            [428] => Array
+                (
+                    [Id] => 429
+                    [Nombre] => Club Editor
+                    [Tipo] => 2
+                )
+
+            [429] => Array
+                (
+                    [Id] => 430
+                    [Nombre] => Swing
+                    [Tipo] => 2
+                )
+
+            [430] => Array
+                (
+                    [Id] => 431
+                    [Nombre] => El Rompecabezas
+                    [Tipo] => 2
+                )
+
+            [431] => Array
+                (
+                    [Id] => 432
+                    [Nombre] => Burdinola (Asociación de Amigos del Museo del Hierro)
+                    [Tipo] => 2
+                )
+
+            [432] => Array
+                (
+                    [Id] => 433
+                    [Nombre] => Cangrejo Pistolero Ediciones
+                    [Tipo] => 2
+                )
+
+            [433] => Array
+                (
+                    [Id] => 434
+                    [Nombre] => Punto en Boca
+                    [Tipo] => 2
+                )
+
+            [434] => Array
+                (
+                    [Id] => 435
+                    [Nombre] => Ediciones Igitur
+                    [Tipo] => 2
+                )
+
+            [435] => Array
+                (
+                    [Id] => 436
+                    [Nombre] => Ediciones del Azar, S.L.
+                    [Tipo] => 2
+                )
+
+            [436] => Array
+                (
+                    [Id] => 437
+                    [Nombre] => Editorial Noray, S.A.
+                    [Tipo] => 2
+                )
+
+            [437] => Array
+                (
+                    [Id] => 438
+                    [Nombre] => Léeme Libros
+                    [Tipo] => 2
+                )
+
+            [438] => Array
+                (
+                    [Id] => 439
+                    [Nombre] => Ediciones Presencia
+                    [Tipo] => 2
+                )
+
+            [439] => Array
+                (
+                    [Id] => 440
+                    [Nombre] => Ediciones Maspe C.B.
+                    [Tipo] => 2
+                )
+
+            [440] => Array
+                (
+                    [Id] => 441
+                    [Nombre] => Editorial Tambre
+                    [Tipo] => 2
+                )
+
+            [441] => Array
+                (
+                    [Id] => 442
+                    [Nombre] => Edelsa Grupo Didascalia, S.A.
+                    [Tipo] => 2
+                )
+
+            [442] => Array
+                (
+                    [Id] => 443
+                    [Nombre] => Fundación Museo Jorge Oteiza
+                    [Tipo] => 2
+                )
+
+            [443] => Array
+                (
+                    [Id] => 444
+                    [Nombre] => Pearson Longman
+                    [Tipo] => 2
+                )
+
+            [444] => Array
+                (
+                    [Id] => 445
+                    [Nombre] => Tierradenadie Ediciones
+                    [Tipo] => 2
+                )
+
+            [445] => Array
+                (
+                    [Id] => 446
+                    [Nombre] => Rayo Verde Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [446] => Array
+                (
+                    [Id] => 447
+                    [Nombre] => Editorial Hacer
+                    [Tipo] => 2
+                )
+
+            [447] => Array
+                (
+                    [Id] => 448
+                    [Nombre] => Punto Rojo Libros, S.L.
+                    [Tipo] => 2
+                )
+
+            [448] => Array
+                (
+                    [Id] => 449
+                    [Nombre] => Pearson Alhambra
+                    [Tipo] => 2
+                )
+
+            [449] => Array
+                (
+                    [Id] => 450
+                    [Nombre] => Principal de los Libros
+                    [Tipo] => 2
+                )
+
+            [450] => Array
+                (
+                    [Id] => 451
+                    [Nombre] => Didacbook
+                    [Tipo] => 2
+                )
+
+            [451] => Array
+                (
+                    [Id] => 452
+                    [Nombre] => Atmósfera Literaria, S.L.
+                    [Tipo] => 2
+                )
+
+            [452] => Array
+                (
+                    [Id] => 453
+                    [Nombre] => Editorial Barcanova, S.A.
+                    [Tipo] => 2
+                )
+
+            [453] => Array
+                (
+                    [Id] => 454
+                    [Nombre] => La Felguera Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [454] => Array
+                (
+                    [Id] => 455
+                    [Nombre] => Global Marketing Strategies, S.L.
+                    [Tipo] => 2
+                )
+
+            [455] => Array
+                (
+                    [Id] => 456
+                    [Nombre] => Libros de Ruta Ediciones SL
+                    [Tipo] => 2
+                )
+
+            [456] => Array
+                (
+                    [Id] => 457
+                    [Nombre] => Editorial Txertoa
+                    [Tipo] => 2
+                )
+
+            [457] => Array
+                (
+                    [Id] => 458
+                    [Nombre] => Ediciones 2010, S.L.
+                    [Tipo] => 2
+                )
+
+            [458] => Array
+                (
+                    [Id] => 459
+                    [Nombre] => Somos-Psicología
+                    [Tipo] => 2
+                )
+
+            [459] => Array
+                (
+                    [Id] => 460
+                    [Nombre] => Ediciones Bilingües, S.L.
+                    [Tipo] => 2
+                )
+
+            [460] => Array
+                (
+                    [Id] => 461
+                    [Nombre] => Editorial Diéresis, S.L.
+                    [Tipo] => 2
+                )
+
+            [461] => Array
+                (
+                    [Id] => 462
+                    [Nombre] => Círculo de Bellas Artes
+                    [Tipo] => 2
+                )
+
+            [462] => Array
+                (
+                    [Id] => 463
+                    [Nombre] => Ediciones de Intervención Cultural, S.L.
+                    [Tipo] => 2
+                )
+
+            [463] => Array
+                (
+                    [Id] => 464
+                    [Nombre] => Tábula Rasa Ediciones S. L.
+                    [Tipo] => 2
+                )
+
+            [464] => Array
+                (
+                    [Id] => 465
+                    [Nombre] => Editorial Dharana
+                    [Tipo] => 2
+                )
+
+            [465] => Array
+                (
+                    [Id] => 466
+                    [Nombre] => CEPREVEN
+                    [Tipo] => 2
+                )
+
+            [466] => Array
+                (
+                    [Id] => 467
+                    [Nombre] => Training Park, S. L.
+                    [Tipo] => 2
+                )
+
+            [467] => Array
+                (
+                    [Id] => 468
+                    [Nombre] => Ediciones Pedagógicas, S.A.
+                    [Tipo] => 2
+                )
+
+            [468] => Array
+                (
+                    [Id] => 469
+                    [Nombre] => Sociedad Bíblica
+                    [Tipo] => 2
+                )
+
+            [469] => Array
+                (
+                    [Id] => 470
+                    [Nombre] => Editorial Acribia, S.A.
+                    [Tipo] => 2
+                )
+
+            [470] => Array
+                (
+                    [Id] => 471
+                    [Nombre] => Aralia XXI Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [471] => Array
+                (
+                    [Id] => 472
+                    [Nombre] => Sociedad Estatal Correos y Telégrafos, S. A.
+                    [Tipo] => 2
+                )
+
+            [472] => Array
+                (
+                    [Id] => 473
+                    [Nombre] => Editorial Donostiarra, S.A.
+                    [Tipo] => 2
+                )
+
+            [473] => Array
+                (
+                    [Id] => 474
+                    [Nombre] => Arkano Books
+                    [Tipo] => 2
+                )
+
+            [474] => Array
+                (
+                    [Id] => 475
+                    [Nombre] => Ediciones Grazalema, S.L.
+                    [Tipo] => 2
+                )
+
+            [475] => Array
+                (
+                    [Id] => 476
+                    [Nombre] => Oxford University Press España, S.A.
+                    [Tipo] => 2
+                )
+
+            [476] => Array
+                (
+                    [Id] => 477
+                    [Nombre] => Calambur Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [477] => Array
+                (
+                    [Id] => 478
+                    [Nombre] => El Aleph Editores, S.A
+                    [Tipo] => 2
+                )
+
+            [478] => Array
+                (
+                    [Id] => 479
+                    [Nombre] => Associació Cultural Fonoll
+                    [Tipo] => 2
+                )
+
+            [479] => Array
+                (
+                    [Id] => 480
+                    [Nombre] => Editorial Elvira
+                    [Tipo] => 2
+                )
+
+            [480] => Array
+                (
+                    [Id] => 481
+                    [Nombre] => Ciencias de la Educación Preescolar y Especial
+                    [Tipo] => 2
+                )
+
+            [481] => Array
+                (
+                    [Id] => 482
+                    [Nombre] => Cuento a la Vista
+                    [Tipo] => 2
+                )
+
+            [482] => Array
+                (
+                    [Id] => 483
+                    [Nombre] => Davinci Continental, S.L.
+                    [Tipo] => 2
+                )
+
+            [483] => Array
+                (
+                    [Id] => 484
+                    [Nombre] => Editorial Arguval, S.A.
+                    [Tipo] => 2
+                )
+
+            [484] => Array
+                (
+                    [Id] => 485
+                    [Nombre] => Tundra
+                    [Tipo] => 2
+                )
+
+            [485] => Array
+                (
+                    [Id] => 486
+                    [Nombre] => Cambridge University Press
+                    [Tipo] => 2
+                )
+
+            [486] => Array
+                (
+                    [Id] => 487
+                    [Nombre] => Ikasmina Argitaletxea, S.L.
+                    [Tipo] => 2
+                )
+
+            [487] => Array
+                (
+                    [Id] => 488
+                    [Nombre] => Giltza
+                    [Tipo] => 2
+                )
+
+            [488] => Array
+                (
+                    [Id] => 489
+                    [Nombre] => Ediciones Técnicas Rubio
+                    [Tipo] => 2
+                )
+
+            [489] => Array
+                (
+                    [Id] => 490
+                    [Nombre] => Lamela
+                    [Tipo] => 2
+                )
+
+            [490] => Array
+                (
+                    [Id] => 491
+                    [Nombre] => Dylar Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [491] => Array
+                (
+                    [Id] => 492
+                    [Nombre] => Editorial Stanley
+                    [Tipo] => 2
+                )
+
+            [492] => Array
+                (
+                    [Id] => 493
+                    [Nombre] => Ediciones Idampa
+                    [Tipo] => 2
+                )
+
+            [493] => Array
+                (
+                    [Id] => 494
+                    [Nombre] => Mateo Miranda S.A.
+                    [Tipo] => 1
+                )
+
+            [494] => Array
+                (
+                    [Id] => 495
+                    [Nombre] => Kaleida Forma, S.L.
+                    [Tipo] => 2
+                )
+
+            [495] => Array
+                (
+                    [Id] => 496
+                    [Nombre] => Editorial Flamboyant, S.L.
+                    [Tipo] => 2
+                )
+
+            [496] => Array
+                (
+                    [Id] => 497
+                    [Nombre] => DOBLEERRE Editorial
+                    [Tipo] => 2
+                )
+
+            [497] => Array
+                (
+                    [Id] => 498
+                    [Nombre] => Asociación de Maestros Rosa Sensat
+                    [Tipo] => 2
+                )
+
+            [498] => Array
+                (
+                    [Id] => 499
+                    [Nombre] => Dalma Villar S.A.
+                    [Tipo] => 1
+                )
+
+            [499] => Array
+                (
+                    [Id] => 500
+                    [Nombre] => Richmond
+                    [Tipo] => 2
+                )
+
+            [500] => Array
+                (
+                    [Id] => 501
+                    [Nombre] => AugA Editora
+                    [Tipo] => 2
+                )
+
+            [501] => Array
+                (
+                    [Id] => 502
+                    [Nombre] => Caja de Ahorros Municipal de Burgos
+                    [Tipo] => 2
+                )
+
+            [502] => Array
+                (
+                    [Id] => 503
+                    [Nombre] => Editorial Elzevir, S.A.
+                    [Tipo] => 2
+                )
+
+            [503] => Array
+                (
+                    [Id] => 504
+                    [Nombre] => Didácticos Sapiens
+                    [Tipo] => 2
+                )
+
+            [504] => Array
+                (
+                    [Id] => 505
+                    [Nombre] => Editorial Kairós, S.A.
+                    [Tipo] => 2
+                )
+
+            [505] => Array
+                (
+                    [Id] => 506
+                    [Nombre] => Editorial Bululú
+                    [Tipo] => 2
+                )
+
+            [506] => Array
+                (
+                    [Id] => 507
+                    [Nombre] => Embolsillo, S.L.
+                    [Tipo] => 2
+                )
+
+            [507] => Array
+                (
+                    [Id] => 508
+                    [Nombre] => Enrique Plaza S.A.
+                    [Tipo] => 1
+                )
+
+            [508] => Array
+                (
+                    [Id] => 509
+                    [Nombre] => Iniciativas Nuevo Deporte Español Publicaciones
+                    [Tipo] => 2
+                )
+
+            [509] => Array
+                (
+                    [Id] => 510
+                    [Nombre] => Libreria Universitaria (Barcelona)
+                    [Tipo] => 2
+                )
+
+            [510] => Array
+                (
+                    [Id] => 511
+                    [Nombre] => El Acantilado
+                    [Tipo] => 2
+                )
+
+            [511] => Array
+                (
+                    [Id] => 512
+                    [Nombre] => Editorial Graó
+                    [Tipo] => 2
+                )
+
+            [512] => Array
+                (
+                    [Id] => 513
+                    [Nombre] => Castellnou Editora Valenciana
+                    [Tipo] => 2
+                )
+
+            [513] => Array
+                (
+                    [Id] => 514
+                    [Nombre] => Salvat Editores, S.A.
+                    [Tipo] => 2
+                )
+
+            [514] => Array
+                (
+                    [Id] => 515
+                    [Nombre] => Andana Edicions
+                    [Tipo] => 2
+                )
+
+            [515] => Array
+                (
+                    [Id] => 516
+                    [Nombre] => Benjamín Quintana S.L.
+                    [Tipo] => 1
+                )
+
+            [516] => Array
+                (
+                    [Id] => 517
+                    [Nombre] => Science4you, S.L.
+                    [Tipo] => 2
+                )
+
+            [517] => Array
+                (
+                    [Id] => 518
+                    [Nombre] => Ediciones de la Torre
+                    [Tipo] => 2
+                )
+
+            [518] => Array
+                (
+                    [Id] => 519
+                    [Nombre] => OFFICE2000
+                    [Tipo] => 2
+                )
+
+            [519] => Array
+                (
+                    [Id] => 520
+                    [Nombre] => Patronato Municipal de Cultura (San Sebastián)
+                    [Tipo] => 2
+                )
+
+            [520] => Array
+                (
+                    [Id] => 521
+                    [Nombre] => Librooks
+                    [Tipo] => 2
+                )
+
+            [521] => Array
+                (
+                    [Id] => 522
+                    [Nombre] => Instituto Labayru Ikastegia
+                    [Tipo] => 2
+                )
+
+            [522] => Array
+                (
+                    [Id] => 523
+                    [Nombre] => Caelus Books
+                    [Tipo] => 2
+                )
+
+            [523] => Array
+                (
+                    [Id] => 524
+                    [Nombre] => RBA REVISTAS, S.A,
+                    [Tipo] => 2
+                )
+
+            [524] => Array
+                (
+                    [Id] => 525
+                    [Nombre] => Ediciones Sequitur, S.L.
+                    [Tipo] => 2
+                )
+
+            [525] => Array
+                (
+                    [Id] => 526
+                    [Nombre] => Ediciones Desnivel, S.L.
+                    [Tipo] => 2
+                )
+
+            [526] => Array
+                (
+                    [Id] => 527
+                    [Nombre] => Narcea, S.A. de Ediciones
+                    [Tipo] => 2
+                )
+
+            [527] => Array
+                (
+                    [Id] => 528
+                    [Nombre] => Escolar y Mayo Editores, S.L.
+                    [Tipo] => 2
+                )
+
+            [528] => Array
+                (
+                    [Id] => 529
+                    [Nombre] => Ibergarceta Publicaciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [529] => Array
+                (
+                    [Id] => 530
+                    [Nombre] => Ediciones Alfar, S.A.
+                    [Tipo] => 2
+                )
+
+            [530] => Array
+                (
+                    [Id] => 531
+                    [Nombre] => Fundacion del Audiovisual Reflexivo y Orientativo
+                    [Tipo] => 2
+                )
+
+            [531] => Array
+                (
+                    [Id] => 532
+                    [Nombre] => Editorial Monte Carmelo
+                    [Tipo] => 2
+                )
+
+            [532] => Array
+                (
+                    [Id] => 533
+                    [Nombre] => Kokoro Multimedia
+                    [Tipo] => 2
+                )
+
+            [533] => Array
+                (
+                    [Id] => 534
+                    [Nombre] => Fragmenta Editorial, SLL
+                    [Tipo] => 2
+                )
+
+            [534] => Array
+                (
+                    [Id] => 535
+                    [Nombre] => Desiderata Books
+                    [Tipo] => 2
+                )
+
+            [535] => Array
+                (
+                    [Id] => 536
+                    [Nombre] => Editorial Mediterrània, S.L.
+                    [Tipo] => 2
+                )
+
+            [536] => Array
+                (
+                    [Id] => 537
+                    [Nombre] => Editorial Libsa, S.A.
+                    [Tipo] => 2
+                )
+
+            [537] => Array
+                (
+                    [Id] => 538
+                    [Nombre] => Narval Editores
+                    [Tipo] => 2
+                )
+
+            [538] => Array
+                (
+                    [Id] => 539
+                    [Nombre] => Canal Iglesias, Maite
+                    [Tipo] => 2
+                )
+
+            [539] => Array
+                (
+                    [Id] => 540
+                    [Nombre] => Plaza & Janés Editores, S.A.
+                    [Tipo] => 2
+                )
+
+            [540] => Array
+                (
+                    [Id] => 541
+                    [Nombre] => Laura Carrasco S.A.
+                    [Tipo] => 1
+                )
+
+            [541] => Array
+                (
+                    [Id] => 542
+                    [Nombre] => Bellaterra Música, S.L.
+                    [Tipo] => 2
+                )
+
+            [542] => Array
+                (
+                    [Id] => 543
+                    [Nombre] => Diputación Provincial de Burgos
+                    [Tipo] => 2
+                )
+
+            [543] => Array
+                (
+                    [Id] => 544
+                    [Nombre] => Noguer Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [544] => Array
+                (
+                    [Id] => 545
+                    [Nombre] => Ediciones Serres, S.L.
+                    [Tipo] => 2
+                )
+
+            [545] => Array
+                (
+                    [Id] => 546
+                    [Nombre] => Hermes Editora General, S.A. - Almadraba
+                    [Tipo] => 2
+                )
+
+            [546] => Array
+                (
+                    [Id] => 547
+                    [Nombre] => Almadraba Infantil y Juvenil
+                    [Tipo] => 2
+                )
+
+            [547] => Array
+                (
+                    [Id] => 548
+                    [Nombre] => Guillermo Morales S.L.
+                    [Tipo] => 1
+                )
+
+            [548] => Array
+                (
+                    [Id] => 549
+                    [Nombre] => Sieteleguas Ediciones
+                    [Tipo] => 2
+                )
+
+            [549] => Array
+                (
+                    [Id] => 550
+                    [Nombre] => Tàndem Edicions, S.L.
+                    [Tipo] => 2
+                )
+
+            [550] => Array
+                (
+                    [Id] => 551
+                    [Nombre] => Boira Editorial
+                    [Tipo] => 2
+                )
+
+            [551] => Array
+                (
+                    [Id] => 552
+                    [Nombre] => RD Editores
+                    [Tipo] => 2
+                )
+
+            [552] => Array
+                (
+                    [Id] => 553
+                    [Nombre] => Triqueta Verde, S.L.
+                    [Tipo] => 2
+                )
+
+            [553] => Array
+                (
+                    [Id] => 554
+                    [Nombre] => Irma Galán S.A.
+                    [Tipo] => 1
+                )
+
+            [554] => Array
+                (
+                    [Id] => 555
+                    [Nombre] => Ayuntamiento de Burgos
+                    [Tipo] => 2
+                )
+
+            [555] => Array
+                (
+                    [Id] => 556
+                    [Nombre] => Media Vaca
+                    [Tipo] => 2
+                )
+
+            [556] => Array
+                (
+                    [Id] => 557
+                    [Nombre] => Grupo Editorial Universitario (Granada)
+                    [Tipo] => 2
+                )
+
+            [557] => Array
+                (
+                    [Id] => 558
+                    [Nombre] => Ediciones del Bronce
+                    [Tipo] => 2
+                )
+
+            [558] => Array
+                (
+                    [Id] => 559
+                    [Nombre] => Constanza Conde S.A.
+                    [Tipo] => 1
+                )
+
+            [559] => Array
+                (
+                    [Id] => 560
+                    [Nombre] => Legua Editorial, S.L.
+                    [Tipo] => 2
+                )
+
+            [560] => Array
+                (
+                    [Id] => 561
+                    [Nombre] => SR Servicios y Producciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [561] => Array
+                (
+                    [Id] => 562
+                    [Nombre] => Teleno,Ediciones S.L.
+                    [Tipo] => 2
+                )
+
+            [562] => Array
+                (
+                    [Id] => 563
+                    [Nombre] => Creotz Ediciones SL
+                    [Tipo] => 2
+                )
+
+            [563] => Array
+                (
+                    [Id] => 564
+                    [Nombre] => Imaginarium (Step Two, S.A.)
+                    [Tipo] => 2
+                )
+
+            [564] => Array
+                (
+                    [Id] => 565
+                    [Nombre] => Maia Ediciones
+                    [Tipo] => 2
+                )
+
+            [565] => Array
+                (
+                    [Id] => 566
+                    [Nombre] => Leila González S.L.
+                    [Tipo] => 1
+                )
+
+            [566] => Array
+                (
+                    [Id] => 567
+                    [Nombre] => Lynx Edicions
+                    [Tipo] => 2
+                )
+
+            [567] => Array
+                (
+                    [Id] => 568
+                    [Nombre] => Elipse
+                    [Tipo] => 2
+                )
+
+            [568] => Array
+                (
+                    [Id] => 569
+                    [Nombre] => Innovanity, S.L.L.
+                    [Tipo] => 2
+                )
+
+            [569] => Array
+                (
+                    [Id] => 570
+                    [Nombre] => Elías Vidal S.L.
+                    [Tipo] => 1
+                )
+
+            [570] => Array
+                (
+                    [Id] => 571
+                    [Nombre] => Ministerio de Defensa. Centro de Publicaciones
+                    [Tipo] => 2
+                )
+
+            [571] => Array
+                (
+                    [Id] => 572
+                    [Nombre] => Cultiva Comunicación, S.L.
+                    [Tipo] => 2
+                )
+
+            [572] => Array
+                (
+                    [Id] => 573
+                    [Nombre] => Innovación y Cualificación
+                    [Tipo] => 2
+                )
+
+            [573] => Array
+                (
+                    [Id] => 574
+                    [Nombre] => Ivrea, S.L.
+                    [Tipo] => 2
+                )
+
+            [574] => Array
+                (
+                    [Id] => 575
+                    [Nombre] => Mauricio Lara S.L.
+                    [Tipo] => 1
+                )
+
+            [575] => Array
+                (
+                    [Id] => 576
+                    [Nombre] => Ediciones Osa Menor
+                    [Tipo] => 2
+                )
+
+            [576] => Array
+                (
+                    [Id] => 577
+                    [Nombre] => Editorial Claret, S.A.
+                    [Tipo] => 2
+                )
+
+            [577] => Array
+                (
+                    [Id] => 578
+                    [Nombre] => Paloma Vera S.L.
+                    [Tipo] => 1
+                )
+
+            [578] => Array
+                (
+                    [Id] => 579
+                    [Nombre] => Ediciones de la Universidad de Castilla-La Mancha
+                    [Tipo] => 2
+                )
+
+            [579] => Array
+                (
+                    [Id] => 580
+                    [Nombre] => Bella Vega S.A.
+                    [Tipo] => 1
+                )
+
+            [580] => Array
+                (
+                    [Id] => 581
+                    [Nombre] => Edicions Bellaterra, S.A.
+                    [Tipo] => 2
+                )
+
+            [581] => Array
+                (
+                    [Id] => 582
+                    [Nombre] => Librería Universitaria León 1980 S.L.L.
+                    [Tipo] => 2
+                )
+
+            [582] => Array
+                (
+                    [Id] => 583
+                    [Nombre] => Editorial Sirpus, S.L.
+                    [Tipo] => 2
+                )
+
+            [583] => Array
+                (
+                    [Id] => 584
+                    [Nombre] => Casandra Expósito S.A.
+                    [Tipo] => 1
+                )
+
+            [584] => Array
+                (
+                    [Id] => 585
+                    [Nombre] => Español Santillana Universidad de Salamanca
+                    [Tipo] => 2
+                )
+
+            [585] => Array
+                (
+                    [Id] => 586
+                    [Nombre] => Edicions Voramar, S.L.
+                    [Tipo] => 2
+                )
+
+            [586] => Array
+                (
+                    [Id] => 587
+                    [Nombre] => Zubia Editoriala, S.L.
+                    [Tipo] => 2
+                )
+
+            [587] => Array
+                (
+                    [Id] => 588
+                    [Nombre] => Salvador Giménez S.L.
+                    [Tipo] => 1
+                )
+
+            [588] => Array
+                (
+                    [Id] => 589
+                    [Nombre] => Alejandro Marcos S.L.
+                    [Tipo] => 1
+                )
+
+            [589] => Array
+                (
+                    [Id] => 590
+                    [Nombre] => Carambuco Ediciones
+                    [Tipo] => 2
+                )
+
+            [590] => Array
+                (
+                    [Id] => 591
+                    [Nombre] => Sara Peña S.A.
+                    [Tipo] => 1
+                )
+
+            [591] => Array
+                (
+                    [Id] => 592
+                    [Nombre] => Libros del Innombrable
+                    [Tipo] => 2
+                )
+
+            [592] => Array
+                (
+                    [Id] => 593
+                    [Nombre] => Tabarca Llibres, S.L.
+                    [Tipo] => 2
+                )
+
+            [593] => Array
+                (
+                    [Id] => 594
+                    [Nombre] => Severo Robles S.A.
+                    [Tipo] => 1
+                )
+
+            [594] => Array
+                (
+                    [Id] => 595
+                    [Nombre] => Joaquín Domínguez S.A.
+                    [Tipo] => 1
+                )
+
+            [595] => Array
+                (
+                    [Id] => 596
+                    [Nombre] => Milrazones
+                    [Tipo] => 2
+                )
+
+            [596] => Array
+                (
+                    [Id] => 597
+                    [Nombre] => Gabriel Bernal S.A.
+                    [Tipo] => 1
+                )
+
+            [597] => Array
+                (
+                    [Id] => 598
+                    [Nombre] => Octavio Casado S.A.
+                    [Tipo] => 1
+                )
+
+            [598] => Array
+                (
+                    [Id] => 599
+                    [Nombre] => Diputación Provincial de Ciudad Real
+                    [Tipo] => 2
+                )
+
+            [599] => Array
+                (
+                    [Id] => 600
+                    [Nombre] => Editorial La Calesa, S.A.
+                    [Tipo] => 2
+                )
+
+            [600] => Array
+                (
+                    [Id] => 601
+                    [Nombre] => Editorial Marfil, S.A.
+                    [Tipo] => 2
+                )
+
+            [601] => Array
+                (
+                    [Id] => 602
+                    [Nombre] => Editorial Nadal-Arcada S.L.
+                    [Tipo] => 2
+                )
+
+            [602] => Array
+                (
+                    [Id] => 603
+                    [Nombre] => Leonor Rubio S.A.
+                    [Tipo] => 1
+                )
+
+            [603] => Array
+                (
+                    [Id] => 604
+                    [Nombre] => PRAMES, S.A.
+                    [Tipo] => 2
+                )
+
+            [604] => Array
+                (
+                    [Id] => 605
+                    [Nombre] => Ediciones Akal, S.A.
+                    [Tipo] => 2
+                )
+
+            [605] => Array
+                (
+                    [Id] => 606
+                    [Nombre] => Malsinet Editor, S.L.
+                    [Tipo] => 2
+                )
+
+            [606] => Array
+                (
+                    [Id] => 607
+                    [Nombre] => Editorial Alma
+                    [Tipo] => 2
+                )
+
+            [607] => Array
+                (
+                    [Id] => 608
+                    [Nombre] => Creaciones Literarias
+                    [Tipo] => 2
+                )
+
+            [608] => Array
+                (
+                    [Id] => 609
+                    [Nombre] => Oficina de Arte y Ediciones
+                    [Tipo] => 2
+                )
+
+            [609] => Array
+                (
+                    [Id] => 610
+                    [Nombre] => Raúl Moya S.L.
+                    [Tipo] => 1
+                )
+
+            [610] => Array
+                (
+                    [Id] => 611
+                    [Nombre] => TEA Ediciones, S.A.
+                    [Tipo] => 2
+                )
+
+            [611] => Array
+                (
+                    [Id] => 612
+                    [Nombre] => Carena Editors
+                    [Tipo] => 2
+                )
+
+            [612] => Array
+                (
+                    [Id] => 613
+                    [Nombre] => Ediciones Evohé
+                    [Tipo] => 2
+                )
+
+            [613] => Array
+                (
+                    [Id] => 614
+                    [Nombre] => Ellago Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [614] => Array
+                (
+                    [Id] => 615
+                    [Nombre] => Giovanna Bermejo S.L.
+                    [Tipo] => 1
+                )
+
+            [615] => Array
+                (
+                    [Id] => 616
+                    [Nombre] => Ediciones TTT
+                    [Tipo] => 2
+                )
+
+            [616] => Array
+                (
+                    [Id] => 617
+                    [Nombre] => Arazonia Barcelona S.L.
+                    [Tipo] => 2
+                )
+
+            [617] => Array
+                (
+                    [Id] => 618
+                    [Nombre] => Editorial Ecir, S.A.
+                    [Tipo] => 2
+                )
+
+            [618] => Array
+                (
+                    [Id] => 619
+                    [Nombre] => Ediciones Librería Argentina
+                    [Tipo] => 2
+                )
+
+            [619] => Array
+                (
+                    [Id] => 620
+                    [Nombre] => Andrea Alonso S.L.
+                    [Tipo] => 1
+                )
+
+            [620] => Array
+                (
+                    [Id] => 621
+                    [Nombre] => Elia Acosta S.A.
+                    [Tipo] => 1
+                )
+
+            [621] => Array
+                (
+                    [Id] => 622
+                    [Nombre] => Ediciones Pléyades
+                    [Tipo] => 2
+                )
+
+            [622] => Array
+                (
+                    [Id] => 623
+                    [Nombre] => La Esfera de los Libros S.L.
+                    [Tipo] => 2
+                )
+
+            [623] => Array
+                (
+                    [Id] => 624
+                    [Nombre] => Editorial Nortesur S.L.U.
+                    [Tipo] => 2
+                )
+
+            [624] => Array
+                (
+                    [Id] => 625
+                    [Nombre] => Monterrey Global, S. L.
+                    [Tipo] => 2
+                )
+
+            [625] => Array
+                (
+                    [Id] => 626
+                    [Nombre] => Gabriela Marcos S.L.
+                    [Tipo] => 1
+                )
+
+            [626] => Array
+                (
+                    [Id] => 627
+                    [Nombre] => Proteus Libros y Servicios Editoriales
+                    [Tipo] => 2
+                )
+
+            [627] => Array
+                (
+                    [Id] => 628
+                    [Nombre] => Lisma Ediciones, S.L.
+                    [Tipo] => 2
+                )
+
+            [628] => Array
+                (
+                    [Id] => 629
+                    [Nombre] => Ediciones Gigamesh
+                    [Tipo] => 2
+                )
+
+            [629] => Array
+                (
+                    [Id] => 630
+                    [Nombre] => RDCR Ediciones
+                    [Tipo] => 2
+                )
+
+            [630] => Array
+                (
+                    [Id] => 631
+                    [Nombre] => Ediciones El Almendro de Córdoba, S.L.
+                    [Tipo] => 2
+                )
+
+            [631] => Array
+                (
+                    [Id] => 632
+                    [Nombre] => Real Musical
+                    [Tipo] => 2
+                )
+
+            [632] => Array
+                (
+                    [Id] => 633
+                    [Nombre] => Eunsa. Ediciones Universidad de Navarra, S.A.
+                    [Tipo] => 2
+                )
+
+            [633] => Array
+                (
+                    [Id] => 634
+                    [Nombre] => Editorial Yalde, S.L.
+                    [Tipo] => 2
+                )
+
+            [634] => Array
+                (
+                    [Id] => 635
+                    [Nombre] => Grupo Gesfomedia
+                    [Tipo] => 2
+                )
+
+            [635] => Array
+                (
+                    [Id] => 636
+                    [Nombre] => Violeta Ruiz S.L.
+                    [Tipo] => 1
+                )
+
+            [636] => Array
+                (
+                    [Id] => 637
+                    [Nombre] => Fondo de Cultura Económica de España, S.L.
+                    [Tipo] => 2
+                )
+
+            [637] => Array
+                (
+                    [Id] => 638
+                    [Nombre] => Ediciones Miguel Sánchez, C. B.
+                    [Tipo] => 2
+                )
+
+            [638] => Array
+                (
+                    [Id] => 639
+                    [Nombre] => Centro de Lingüística Aplicada Atenea
+                    [Tipo] => 2
+                )
+
+            [639] => Array
+                (
+                    [Id] => 640
+                    [Nombre] => Pintar Pinter Comunicación, S.L.
+                    [Tipo] => 2
+                )
+
+            [640] => Array
+                (
+                    [Id] => 641
+                    [Nombre] => Ediciones Tilde, S.L.
+                    [Tipo] => 2
+                )
+
+            [641] => Array
+                (
+                    [Id] => 642
+                    [Nombre] => Visor Libros, S.L.
+                    [Tipo] => 2
+                )
+
+            [642] => Array
+
+                    [Id] => 643
+                    [Nombre] => Ministerio de Fomento
+                    [Tipo] => 2
+                )
+
+            [643] => Array
+                (
+                    [Id] => 644
+                    [Nombre] => RBA Bolsillo
+                    [Tipo] => 2
+                )
+
+            [644] => Array
+                (
+                    [Id] => 645
+                    [Nombre] => Ocho y Medio, Libros de Cine
+                    [Tipo] => 2
+                )
+
+            [645] => Array
+                (
+                    [Id] => 646
+                    [Nombre] => Editorial Diálogo
+                    [Tipo] => 2
+                )
+
+            [646] => Array
+                (
+                    [Id] => 647
+                    [Nombre] => Editorial LXL
+                    [Tipo] => 2
+                )
+
+            [647] => Array
+                (
+                    [Id] => 648
+                    [Nombre] => A Gracia VeniaiSedicións
+                    [Tipo] => 2
+                )
+
+        )
+
+    [InfoError] => Array
+        (
+            [Codigo] => 0
+            [Descripcion] => 
+        )
+
+)
+
+[17-Jun-2025 07:38:50 UTC] [MI] Respuesta cruda get_categorias: Array
+(
+    [Categorias] => Array
+        (
+            [0] => Array
+                (
+                    [Clave] => 001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 1
+                    [Id_Padre] => 0
+                    [Nombre] => Regalo
+                )
+
+            [1] => Array
+                (
+                    [Clave] => 002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 2
+                    [Id_Padre] => 0
+                    [Nombre] => Libros
+                )
+
+            [2] => Array
+                (
+                    [Clave] => 002001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 7
+                    [Id_Padre] => 2
+                    [Nombre] => Literatura
+                )
+
+            [3] => Array
+                (
+                    [Clave] => 002001001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 8
+                    [Id_Padre] => 7
+                    [Nombre] => Infantil
+                )
+
+            [4] => Array
+                (
+                    [Clave] => 002001001001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 12
+                    [Id_Padre] => 8
+                    [Nombre] => De 0 a 3
+                )
+
+            [5] => Array
+                (
+                    [Clave] => 002001001002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 13
+                    [Id_Padre] => 8
+                    [Nombre] => De 4 a 5
+                )
+
+            [6] => Array
+                (
+                    [Clave] => 002001001003
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 14
+                    [Id_Padre] => 8
+                    [Nombre] => De 6 a 9
+                )
+
+            [7] => Array
+                (
+                    [Clave] => 002001002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 9
+                    [Id_Padre] => 7
+                    [Nombre] => Juvenil
+                )
+
+            [8] => Array
+                (
+                    [Clave] => 002001002001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 15
+                    [Id_Padre] => 9
+                    [Nombre] => De 9 a 12
+                )
+
+            [9] => Array
+                (
+                    [Clave] => 002001002002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 16
+                    [Id_Padre] => 9
+                    [Nombre] => De + de 12
+                )
+
+            [10] => Array
+                (
+                    [Clave] => 002001003
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 10
+                    [Id_Padre] => 7
+                    [Nombre] => Adulto
+                )
+
+            [11] => Array
+                (
+                    [Clave] => 002001003001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 17
+                    [Id_Padre] => 10
+                    [Nombre] => Parenting
+                )
+
+            [12] => Array
+                (
+                    [Clave] => 002001003002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 18
+                    [Id_Padre] => 10
+                    [Nombre] => Literatura
+                )
+
+            [13] => Array
+                (
+                    [Clave] => 002001004
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 11
+                    [Id_Padre] => 7
+                    [Nombre] => Cómic
+                )
+
+            [14] => Array
+                (
+                    [Clave] => 002001004001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 19
+                    [Id_Padre] => 11
+                    [Nombre] => Infantil
+                )
+
+            [15] => Array
+                (
+                    [Clave] => 002001004002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 20
+                    [Id_Padre] => 11
+                    [Nombre] => Juvenil
+                )
+
+            [16] => Array
+                (
+                    [Clave] => 002002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 21
+                    [Id_Padre] => 2
+                    [Nombre] => Texto
+                )
+
+            [17] => Array
+                (
+                    [Clave] => 002002001
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 22
+                    [Id_Padre] => 21
+                    [Nombre] => Educación Primaria
+                )
+
+            [18] => Array
+                (
+                    [Clave] => 002002002
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 23
+                    [Id_Padre] => 21
+                    [Nombre] => Educación Secundaria
+                )
+
+            [19] => Array
+                (
+                    [Clave] => 002002003
+                    [ID_FamiliaCamposConfigurables] => 0
+                    [Id] => 24
+                    [Id_Padre] => 21
+                    [Nombre] => Educación Infantlil
+                )
+
+            [20] => Array
+                (
+                    [Clave] => 003
+                    [ID_FamiliaCamposConfigurables] => 0
+                )
+        )
+)

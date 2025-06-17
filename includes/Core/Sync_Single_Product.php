@@ -14,10 +14,11 @@ class Sync_Single_Product {
     private $api_connector;
 
     public function __construct() {
-        $this->logger = new Logger();
+        $this->logger = new Logger('sync-single-product');
         $this->sanitizer = new DataSanitizer();
         $this->retry_manager = new RetryManager();
-        $this->api_connector = new API_Connector();
+        // Usamos ApiConnector en lugar de API_Connector
+        $this->api_connector = new ApiConnector($this->logger);
     }
 
     /**

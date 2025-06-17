@@ -68,18 +68,22 @@ class MapProduct {
 			return null;
 		}
 
-		// Validar datos mínimos requeridos
-		if (empty($verial_product['Codigo']) || empty($verial_product['Descripcion'])) {
+		// Validar datos mínimos requeridos - Para los nuevos datos de Verial
+		// Utilizamos Nombre en lugar de Descripcion y validamos que exista ya sea ReferenciaBarras o Id
+		if ((empty($verial_product['ReferenciaBarras']) && empty($verial_product['Id'])) || empty($verial_product['Nombre'])) {
 			self::$logger->error('Producto Verial inválido: faltan campos requeridos', [
 				'product' => $verial_product
 			]);
 			return null;
 		}
 
-		// Preparar datos básicos
+		// Preparar datos básicos - Adaptado al nuevo formato de datos
 		$product_data = [
-			'sku' => self::$sanitizer->sanitize($verial_product['Codigo'], 'sku'),
-			'name' => self::$sanitizer->sanitize($verial_product['Descripcion'], 'text'),
+			// Preferimos ReferenciaBarras como SKU, si no existe usamos Id
+			'sku' => !empty($verial_product['ReferenciaBarras']) 
+				? self::$sanitizer->sanitize($verial_product['ReferenciaBarras'], 'sku') 
+				: self::$sanitizer->sanitize((string)$verial_product['Id'], 'sku'),
+			'name' => self::$sanitizer->sanitize($verial_product['Nombre'], 'text'),
 			'price' => self::$sanitizer->sanitize($verial_product['PVP'] ?? 0, 'price'),
 			'regular_price' => self::$sanitizer->sanitize($verial_product['PVP'] ?? 0, 'price'),
 			'sale_price' => self::$sanitizer->sanitize($verial_product['PVPOferta'] ?? 0, 'price'),

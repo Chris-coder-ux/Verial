@@ -118,6 +118,9 @@ if (file_exists(__DIR__ . '/includes/register-commands-manual.php')) {
     require_once __DIR__ . '/includes/register-commands-manual.php';
 }
 
+// Enganche principal para iniciar el plugin
+add_action('plugins_loaded', __NAMESPACE__ . '\\init_plugin');
+
 if (!function_exists(__NAMESPACE__ . '\\init_plugin')) {
     // Inicializar el plugin
     function init_plugin() {
@@ -137,9 +140,9 @@ if (!function_exists(__NAMESPACE__ . '\\init_plugin')) {
                 throw new \Exception(__('Clase principal del plugin no encontrada. El plugin no puede inicializarse.', 'mi-integracion-api'));
             }
             
-            // Instanciar la clase principal del plugin y llamar a init()
-            $plugin = new \MiIntegracionApi\Core\MiIntegracionApi();
-            $plugin->init(); // Llamar a init() solo una vez
+            // Usar el patrón singleton para obtener la instancia única del plugin
+            \MiIntegracionApi\Core\MiIntegracionApi::get_instance();
+            
         } catch (\Throwable $e) {
             // Registrar el error de forma segura
             if (class_exists('MiIntegracionApi\\Helpers\\Logger')) {
@@ -170,6 +173,9 @@ function load_plugin_textdomain_on_init() {
     load_plugin_textdomain('mi-integracion-api', false, dirname(plugin_basename(__FILE__)) . '/languages');
 }
 // El registro del hook se hace a través de HooksInit
+
+// Asegurarse de que el plugin se inicialice durante 'plugins_loaded'
+add_action('plugins_loaded', __NAMESPACE__ . '\\init_plugin');
 
 /**
  * Función global para obtener el servicio de criptografía.
@@ -303,6 +309,9 @@ if (file_exists(__DIR__ . '/includes/Hooks/HooksManager.php') &&
     
     add_action('admin_notices', __NAMESPACE__ . '\\display_activation_errors');
     
+    // Inicializar el plugin (asegurando que se inicialice incluso sin el sistema de hooks)
+    add_action('plugins_loaded', __NAMESPACE__ . '\\init_plugin');
+    
     // Inicializar el sistema de assets del plugin (forma antigua)
     add_action('plugins_loaded', function() {
         if (class_exists('MiIntegracionApi\\Assets')) {
@@ -319,6 +328,11 @@ if (file_exists(__DIR__ . '/includes/Hooks/HooksManager.php') &&
 add_action('init', function() {
     if (class_exists('MiIntegracionApi\\Admin\\AjaxSync')) {
         \MiIntegracionApi\Admin\AjaxSync::register_ajax_handlers();
+    }
+    
+    // Inicializar AjaxSingleSync para manejar las solicitudes de sincronización individual
+    if (class_exists('MiIntegracionApi\\Admin\\AjaxSingleSync')) {
+        new \MiIntegracionApi\Admin\AjaxSingleSync();
     }
 });
 

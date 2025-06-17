@@ -4,26 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="91f6d9b3-5ae2-4b1b-bf55-3f7f535a08da" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/php.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/php.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/assets/js/cache-admin.js" beforeDir="false" afterPath="$PROJECT_DIR$/assets/js/cache-admin.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/composer.json" beforeDir="false" afterPath="$PROJECT_DIR$/composer.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Cache/Cache_Admin_Panel.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Cache/Cache_Admin_Panel.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Cache/HTTP_Cache_Manager.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Cache/HTTP_Cache_Manager.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Core/ApiConnector.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Core/ApiConnector.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Core/Sync_Manager.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Core/Sync_Manager.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Helpers/MapCustomer.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Helpers/MapCustomer.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Helpers/MapOrder.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Helpers/MapOrder.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Helpers/MapProduct.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Helpers/MapProduct.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Sync/SyncClientes.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Sync/SyncClientes.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Sync/SyncPedidos.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Sync/SyncPedidos.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/Sync/SyncProductos.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Sync/SyncProductos.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/WooCommerce/OrderManager.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/WooCommerce/OrderManager.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/includes/WooCommerce/WooCommerceHooks.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/WooCommerce/WooCommerceHooks.php" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/mi-integracion-api.zip" beforeDir="false" afterPath="$PROJECT_DIR$/mi-integracion-api.zip" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/admin/cache-admin-panel.php" beforeDir="false" afterPath="$PROJECT_DIR$/templates/admin/cache-admin-panel.php" afterDir="false" />
-    </list>
+    <list default="true" id="91f6d9b3-5ae2-4b1b-bf55-3f7f535a08da" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -101,7 +82,7 @@
     </include_path>
   </component>
   <component name="ProblemsViewState">
-    <option name="selectedTabId" value="QODANA_PROBLEMS_VIEW_TAB" />
+    <option name="selectedTabId" value="DEPENDENCY_CHECKER_PROBLEMS_TAB" />
     <option name="showPreview" value="true" />
   </component>
   <component name="ProjectColorInfo">{
@@ -113,24 +94,26 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;reference.webide.settings.project.settings.php&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "last_opened_file_path": "/home/christian/Documentos/Poyectos/mi-integracion-api",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "run.code.analysis.last.selected.profile": "pProject Default",
+    "settings.editor.selected.configurable": "reference.webide.settings.project.settings.php",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="QodanaReportsService">
     <option name="descriptions">
-      <ReportDescription localRun="true" path="/tmp/qodana_output/qodana.sarif.json" reportGuid="974eac43-0043-494a-940a-56a9983145fc" reportId="mi-integracion-api/qodana/2025-06-17" />
+      <ReportDescription localRun="true" path="/tmp/qodana_output/qodana.sarif.json" reportGuid="621098d2-eb9a-4695-9756-3f290a1a6326" reportId="mi-integracion-api/qodana/2025-06-17" />
     </option>
   </component>
   <component name="SharedIndexes">
@@ -153,6 +136,7 @@
       <workItem from="1749877058479" duration="230000" />
       <workItem from="1750089483757" duration="84000" />
       <workItem from="1750132748587" duration="65000" />
+      <workItem from="1750134454914" duration="1106000" />
     </task>
     <servers />
   </component>

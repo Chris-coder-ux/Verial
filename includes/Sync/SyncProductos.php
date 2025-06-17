@@ -968,7 +968,18 @@ class SyncProductos extends BatchProcessor {
 		$log       = array();
 
 		foreach ( $productos as $producto ) {
-			$wc_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc( $producto );
+			$wc_data_dto = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc( $producto );
+			
+			// Verificar si el DTO se creó correctamente
+			if (!$wc_data_dto) {
+				++$errors;
+				$log[] = __( 'Error al procesar producto, omitido.', 'mi-integracion-api' );
+				continue;
+			}
+			
+			// Convertir el DTO a array para mantener compatibilidad con el código existente
+			$wc_data = $wc_data_dto->toArray();
+			
 			if ( empty( $wc_data['sku'] ) ) {
 				++$errors;
 				$log[] = __( 'Producto sin SKU, omitido.', 'mi-integracion-api' );

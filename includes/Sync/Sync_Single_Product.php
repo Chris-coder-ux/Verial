@@ -12,6 +12,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Importamos la clase SyncLock
+use MiIntegracionApi\Sync\SyncLock;
+
 class Sync_Single_Product {
 	/**
 	 * Sincroniza un solo producto desde Verial a WooCommerce por SKU o nombre.
@@ -21,24 +24,73 @@ class Sync_Single_Product {
 	 * @param string                              $nombre Nombre del producto a sincronizar
 	 * @return array<string, mixed> Resultado de la sincronización con claves 'success' y 'message'
 	 */
-	public static function sync( \MiIntegracionApi\Core\ApiConnector $api_connector, string $sku = '', string $nombre = '' ): array {
+	public static function sync( \MiIntegracionApi\Core\ApiConnector $api_connector, string $sku = '', string $nombre = '', string $categoria = '', string $fabricante = '' ): array {
+		// Crear un logger para depuración
+		$logger = new \MiIntegracionApi\Helpers\Logger('sync-single-product');
+		$logger->info('Iniciando sincronización de producto individual', [
+			'sku' => $sku,
+			'nombre' => $nombre,
+			'categoria' => $categoria,
+			'fabricante' => $fabricante
+		]);
+		
+		// Verificar que la API esté configurada correctamente
+		if (empty($api_connector->get_api_base_url())) {
+			$logger->error('URL de API no configurada');
+			return array(
+				'success' => false,
+				'message' => 'Error de configuración: URL de API no configurada.',
+			);
+		}
+		
 		if ( ! class_exists( 'WooCommerce' ) ) {
+			$logger->error('WooCommerce no está activo');
 			return array(
 				'success' => false,
 				'message' => 'WooCommerce no está activo.',
 			);
 		}
-		if ( ! MI_Sync_Lock::acquire() ) {
+		
+		if ( ! SyncLock::acquire() ) {
+			$logger->warning('Intento de sincronización mientras otra está en curso');
 			return array(
 				'success' => false,
 				'message' => __( 'Ya hay una sincronización en curso.', 'mi-integracion-api' ),
 			);
 		}
+		
 		try {
 			/**
 			 * Obtener artículos de la API
 			 */
-			$productos = $api_connector->get_articulos();
+			$logger->info('Obteniendo artículos de la API');
+			
+			// Preparar parámetros para la solicitud a la API
+			$params = array();
+			
+			// Si tenemos un SKU, intentamos pasarlo como filtro a la API (puede ser específico de la implementación de Verial)
+			if (!empty($sku)) {
+				$params['referencia'] = $sku; // Intentar con 'referencia'
+				$params['referenciabarras'] = $sku; // Intentar con 'referenciabarras'
+				$logger->info('Añadiendo filtro de SKU a la petición API', ['sku' => $sku]);
+			}
+			
+			// Si tenemos un nombre, intentamos pasarlo como filtro a la API
+			if (!empty($nombre)) {
+				$params['nombre'] = $nombre;
+				$logger->info('Añadiendo filtro de nombre a la petición API', ['nombre' => $nombre]);
+			}
+			
+			$productos = $api_connector->get_articulos($params);
+			
+			// Registrar resultado de la llamada a la API
+			if (is_wp_error($productos)) {
+				$logger->error('Error al obtener artículos', ['error' => $productos->get_error_message()]);
+			} else {
+				$count = is_array($productos) ? count($productos) : 0;
+				$logger->info('Artículos obtenidos de la API', ['count' => $count]);
+			}
+			
 			/** @phpstan-ignore-next-line */
 			if ( is_wp_error( $productos ) ) {
 				/** @phpstan-ignore-next-line */
@@ -58,18 +110,79 @@ class Sync_Single_Product {
 			}
 			/** @var array<string, mixed>|null $producto */
 			$producto = null;
+			
+			// Normalizar la estructura de productos para el procesamiento
+			$articulos_normalizados = [];
+			
+			// Determinar el formato de la respuesta y normalizar
+			if (isset($productos['Articulos']) && is_array($productos['Articulos'])) {
+				$logger->info('Formato detectado: Array con clave Articulos');
+				$articulos_normalizados = $productos['Articulos'];
+			} elseif (isset($productos[0])) {
+				$logger->info('Formato detectado: Array simple de productos');
+				$articulos_normalizados = $productos;
+			} else {
+				// Si es un único objeto de producto (no en array)
+				if (isset($productos['Id']) || isset($productos['ReferenciaBarras']) || isset($productos['Nombre'])) {
+					$logger->info('Formato detectado: Producto único');
+					$articulos_normalizados = [$productos];
+				} else {
+					// Si recibimos algún formato desconocido, intentamos procesarlo lo mejor posible
+					$logger->warning('Formato desconocido de respuesta', ['keys' => array_keys($productos)]);
+					
+					// Si hay alguna otra clave que pueda contener productos
+					foreach ($productos as $key => $value) {
+						if (is_array($value) && !empty($value)) {
+							if (isset($value[0]) && (isset($value[0]['Id']) || isset($value[0]['ReferenciaBarras']))) {
+								$logger->info("Productos encontrados en clave: {$key}");
+								$articulos_normalizados = $value;
+								break;
+							}
+						}
+					}
+				}
+			}
+			
+			// Registrar parámetros de búsqueda
+			$logger->info('Buscando producto por criterios', [
+				'sku_busqueda' => $sku,
+				'nombre_busqueda' => $nombre,
+				'total_productos_normalizados' => count($articulos_normalizados)
+			]);
+			
+			// Registrar una muestra de los primeros productos para depuración
+			if (count($articulos_normalizados) > 0) {
+				$logger->info('Muestra del primer producto normalizado', [
+					'muestra' => $articulos_normalizados[0]
+				]);
+			}
+			
 			/** @var array<string, mixed> $p */
-			foreach ( $productos as $p ) {
+			foreach ( $articulos_normalizados as $p ) {
+				// Buscar por SKU en campo Referencia
 				if ( $sku && isset( $p['Referencia'] ) && is_string( $p['Referencia'] ) && $p['Referencia'] === $sku ) {
 					$producto = $p;
+					$logger->info('Producto encontrado por campo Referencia', ['sku' => $sku, 'nombre' => $p['Nombre'] ?? 'No especificado']);
 					break;
 				}
+				
+				// Buscar por SKU en campo ReferenciaBarras (corrección principal)
+				if ( $sku && isset( $p['ReferenciaBarras'] ) && is_string( $p['ReferenciaBarras'] ) && $p['ReferenciaBarras'] === $sku ) {
+					$producto = $p;
+					$logger->info('Producto encontrado por campo ReferenciaBarras', ['sku' => $sku, 'referenciaBarras' => $p['ReferenciaBarras'], 'nombre' => $p['Nombre'] ?? 'No especificado']);
+					break;
+				}
+				
+				// Buscar por nombre
 				if ( $nombre && isset( $p['Nombre'] ) && is_string( $p['Nombre'] ) && stripos( $p['Nombre'], $nombre ) !== false ) {
 					$producto = $p;
+					$logger->info('Producto encontrado por nombre', ['nombre_busqueda' => $nombre, 'nombre_encontrado' => $p['Nombre']]);
 					break;
 				}
 			}
+			
 			if ( ! $producto ) {
+				$logger->warning('No se encontró el producto solicitado', ['sku' => $sku, 'nombre' => $nombre]);
 				$error_message = __( 'No se encontró el producto solicitado.', 'mi-integracion-api' );
 				$error_message = is_string( $error_message ) ? $error_message : 'No se encontró el producto solicitado.';
 				return array(
@@ -77,12 +190,101 @@ class Sync_Single_Product {
 					'message' => $error_message,
 				);
 			}
-			/** @var array<string, mixed> $wc_data */
-			$wc_data = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc( $producto );
-			if ( isset( $wc_data['type'] ) && $wc_data['type'] === 'variable' ) {
+			$logger->info('Procesando datos del producto', ['producto_data' => $producto]);
+			
+			// Obtener las condiciones de tarifa para este producto
+			if (isset($producto['Id']) && !empty($producto['Id'])) {
+				try {
+					$logger->info('Obteniendo condiciones de tarifa para el producto', ['id_articulo' => $producto['Id']]);
+					$condiciones_tarifa = $api_connector->get_condiciones_tarifa($producto['Id']);
+					
+					if (is_wp_error($condiciones_tarifa)) {
+						$logger->warning('Error al obtener condiciones de tarifa', ['error' => $condiciones_tarifa->get_error_message()]);
+					} else {
+						$logger->info('Condiciones de tarifa obtenidas', ['condiciones' => $condiciones_tarifa]);
+						
+						// Actualizar precios del producto si hay condiciones disponibles
+						if (is_array($condiciones_tarifa) && !empty($condiciones_tarifa)) {
+							// Manejar la estructura específica que devuelve la API de Verial
+							$condiciones_lista = [];
+							
+							// Verificar si las condiciones vienen en formato CondicionesTarifa (formato oficial API Verial)
+							if (isset($condiciones_tarifa['CondicionesTarifa']) && is_array($condiciones_tarifa['CondicionesTarifa'])) {
+								$logger->info('Detectada estructura CondicionesTarifa en la respuesta');
+								$condiciones_lista = $condiciones_tarifa['CondicionesTarifa'];
+							} elseif (isset($condiciones_tarifa[0])) {
+								// Array de condiciones directo
+								$condiciones_lista = $condiciones_tarifa;
+							} elseif (isset($condiciones_tarifa['Precio'])) {
+								// Condición única
+								$condiciones_lista = [$condiciones_tarifa];
+							}
+							
+							// Procesar la primera condición de tarifa encontrada
+							if (!empty($condiciones_lista)) {
+								$condicion = $condiciones_lista[0];
+								
+								// Verificar si el precio existe en las condiciones
+								if (isset($condicion['Precio']) && is_numeric($condicion['Precio']) && $condicion['Precio'] > 0) {
+									$logger->info('Actualizando precio del producto con condiciones de tarifa', ['precio' => $condicion['Precio']]);
+									$producto['PVP'] = $condicion['Precio'];
+									
+									// Si hay descuento, calcular el precio final
+									if (isset($condicion['Dto']) && is_numeric($condicion['Dto']) && $condicion['Dto'] > 0) {
+										$descuento = ($condicion['Precio'] * $condicion['Dto']) / 100;
+										$precio_final = $condicion['Precio'] - $descuento;
+										$logger->info('Aplicando descuento al precio', [
+											'descuento_porcentaje' => $condicion['Dto'],
+											'descuento_valor' => $descuento,
+											'precio_final' => $precio_final
+										]);
+										$producto['PVPOferta'] = $precio_final;
+									}
+									
+									// Si hay descuento en euros por unidad
+									if (isset($condicion['DtoEurosXUd']) && is_numeric($condicion['DtoEurosXUd']) && $condicion['DtoEurosXUd'] > 0) {
+										$precio_final = $condicion['Precio'] - $condicion['DtoEurosXUd'];
+										$logger->info('Aplicando descuento en euros por unidad', [
+											'descuento_euros' => $condicion['DtoEurosXUd'],
+											'precio_final' => $precio_final
+										]);
+										$producto['PVPOferta'] = $precio_final;
+									}
+								}
+							}
+						}
+					}
+				} catch (\Exception $e) {
+					$logger->error('Excepción al obtener condiciones de tarifa', [
+						'error' => $e->getMessage(),
+						'trace' => $e->getTraceAsString()
+					]);
+				}
+			}
+			
+			/** @var \MiIntegracionApi\DTOs\ProductDTO|null $wc_data_dto */
+			$wc_data_dto = \MiIntegracionApi\Helpers\MapProduct::verial_to_wc($producto);
+			
+			// Verificar que el DTO se creó correctamente
+			if (!$wc_data_dto) {
+				$logger->error('No se pudo crear el DTO del producto');
+				return array(
+					'success' => false,
+					'message' => __('Error al procesar los datos del producto.', 'mi-integracion-api'),
+				);
+			}
+			
+			// Convertir el DTO a array para mantener compatibilidad con el código existente
+			$wc_data = $wc_data_dto->toArray();
+			$logger->info('Datos mapeados para WooCommerce', ['wc_data' => $wc_data]);
+			
+			if (isset($wc_data['type']) && $wc_data['type'] === 'variable') {
 				// Buscar producto existente por SKU
-				$wc_product_id = function_exists( 'wc_get_product_id_by_sku' ) && isset( $wc_data['sku'] ) && is_string( $wc_data['sku'] )
-					? wc_get_product_id_by_sku( $wc_data['sku'] )
+				$sku_to_search = isset($wc_data['sku']) && is_string($wc_data['sku']) ? $wc_data['sku'] : '';
+				$logger->info('Buscando producto variable por SKU', ['sku' => $sku_to_search]);
+				
+				$wc_product_id = function_exists('wc_get_product_id_by_sku') && !empty($sku_to_search)
+					? wc_get_product_id_by_sku($sku_to_search)
 					: 0;
 
 				$parent_id = $wc_product_id;
@@ -251,15 +453,59 @@ class Sync_Single_Product {
 						$wc_product->set_name( $wc_data['name'] );
 					}
 
-					// Establecer precio
+					// Establecer descripciones
+                    if ( isset( $wc_data['description'] ) && is_string( $wc_data['description'] ) ) {
+                        $wc_product->set_description( $wc_data['description'] );
+                    }
+                    if ( isset( $wc_data['short_description'] ) && is_string( $wc_data['short_description'] ) ) {
+                        $wc_product->set_short_description( $wc_data['short_description'] );
+                    }
+
+					// Establecer precios
 					if ( isset( $wc_data['price'] ) && is_scalar( $wc_data['price'] ) ) {
 						$wc_product->set_price( (string) $wc_data['price'] );
 					}
+					if ( isset( $wc_data['regular_price'] ) && is_scalar( $wc_data['regular_price'] ) ) {
+                        $wc_product->set_regular_price( (string) $wc_data['regular_price'] );
+                    }
+                    if ( isset( $wc_data['sale_price'] ) && is_scalar( $wc_data['sale_price'] ) && (float) $wc_data['sale_price'] > 0 ) {
+                        $wc_product->set_sale_price( (string) $wc_data['sale_price'] );
+                    }
 
 					// Establecer stock
-					if ( isset( $wc_data['stock'] ) && is_scalar( $wc_data['stock'] ) ) {
-						$wc_product->set_stock_quantity( (float) $wc_data['stock'] );
+					if ( isset( $wc_data['stock_quantity'] ) && is_scalar( $wc_data['stock_quantity'] ) ) {
+						$wc_product->set_stock_quantity( (float) $wc_data['stock_quantity'] );
 					}
+					if ( isset( $wc_data['stock_status'] ) && is_string( $wc_data['stock_status'] ) ) {
+                        $wc_product->set_stock_status( $wc_data['stock_status'] );
+                    }
+                    
+                    // Establecer dimensiones
+                    if ( isset( $wc_data['dimensions'] ) && is_array( $wc_data['dimensions'] ) ) {
+                        if ( isset( $wc_data['dimensions']['length'] ) && is_scalar( $wc_data['dimensions']['length'] ) ) {
+                            $wc_product->set_length( (string) $wc_data['dimensions']['length'] );
+                        }
+                        if ( isset( $wc_data['dimensions']['width'] ) && is_scalar( $wc_data['dimensions']['width'] ) ) {
+                            $wc_product->set_width( (string) $wc_data['dimensions']['width'] );
+                        }
+                        if ( isset( $wc_data['dimensions']['height'] ) && is_scalar( $wc_data['dimensions']['height'] ) ) {
+                            $wc_product->set_height( (string) $wc_data['dimensions']['height'] );
+                        }
+                    }
+                    if ( isset( $wc_data['weight'] ) && is_scalar( $wc_data['weight'] ) ) {
+                        $wc_product->set_weight( (string) $wc_data['weight'] );
+                    }
+                    
+                    // Establecer categorías
+                    if ( isset( $wc_data['categories'] ) && is_array( $wc_data['categories'] ) && !empty( $wc_data['categories'] ) ) {
+                        $wc_product->set_category_ids( $wc_data['categories'] );
+                    } elseif ( !empty( $categoria ) ) {
+                        // Intentar asignar la categoría seleccionada durante la sincronización
+                        $term = term_exists( $categoria, 'product_cat' );
+                        if ( $term !== 0 && $term !== null && is_array( $term ) ) {
+                            $wc_product->set_category_ids( [ $term['term_id'] ] );
+                        }
+                    }
 
 					// Guardar atributos complejos y bundle en meta datos del producto simple
 					if ( isset( $wc_data['complex_attributes'] ) && is_array( $wc_data['complex_attributes'] ) ) {
@@ -278,6 +524,9 @@ class Sync_Single_Product {
 
 					$wc_product->save();
 
+					// Procesar imágenes si existen
+					self::process_product_images($wc_product, $producto, $logger);
+                    
 					// --- FORZAR GUARDADO DEL MAPEADO DE PRODUCTO ---
 					if (isset($producto['Id']) && !empty($producto['Id'])) {
                         \MiIntegracionApi\Sync\SyncManager::get_instance()->update_product_mapping($wc_product_id, $producto['Id'], $sku);
@@ -313,17 +562,67 @@ class Sync_Single_Product {
                         $new_product->set_name( is_string( $default_name ) ? $default_name : 'Nuevo Producto' );
                     }
 
-                    // Establecer precio
+                    // Establecer descripciones
+                    if ( isset( $wc_data['description'] ) && is_string( $wc_data['description'] ) ) {
+                        $new_product->set_description( $wc_data['description'] );
+                    }
+                    if ( isset( $wc_data['short_description'] ) && is_string( $wc_data['short_description'] ) ) {
+                        $new_product->set_short_description( $wc_data['short_description'] );
+                    }
+
+                    // Establecer precios
                     if ( isset( $wc_data['price'] ) && is_scalar( $wc_data['price'] ) ) {
                         $new_product->set_price( (string) $wc_data['price'] );
                     }
+                    if ( isset( $wc_data['regular_price'] ) && is_scalar( $wc_data['regular_price'] ) ) {
+                        $new_product->set_regular_price( (string) $wc_data['regular_price'] );
+                    }
+                    if ( isset( $wc_data['sale_price'] ) && is_scalar( $wc_data['sale_price'] ) && (float) $wc_data['sale_price'] > 0 ) {
+                        $new_product->set_sale_price( (string) $wc_data['sale_price'] );
+                    }
 
                     // Establecer stock
-                    if ( isset( $wc_data['stock'] ) && is_scalar( $wc_data['stock'] ) ) {
-                        $new_product->set_stock_quantity( (float) $wc_data['stock'] );
+                    if ( isset( $wc_data['stock_quantity'] ) && is_scalar( $wc_data['stock_quantity'] ) ) {
+                        $new_product->set_stock_quantity( (float) $wc_data['stock_quantity'] );
+                    }
+                    if ( isset( $wc_data['stock_status'] ) && is_string( $wc_data['stock_status'] ) ) {
+                        $new_product->set_stock_status( $wc_data['stock_status'] );
+                    }
+
+                    // Establecer dimensiones
+                    if ( isset( $wc_data['dimensions'] ) && is_array( $wc_data['dimensions'] ) ) {
+                        if ( isset( $wc_data['dimensions']['length'] ) && is_scalar( $wc_data['dimensions']['length'] ) ) {
+                            $new_product->set_length( (string) $wc_data['dimensions']['length'] );
+                        }
+                        if ( isset( $wc_data['dimensions']['width'] ) && is_scalar( $wc_data['dimensions']['width'] ) ) {
+                            $new_product->set_width( (string) $wc_data['dimensions']['width'] );
+                        }
+                        if ( isset( $wc_data['dimensions']['height'] ) && is_scalar( $wc_data['dimensions']['height'] ) ) {
+                            $new_product->set_height( (string) $wc_data['dimensions']['height'] );
+                        }
+                    }
+                    if ( isset( $wc_data['weight'] ) && is_scalar( $wc_data['weight'] ) ) {
+                        $new_product->set_weight( (string) $wc_data['weight'] );
+                    }
+
+                    // Establecer categorías
+                    if ( isset( $wc_data['categories'] ) && is_array( $wc_data['categories'] ) && !empty( $wc_data['categories'] ) ) {
+                        $new_product->set_category_ids( $wc_data['categories'] );
+                    } elseif ( !empty( $categoria ) ) {
+                        // Intentar asignar la categoría seleccionada durante la sincronización
+                        $term = term_exists( $categoria, 'product_cat' );
+                        if ( $term !== 0 && $term !== null && is_array( $term ) ) {
+                            $new_product->set_category_ids( [ $term['term_id'] ] );
+                        }
                     }
 
                     $new_product_id = $new_product->save();
+                    
+                    // Procesar imágenes si existen
+					self::process_product_images($new_product, $producto, $logger);
+					
+					// Guardar nuevamente para asegurar que las imágenes se han guardado correctamente
+					$new_product->save();
 
                     // --- FORZAR GUARDADO DEL MAPEADO DE PRODUCTO ---
                     if (isset($producto['Id']) && !empty($producto['Id'])) {
@@ -484,17 +783,161 @@ class Sync_Single_Product {
 					'message' => $success_msg,
 				);
 			}
-			return array(
+			$result = array(
 				'success' => true,
 				'message' => $msg,
 			);
+			$logger->info('Sincronización finalizada con éxito', [
+				'product_id' => $wc_product_id ?? 0,
+				'result' => $result
+			]);
+			return $result;
 		} catch ( \Exception $e ) {
+			$error_message = $e->getMessage();
+			$logger->error('Error en sincronización: ' . $error_message, [
+				'exception' => get_class($e),
+				'trace' => $e->getTraceAsString()
+			]);
 			return array(
 				'success' => false,
-				'message' => $e->getMessage(),
+				'message' => $error_message,
 			);
 		} finally {
-			MI_Sync_Lock::release();
+			$logger->info('Liberando bloqueo de sincronización');
+			SyncLock::release();
+		}
+	}
+	
+	/**
+	 * Procesa las imágenes del producto de Verial y las asigna al producto de WooCommerce
+	 * 
+	 * @param \WC_Product $product Producto de WooCommerce al que asignar las imágenes
+	 * @param array $verial_product Datos del producto de Verial
+	 * @param \MiIntegracionApi\Helpers\Logger $logger Logger para registrar eventos
+	 * @return void
+	 */
+	private static function process_product_images(\WC_Product $product, array $verial_product, \MiIntegracionApi\Helpers\Logger $logger): void {
+		// Primero verificamos si hay URLs de imágenes en el producto de Verial
+		$image_urls = [];
+		
+		// Comprobar varios formatos posibles de imágenes en Verial
+		if (isset($verial_product['Imagenes']) && is_array($verial_product['Imagenes'])) {
+			// Si es un array de URLs de imágenes
+			foreach ($verial_product['Imagenes'] as $img) {
+				if (is_string($img) && !empty($img)) {
+					$image_urls[] = $img;
+				} elseif (is_array($img) && isset($img['URL']) && is_string($img['URL']) && !empty($img['URL'])) {
+					$image_urls[] = $img['URL'];
+				}
+			}
+		}
+		
+		// Si hay un campo imagen individual
+		if (isset($verial_product['Imagen']) && is_string($verial_product['Imagen']) && !empty($verial_product['Imagen'])) {
+			$image_urls[] = $verial_product['Imagen'];
+		}
+		
+		// Si no hay imágenes, no seguimos
+		if (empty($image_urls)) {
+			$logger->info('No se encontraron imágenes en el producto de Verial');
+			return;
+		}
+		
+		$logger->info('Procesando imágenes de producto', ['count' => count($image_urls)]);
+		
+		// Descargamos y asignamos cada imagen
+		$image_ids = [];
+		$featured_set = false;
+		
+		foreach ($image_urls as $url) {
+			// Descargar imagen y crear attachment
+			$image_id = self::download_and_attach_image($url, $product->get_id(), $logger);
+			
+			if ($image_id) {
+				$image_ids[] = $image_id;
+				
+				// La primera imagen válida la usamos como imagen destacada
+				if (!$featured_set) {
+					$product->set_image_id($image_id);
+					$featured_set = true;
+				}
+			}
+		}
+		
+		// Si tenemos más de una imagen, establecer galería
+		if (count($image_ids) > 1) {
+			// Quitamos la imagen principal de la galería para evitar duplicados
+			$gallery_ids = array_slice($image_ids, 1);
+			$product->set_gallery_image_ids($gallery_ids);
+		}
+	}
+	
+	/**
+	 * Descarga una imagen desde una URL y la adjunta a un producto
+	 * 
+	 * @param string $url URL de la imagen a descargar
+	 * @param int $product_id ID del producto al que adjuntar la imagen
+	 * @param \MiIntegracionApi\Helpers\Logger $logger Logger para registrar eventos
+	 * @return int|false ID del attachment creado o false si falla
+	 */
+	private static function download_and_attach_image(string $url, int $product_id, \MiIntegracionApi\Helpers\Logger $logger) {
+		// Verificar que la función de descarga exista
+		if (!function_exists('download_url') || !function_exists('media_handle_sideload')) {
+			require_once(ABSPATH . 'wp-admin/includes/file.php');
+			require_once(ABSPATH . 'wp-admin/includes/media.php');
+			require_once(ABSPATH . 'wp-admin/includes/image.php');
+		}
+		
+		// Limpiar la URL y añadir protocolo si falta
+		$url = trim($url);
+		if (!preg_match('~^(?:f|ht)tps?://~i', $url)) {
+			$url = 'https://' . $url;
+		}
+		
+		$logger->info('Intentando descargar imagen', ['url' => $url]);
+		
+		try {
+			// Descargar temporalmente la imagen
+			$temp_file = download_url($url);
+			
+			if (is_wp_error($temp_file)) {
+				$logger->error('Error al descargar imagen', ['error' => $temp_file->get_error_message()]);
+				return false;
+			}
+			
+			// Extraer nombre de archivo de la URL
+			$filename = basename(parse_url($url, PHP_URL_PATH));
+			
+			// Si no se pudo extraer, usar un nombre genérico
+			if (empty($filename) || strlen($filename) < 3) {
+				$filename = 'producto-' . $product_id . '-' . uniqid() . '.jpg';
+			}
+			
+			// Crear un array con los datos del archivo
+			$file_array = array(
+				'name'     => sanitize_file_name($filename),
+				'tmp_name' => $temp_file,
+				'error'    => 0,
+				'size'     => filesize($temp_file),
+			);
+			
+			// Subir el archivo al media library de WordPress
+			$attachment_id = media_handle_sideload($file_array, $product_id);
+			
+			// Eliminar el archivo temporal incluso si hubo error
+			@unlink($temp_file);
+			
+			if (is_wp_error($attachment_id)) {
+				$logger->error('Error al procesar imagen', ['error' => $attachment_id->get_error_message()]);
+				return false;
+			}
+			
+			$logger->info('Imagen procesada correctamente', ['id' => $attachment_id]);
+			return $attachment_id;
+			
+		} catch (\Exception $e) {
+			$logger->error('Excepción al procesar imagen', ['error' => $e->getMessage()]);
+			return false;
 		}
 	}
 }

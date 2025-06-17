@@ -50,7 +50,23 @@ class ApiHelpers {
 			}
 			
 			try {
-				return new ApiConnector($config);
+				// Crear un logger o usar el ya definido
+				if (class_exists('\\MiIntegracionApi\\Helpers\\Logger') && !isset($logger)) {
+					$logger = new \MiIntegracionApi\Helpers\Logger('apihelpers');
+				}
+				
+				// Crear el ApiConnector con el logger
+				$api_connector = new ApiConnector($logger);
+				
+				// Configurar API URL y sesión WCF
+				if (!empty($config['api_url'])) {
+					$api_connector->set_api_url($config['api_url']);
+				}
+				if (!empty($config['sesionwcf'])) {
+					$api_connector->set_sesion_wcf($config['sesionwcf']);
+				}
+				
+				return $api_connector;
 			} catch (\Exception $e) {
 				// Log del error si el logger está disponible
 				if (class_exists('\\MiIntegracionApi\\Helpers\\Logger')) {

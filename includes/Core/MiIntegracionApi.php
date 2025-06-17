@@ -4,6 +4,20 @@ namespace MiIntegracionApi\Core;
 class MiIntegracionApi {
     private $connector;
     private $logger;
+    private static $instance = null;
+    
+    /**
+     * Obtiene la instancia única de esta clase (patrón Singleton)
+     * 
+     * @return MiIntegracionApi Instancia única de MiIntegracionApi
+     */
+    public static function get_instance(): self {
+        if (self::$instance === null) {
+            self::$instance = new self();
+            self::$instance->init();
+        }
+        return self::$instance;
+    }
 
     public function init(): void {
         try {
@@ -15,15 +29,28 @@ class MiIntegracionApi {
             // Obtener las opciones de configuración
             $options = get_option('mi_integracion_api_ajustes', array());
             
-            // Inicializar el conector API con la configuración
-            $config = [
-                'api_url' => isset($options['mia_url_base']) ? $options['mia_url_base'] : '',
-                'sesionwcf' => isset($options['mia_numero_sesion']) ? $options['mia_numero_sesion'] : '18'
-            ];
+            // Parámetros para el conector API
+            $api_url = isset($options['mia_url_base']) ? $options['mia_url_base'] : '';
+            $sesion = isset($options['mia_numero_sesion']) ? $options['mia_numero_sesion'] : '18';
+            
+            // Configurar max retries y timeout
+            $max_retries = isset($options['mia_max_retries']) ? intval($options['mia_max_retries']) : 3;
+            $retry_delay = isset($options['mia_retry_delay']) ? intval($options['mia_retry_delay']) : 2;
+            $timeout = isset($options['mia_timeout']) ? intval($options['mia_timeout']) : 30;
 
             // Verificar que la clase ApiConnector exista antes de instanciarla
             if (class_exists('\\MiIntegracionApi\\Core\\ApiConnector')) {
-                $this->connector = new ApiConnector($config);
+                // Pasar el logger como primer parámetro y los demás parámetros según el constructor
+                $this->connector = new ApiConnector(
+                    $this->logger,  // Pasar el logger como primer parámetro
+                    $max_retries,   // Parámetro max_retries
+                    $retry_delay,   // Parámetro retry_delay
+                    $timeout        // Parámetro timeout
+                );
+                
+                // Configurar el API Connector después de inicializarlo
+                $this->connector->set_api_url($api_url);
+                $this->connector->set_sesion_wcf($sesion);
             } else {
                 $this->log_error('Clase ApiConnector no encontrada. Algunas funcionalidades no estarán disponibles.');
             }
@@ -47,10 +74,13 @@ class MiIntegracionApi {
 
             // Inicializar menú de administración
             if (class_exists('\\MiIntegracionApi\\Admin\\AdminMenu')) {
+                error_log('Inicializando AdminMenu - ' . date('Y-m-d H:i:s'));
                 $admin_menu = new \MiIntegracionApi\Admin\AdminMenu();
                 $admin_menu->init(); // Inicializar el menú de administración
+                error_log('AdminMenu inicializado correctamente');
             } else {
                 $this->log_error('Clase AdminMenu no encontrada. El menú de administración no estará disponible.');
+                error_log('ERROR: Clase AdminMenu no encontrada - ' . date('Y-m-d H:i:s'));
             }
 
             // Inicializar assets

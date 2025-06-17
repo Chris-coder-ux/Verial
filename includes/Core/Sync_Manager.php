@@ -94,7 +94,8 @@ class Sync_Manager {
 	private function __construct() {
 		$this->logger = new LogManager('sync-manager');
 		$this->sanitizer = new DataSanitizer();
-		$this->api_connector = new ApiConnector();
+		// Crear ApiConnector con el logger y valores predeterminados para los reintentos
+		$this->api_connector = new ApiConnector($this->logger);
 		$this->config_manager = Config_Manager::get_instance();
 		$this->metrics = new SyncMetrics();
 		$this->load_sync_status();

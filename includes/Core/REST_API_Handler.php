@@ -148,11 +148,14 @@ class REST_API_Handler {
 		// Obtener las opciones de configuración
 		$options = get_option('mi_integracion_api_ajustes', array());
 		// Instanciar el conector API con la configuración
-		$config = [
-			'api_url' => isset($options['mia_url_base']) ? $options['mia_url_base'] : '',
-			'sesionwcf' => isset($options['mia_numero_sesion']) ? $options['mia_numero_sesion'] : '18'
-		];
-		$api_connector = new \MiIntegracionApi\Core\ApiConnector($config);
+		$logger = new \MiIntegracionApi\Helpers\Logger('rest-api-handler');
+		$api_connector = new \MiIntegracionApi\Core\ApiConnector($logger);
+		
+		// Configurar la URL de la API y el número de sesión
+		$api_url = isset($options['mia_url_base']) ? $options['mia_url_base'] : '';
+		$sesion_wcf = isset($options['mia_numero_sesion']) ? $options['mia_numero_sesion'] : '18';
+		$api_connector->set_api_url($api_url);
+		$api_connector->set_sesion_wcf($sesion_wcf);
 
 		// Endpoint: Clientes
 		$clientes_endpoint = new \MiIntegracionApi\Endpoints\ClientesWS( $api_connector );

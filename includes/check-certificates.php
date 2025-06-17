@@ -73,7 +73,7 @@ $logger->setOutput(new class() {
 $ssl_config = new SSLConfigManager($logger);
 $cert_cache = new CertificateCache($logger);
 $cert_rotation = new CertificateRotation($logger);
-$api_connector = new ApiConnector(['logger' => $logger]);
+$api_connector = new ApiConnector($logger);
 
 /**
  * Verificar el estado de los certificados

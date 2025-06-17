@@ -68,7 +68,7 @@ class SSLCertificatesManager {
      */
     public function __construct() {
         $this->logger = new \MiIntegracionApi\Helpers\Logger('ssl_admin');
-        $this->api_connector = new ApiConnector(['logger' => $this->logger]);
+        $this->api_connector = new ApiConnector($this->logger);
         
         $this->ssl_config = new SSLConfigManager($this->logger);
         $this->cert_rotation = new CertificateRotation($this->logger);

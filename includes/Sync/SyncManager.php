@@ -112,7 +112,7 @@ class SyncManager {
         
         // Inicializar ApiConnector con manejo de excepciones
         try {
-            $this->api_connector = new \MiIntegracionApi\Core\ApiConnector();
+            $this->api_connector = new \MiIntegracionApi\Core\ApiConnector($this->logger);
             $this->logger->log('[SUCCESS] SyncManager inicializado correctamente con ApiConnector', \MiIntegracionApi\Helpers\Logger::LEVEL_INFO);
         } catch (\Exception $e) {
             $this->logger->log('[ERROR] Error al inicializar ApiConnector en SyncManager: ' . $e->getMessage(), \MiIntegracionApi\Helpers\Logger::LEVEL_ERROR);
@@ -924,7 +924,7 @@ class SyncManager {
      * @param string $sku SKU del producto
      * @return bool true si fue exitoso, false si falló
      */
-    private function update_product_mapping($wc_id, $verial_id, $sku) {
+    public function update_product_mapping($wc_id, $verial_id, $sku) {
         try {
             global $wpdb;
             $table_name = $wpdb->prefix . 'verial_product_mapping';
@@ -1169,7 +1169,7 @@ class SyncManager {
             try {
                 if (class_exists('MiIntegracionApi\\Core\\ApiConnector')) {
                     $this->logger->log("Intentando reinicializar el conector API", 'info');
-                    $this->api_connector = new \MiIntegracionApi\Core\ApiConnector();
+                    $this->api_connector = new \MiIntegracionApi\Core\ApiConnector($this->logger);
                     
                     if (!method_exists($this->api_connector, 'get_articulos')) {
                         throw new \Exception("Método get_articulos() no disponible después de la reinicialización");

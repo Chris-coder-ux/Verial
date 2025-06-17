@@ -31,7 +31,10 @@ class AjaxSync {
                 'wp_ajax_mi_sync_get_categorias',
                 'wp_ajax_mi_sync_get_fabricantes',
                 'wp_ajax_mi_sync_autocomplete_sku',
+                'wp_ajax_mi_sync_search_product',
                 'wp_ajax_mi_integracion_api_sync_clients_job_batch',
+                'wp_ajax_mi_get_categorias',
+                'wp_ajax_mi_get_fabricantes',
             ]
         ], 'sync-debug');
 		add_action( 'wp_ajax_mia_sync_progress', [self::class, 'sync_progress_callback'] );
@@ -47,7 +50,11 @@ class AjaxSync {
 		add_action( 'wp_ajax_mi_sync_get_categorias', [self::class, 'get_categorias'] );
 		add_action( 'wp_ajax_mi_sync_get_fabricantes', [self::class, 'get_fabricantes'] );
 		add_action( 'wp_ajax_mi_sync_autocomplete_sku', [self::class, 'autocomplete_sku'] );
+		add_action( 'wp_ajax_mi_sync_search_product', [self::class, 'search_product'] );
 		add_action( 'wp_ajax_mi_integracion_api_sync_clients_job_batch', [self::class, 'sync_clients_job_batch'] );
+        // Añadir compatibilidad con nombres de acciones utilizados en JS
+		add_action( 'wp_ajax_mi_get_categorias', [self::class, 'get_categorias'] );
+		add_action( 'wp_ajax_mi_get_fabricantes', [self::class, 'get_fabricantes'] );
 	}
 
 	public static function store_sync_progress( $porcentaje, $mensaje, $estadisticas = array() ) {
@@ -582,8 +589,30 @@ class AjaxSync {
 		if ( ! class_exists( '\MiIntegracionApi\Sync\SyncSingleProduct' ) ) {
 			require_once dirname(__DIR__) . '/Sync/SyncSingleProduct.php';
 		}
-		$api_connector = new \MiIntegracionApi\Core\ApiConnector();
+		if ( ! class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+            require_once dirname(__DIR__) . '/Helpers/Logger.php';
+        }
+		$logger = new \MiIntegracionApi\Helpers\Logger('ajax-sync-single-product');
+		$api_connector = new \MiIntegracionApi\Core\ApiConnector($logger);
+		
+		// Configurar la URL de la API y la sesión WCF
+        $api_url = get_option('mi_integracion_api_url', '');
+        $sesion_wcf = get_option('mi_integracion_api_sesion_wcf', '');
+        if (!empty($api_url)) {
+            $api_connector->set_api_url($api_url);
+        }
+        if (!empty($sesion_wcf)) {
+            $api_connector->set_sesion_wcf($sesion_wcf);
+        }
+        $logger->info('ApiConnector inicializado para sincronización de producto individual con URL: ' . $api_url);
+        
 		$resultado = \MiIntegracionApi\Sync\SyncSingleProduct::sync($api_connector, $sku, $nombre, $categoria, $fabricante);
+		
+		// Registrar el resultado para depuración
+		error_log('[MI] Resultado de sincronización de producto individual: ' . print_r($resultado, true));
+		$logger->info('Resultado de sincronización: ' . ($resultado['success'] ? 'ÉXITO' : 'ERROR') . ' - ' . 
+			($resultado['message'] ?? 'Sin mensaje'));
+		
 		if ( is_array( $resultado ) && ! empty( $resultado['success'] ) ) {
 			wp_send_json_success( array( 'message' => $resultado['message'] ?? __( 'Producto sincronizado correctamente.', 'mi-integracion-api' ) ) );
 		} else {
@@ -600,28 +629,84 @@ class AjaxSync {
             wp_send_json_error( array( 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ) );
         }
         if ( ! class_exists( '\MiIntegracionApi\Core\ApiConnector' ) ) {
-            require_once dirname(__DIR__) . '/Core/ApiConnector.php';
+            require_once dirname(__DIR__ ) . '/Core/ApiConnector.php';
         }
-        $api_connector = new \MiIntegracionApi\Core\ApiConnector();
+        if ( ! class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+            require_once dirname(__DIR__ ) . '/Helpers/Logger.php';
+        }
+        $logger = new \MiIntegracionApi\Helpers\Logger('ajax-categorias');
+        $api_connector = new \MiIntegracionApi\Core\ApiConnector($logger);
+        
+        // Configurar la URL de la API y la sesión WCF
+        $api_url = get_option('mi_integracion_api_url', '');
+        $sesion_wcf = get_option('mi_integracion_api_sesion_wcf', '');
+        if (!empty($api_url)) {
+            $api_connector->set_api_url($api_url);
+        }
+        if (!empty($sesion_wcf)) {
+            $api_connector->set_sesion_wcf($sesion_wcf);
+        }
+        $logger->info('ApiConnector inicializado para categorías con URL: ' . $api_url);
         $categorias = $api_connector->get_categorias();
         error_log('[MI] Respuesta cruda get_categorias: ' . print_r($categorias, true));
+        
         if ( is_wp_error($categorias) ) {
             error_log('[MI] Error al obtener categorías: ' . $categorias->get_error_message());
             wp_send_json_error( array( 'message' => $categorias->get_error_message() ) );
         }
+        
         $categorias_list = [];
-        if (is_array($categorias) && isset($categorias['Categorias']) && is_array($categorias['Categorias'])) {
-            foreach ($categorias['Categorias'] as $cat) {
-                $categorias_list[] = [
-                    'id' => $cat['Id'] ?? $cat['id'] ?? '',
-                    'nombre' => $cat['Nombre'] ?? $cat['nombre'] ?? '',
-                ];
+        
+        // Intentar extraer categorías de varios formatos de respuesta posibles
+        if (is_array($categorias)) {
+            // Formato 1: Respuesta con índice 'Categorias'
+            if (isset($categorias['Categorias']) && is_array($categorias['Categorias'])) {
+                foreach ($categorias['Categorias'] as $cat) {
+                    if (isset($cat['Id']) || isset($cat['id']) || isset($cat['Nombre']) || isset($cat['nombre'])) {
+                        $categorias_list[] = [
+                            'id' => $cat['Id'] ?? $cat['id'] ?? '',
+                            'nombre' => $cat['Nombre'] ?? $cat['nombre'] ?? '',
+                        ];
+                    }
+                }
+            }
+            // Formato 2: Array de categorías directo
+            elseif (isset($categorias[0]) && (isset($categorias[0]['Id']) || isset($categorias[0]['id']))) {
+                foreach ($categorias as $cat) {
+                    $categorias_list[] = [
+                        'id' => $cat['Id'] ?? $cat['id'] ?? '',
+                        'nombre' => $cat['Nombre'] ?? $cat['nombre'] ?? '',
+                    ];
+                }
+            }
+            // Formato 3: Objeto plano con id => nombre
+            elseif (count($categorias) > 0 && !isset($categorias[0])) {
+                foreach ($categorias as $id => $nombre) {
+                    if (is_string($nombre) || is_numeric($nombre)) {
+                        $categorias_list[] = [
+                            'id' => $id,
+                            'nombre' => $nombre,
+                        ];
+                    }
+                }
             }
         }
+        
+        // Si no se encontraron categorías, registrar y proporcionar valores por defecto
         if (empty($categorias_list)) {
             error_log('[MI] No se encontraron categorías válidas en la respuesta.');
+            $logger->warning('Respuesta de categorías vacía o en formato no reconocido', [
+                'respuesta_cruda' => $categorias
+            ]);
+            
+            // Añadir una categoría por defecto para que el formulario funcione
+            $categorias_list[] = [
+                'id' => '0',
+                'nombre' => 'Categoría por defecto',
+            ];
         }
-        wp_send_json_success( array( 'categorias' => $categorias_list ) );
+        
+        wp_send_json_success( array( 'categories' => $categorias_list ) );
     }
 
     /**
@@ -635,29 +720,89 @@ class AjaxSync {
         if ( ! class_exists( '\MiIntegracionApi\Core\ApiConnector' ) ) {
             require_once dirname(__DIR__) . '/Core/ApiConnector.php';
         }
-        $api_connector = new \MiIntegracionApi\Core\ApiConnector();
+        if ( ! class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+            require_once dirname(__DIR__) . '/Helpers/Logger.php';
+        }
+        $logger = new \MiIntegracionApi\Helpers\Logger('ajax-fabricantes');
+        $api_connector = new \MiIntegracionApi\Core\ApiConnector($logger);
+        
+        // Configurar la URL de la API y la sesión WCF
+        $api_url = get_option('mi_integracion_api_url', '');
+        $sesion_wcf = get_option('mi_integracion_api_sesion_wcf', '');
+        if (!empty($api_url)) {
+            $api_connector->set_api_url($api_url);
+        }
+        if (!empty($sesion_wcf)) {
+            $api_connector->set_sesion_wcf($sesion_wcf);
+        }
+        $logger->info('ApiConnector inicializado para fabricantes con URL: ' . $api_url);
+        
         if (method_exists($api_connector, 'get_fabricantes')) {
             $fabricantes = $api_connector->get_fabricantes();
         } else {
             $fabricantes = [];
             error_log('[MI] El método get_fabricantes no existe en ApiConnector');
         }
+        
         error_log('[MI] Respuesta cruda get_fabricantes: ' . print_r($fabricantes, true));
+        
         if ( is_wp_error($fabricantes) ) {
             error_log('[MI] Error al obtener fabricantes: ' . $fabricantes->get_error_message());
             wp_send_json_error( array( 'message' => $fabricantes->get_error_message() ) );
         }
-        // Mapeo correcto para el frontend
+        
         $fabricantes_list = [];
-        if (is_array($fabricantes) && isset($fabricantes['Fabricantes']) && is_array($fabricantes['Fabricantes'])) {
-            foreach ($fabricantes['Fabricantes'] as $fab) {
-                $fabricantes_list[] = [
-                    'id' => $fab['Id'] ?? '',
-                    'nombre' => $fab['Nombre'] ?? '',
-                ];
+        
+        // Intentar extraer fabricantes de varios formatos de respuesta posibles
+        if (is_array($fabricantes)) {
+            // Formato 1: Respuesta con índice 'Fabricantes'
+            if (isset($fabricantes['Fabricantes']) && is_array($fabricantes['Fabricantes'])) {
+                foreach ($fabricantes['Fabricantes'] as $fab) {
+                    if (isset($fab['Id']) || isset($fab['id']) || isset($fab['Nombre']) || isset($fab['nombre'])) {
+                        $fabricantes_list[] = [
+                            'id' => $fab['Id'] ?? $fab['id'] ?? '',
+                            'nombre' => $fab['Nombre'] ?? $fab['nombre'] ?? '',
+                        ];
+                    }
+                }
+            }
+            // Formato 2: Array de fabricantes directo
+            elseif (isset($fabricantes[0]) && (isset($fabricantes[0]['Id']) || isset($fabricantes[0]['id']))) {
+                foreach ($fabricantes as $fab) {
+                    $fabricantes_list[] = [
+                        'id' => $fab['Id'] ?? $fab['id'] ?? '',
+                        'nombre' => $fab['Nombre'] ?? $fab['nombre'] ?? '',
+                    ];
+                }
+            }
+            // Formato 3: Objeto plano con id => nombre
+            elseif (count($fabricantes) > 0 && !isset($fabricantes[0])) {
+                foreach ($fabricantes as $id => $nombre) {
+                    if (is_string($nombre) || is_numeric($nombre)) {
+                        $fabricantes_list[] = [
+                            'id' => $id,
+                            'nombre' => $nombre,
+                        ];
+                    }
+                }
             }
         }
-        wp_send_json_success( array( 'fabricantes' => $fabricantes_list ) );
+        
+        // Si no se encontraron fabricantes, registrar y proporcionar valores por defecto
+        if (empty($fabricantes_list)) {
+            error_log('[MI] No se encontraron fabricantes válidos en la respuesta.');
+            $logger->warning('Respuesta de fabricantes vacía o en formato no reconocido', [
+                'respuesta_cruda' => $fabricantes
+            ]);
+            
+            // Añadir un fabricante por defecto para que el formulario funcione
+            $fabricantes_list[] = [
+                'id' => '0',
+                'nombre' => 'Fabricante por defecto',
+            ];
+        }
+        
+        wp_send_json_success( array( 'manufacturers' => $fabricantes_list ) );
     }
 
 	/**
@@ -694,6 +839,192 @@ class AjaxSync {
         wp_send_json($results);
 	}
 
+	/**
+	 * Busca productos en Verial para el autocompletado
+	 * Compatible con el nuevo formato requerido por el frontend
+	 */
+	public static function search_product() {
+		// Iniciar logger para diagnóstico
+		$logger = new \MiIntegracionApi\Helpers\Logger('ajax-product-search');
+        $logger->info('Iniciando búsqueda de producto', [
+            'request' => $_REQUEST,
+            'get' => $_GET,
+            'post' => $_POST
+        ]);
+		
+		// Verificar permisos
+		if ( ! current_user_can( 'manage_options' ) ) {
+			$logger->error('Usuario sin permisos');
+			wp_send_json_error( array( 'message' => __( 'No tienes permisos suficientes.', 'mi-integracion-api' ) ) );
+			return;
+		}
+		
+		// Extraer parámetros de búsqueda
+		$term = isset($_REQUEST['search']) ? sanitize_text_field($_REQUEST['search']) : '';
+		$field = isset($_REQUEST['field']) ? sanitize_text_field($_REQUEST['field']) : 'id';
+		
+		$logger->info('Parámetros de búsqueda', [
+			'term' => $term,
+			'field' => $field
+		]);
+		
+		if (empty($term)) {
+			$logger->warning('Término de búsqueda vacío');
+			wp_send_json([]);
+			return;
+		}
+		
+		// Cargar dependencias
+		if ( ! class_exists( '\MiIntegracionApi\Core\ApiConnector' ) ) {
+			require_once dirname(__DIR__) . '/Core/ApiConnector.php';
+		}
+        
+        if ( ! class_exists( '\MiIntegracionApi\Helpers\Logger' ) ) {
+            require_once dirname(__DIR__) . '/Helpers/Logger.php';
+        }
+        
+        $logger = new \MiIntegracionApi\Helpers\Logger('ajax-product-search');
+        $api_connector = new \MiIntegracionApi\Core\ApiConnector($logger);
+        
+        // Configurar la URL de la API y la sesión WCF
+        $api_url = get_option('mi_integracion_api_url', '');
+        $sesion_wcf = get_option('mi_integracion_api_sesion_wcf', '');
+        if (!empty($api_url)) {
+            $api_connector->set_api_url($api_url);
+        }
+        if (!empty($sesion_wcf)) {
+            $api_connector->set_sesion_wcf($sesion_wcf);
+        }
+		
+		try {
+			// Preparar los parámetros de búsqueda según el campo
+			$search_params = [];
+			
+			if ($field === 'id') {
+				// Si buscamos por ID/SKU, enviamos en ambos campos para asegurar la compatibilidad
+				$search_params['referenciabarras'] = $term; // Campo principal para SKU
+				$search_params['referencia'] = $term;      // Campo secundario por compatibilidad
+				$logger->info('Buscando por SKU/ID', $search_params);
+			} else if ($field === 'nombre') {
+				$search_params['nombre'] = $term;
+				$logger->info('Buscando por nombre', $search_params);
+			} else {
+				// Búsqueda general
+				$search_params['buscar'] = $term;
+				$logger->info('Búsqueda general', $search_params);
+			}
+			
+			$productos = $api_connector->get_articulos($search_params);
+			
+			if (is_wp_error($productos)) {
+				$logger->error('Error en API', [
+					'message' => $productos->get_error_message(),
+					'code' => $productos->get_error_code()
+				]);
+				wp_send_json_error(['message' => $productos->get_error_message()]);
+				return;
+			}
+			
+			// Registrar estructura de la respuesta para depuración
+			$logger->info('Estructura de respuesta', [
+				'es_array' => is_array($productos),
+				'tiene_articulos' => isset($productos['Articulos']),
+				'articulos_es_array' => isset($productos['Articulos']) && is_array($productos['Articulos']),
+				'keys' => is_array($productos) ? array_keys($productos) : 'no_es_array',
+				'primer_elemento' => is_array($productos) && !empty($productos) ? (isset($productos[0]) ? array_keys($productos[0]) : 'no_tiene_indice_0') : 'array_vacío',
+			]);
+			
+			// Procesar la respuesta que puede venir en diferentes formatos
+			$articulos = [];
+			if (is_array($productos)) {
+				if (isset($productos['Articulos']) && is_array($productos['Articulos'])) {
+					// Formato 1: Respuesta con índice 'Articulos'
+					$articulos = $productos['Articulos'];
+					$logger->info('Productos recibidos en formato "Articulos"', ['count' => count($articulos)]);
+				} else if (isset($productos[0]) && (isset($productos[0]['Id']) || isset($productos[0]['ReferenciaBarras']) || isset($productos[0]['Nombre']))) {
+					// Formato 2: Array directo de productos
+					$articulos = $productos;
+					$logger->info('Productos recibidos como array directo', ['count' => count($articulos)]);
+				} else if (!empty($productos)) {
+					// Formato 3: Otro formato, intentar procesar de todas formas
+					$articulos = $productos;
+					$logger->warning('Formato de productos desconocido, procesando como array directo', ['count' => count($articulos), 'muestra' => array_slice($productos, 0, 1)]);
+				}
+			}
+			
+			$results = [];
+			
+			foreach ($articulos as $p) {
+				$add_to_results = false;
+				$id_value = '';
+				$label = '';
+                $desc = '';
+				
+				// Buscar según el campo especificado
+				if ($field === 'id') {
+					// Prioridad 1: ReferenciaBarras (campo principal para SKU)
+					if (isset($p['ReferenciaBarras']) && !empty($p['ReferenciaBarras']) && stripos($p['ReferenciaBarras'], $term) !== false) {
+						$id_value = $p['ReferenciaBarras'];
+						$label = 'SKU: ' . $p['ReferenciaBarras'];
+						$desc = isset($p['Nombre']) ? $p['Nombre'] : '';
+						$add_to_results = true;
+					} 
+					// Prioridad 2: Id como respaldo
+					else if (isset($p['Id']) && stripos((string)$p['Id'], $term) !== false) {
+						$id_value = (string)$p['Id'];
+						$label = 'ID: ' . $p['Id'];
+						$desc = isset($p['Nombre']) ? $p['Nombre'] : '';
+						$add_to_results = true;
+					}
+					// Prioridad 3: Referencia como alternativa
+					else if (isset($p['Referencia']) && !empty($p['Referencia']) && stripos($p['Referencia'], $term) !== false) {
+						$id_value = $p['Referencia'];
+						$label = 'Ref: ' . $p['Referencia'];
+						$desc = isset($p['Nombre']) ? $p['Nombre'] : '';
+						$add_to_results = true;
+					}
+				} 
+				else if ($field === 'nombre' && isset($p['Nombre']) && stripos($p['Nombre'], $term) !== false) {
+					// Búsqueda por nombre
+					// Para el valor de ID, preferimos ReferenciaBarras como SKU
+					if (isset($p['ReferenciaBarras']) && !empty($p['ReferenciaBarras'])) {
+						$id_value = $p['ReferenciaBarras'];
+						$desc = 'SKU: ' . $p['ReferenciaBarras'];
+					} else if (isset($p['Id'])) {
+						$id_value = (string)$p['Id'];
+						$desc = 'ID: ' . $p['Id'];
+					}
+					$label = $p['Nombre'];
+					$add_to_results = true;
+				}
+				
+				if ($add_to_results && !empty($id_value)) {
+					$results[] = [
+						'id' => $id_value,
+						'label' => $label,
+						'value' => $id_value,
+						'desc' => $desc
+					];
+				}
+			}
+			
+			$logger->info('Resultados encontrados', ['count' => count($results)]);
+			
+			// Devolver resultados directamente sin wp_send_json_success para mantener
+            // compatibilidad con jQuery UI Autocomplete
+			wp_send_json($results);
+			
+		} catch (\Exception $e) {
+			$logger->error('Excepción en search_product', [
+				'message' => $e->getMessage(),
+				'file' => $e->getFile(),
+				'line' => $e->getLine(),
+				'trace' => $e->getTraceAsString()
+			]);
+			wp_send_json_error(['message' => 'Error al buscar productos: ' . $e->getMessage()]);
+		}
+	}
+	
 	/**
 	 * Obtiene el estado detallado de la sincronización en curso
 	 * 

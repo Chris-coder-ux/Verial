@@ -235,7 +235,17 @@ class AdminMenu {
             array( $this, "display_mapping_page" )
            );
          
-           add_submenu_page(
+           // Agregar página de sincronización individual
+        add_submenu_page(
+            $this->menu_id,
+            __( "Sincronización Individual", "mi-integracion-api" ),
+            __( "Sincronización Individual", "mi-integracion-api" ),
+            "manage_options",
+            "mi-sync-single-product",
+            array( $this, "display_sync_single_product_page" )
+        );
+        
+        add_submenu_page(
             $this->menu_id,
             __( 'Registro de Errores', 'mi-integracion-api' ),
             __( 'Registro de Errores', 'mi-integracion-api' ),
@@ -386,6 +396,19 @@ class AdminMenu {
         } else {
             $this->render_page( "mapping" );
         }
+    }
+   
+    /**
+     * Muestra la página de sincronización individual.
+     *
+     * @since 1.1.0
+     */
+    public function display_sync_single_product_page() {
+    	if ( class_exists( "MiIntegracionApi\\Admin\\SyncSingleProductPage" ) ) {
+    		\MiIntegracionApi\Admin\SyncSingleProductPage::render();
+    	} else {
+    		$this->render_page( "sync-single-product" );
+    	}
     }
    
     /**
@@ -587,6 +610,53 @@ class AdminMenu {
                 true
             );
             $this->logger->info('Enqueued mapping-app.js');
+        }
+
+        // Script para la página de sincronización individual de productos
+        if ( $hook_suffix === 'mi-integracion-api_page_mi-sync-single-product' ) {
+            // Asegurar que jQuery UI y sus componentes estén cargados correctamente
+            wp_enqueue_script('jquery');
+            wp_enqueue_script('jquery-ui-core');
+            wp_enqueue_script('jquery-ui-autocomplete');
+            wp_enqueue_script('jquery-ui-button');
+            wp_enqueue_script('jquery-ui-tooltip');
+            
+            // Añadir estilos de jQuery UI para mejorar la apariencia del autocompletado
+            wp_enqueue_style(
+                'jquery-ui-style',
+                'https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css',
+                array(),
+                '1.13.2'
+            );
+            
+            // Añadir el script principal de autocompletado con todas sus dependencias
+            wp_enqueue_script(
+                'mi-integracion-api-sync-single-product',
+                $this->assets_url . 'js/sync-single-product.js',
+                array('jquery', 'jquery-ui-core', 'jquery-ui-autocomplete', 'jquery-ui-button', 'mi-integracion-api-utils'),
+                MiIntegracionApi_VERSION,
+                true
+            );
+            
+            // Configuración para el script
+            wp_localize_script(
+                'mi-integracion-api-sync-single-product',
+                'miSyncSingleProduct',
+                array(
+                    'ajaxUrl' => admin_url('admin-ajax.php'),
+                    'nonce' => wp_create_nonce('mi_sync_single_product'),
+                    'searchNonce' => wp_create_nonce('mi_sync_search_product'), // Nonce específico para búsquedas
+                    'i18n' => array(
+                        'procesando' => __('Procesando...', 'mi-integracion-api'),
+                        'exito' => __('Producto sincronizado correctamente', 'mi-integracion-api'),
+                        'error' => __('Error al sincronizar el producto', 'mi_integracion_api'),
+                        'buscando' => __('Buscando productos...', 'mi-integracion-api'),
+                        'noResultados' => __('No se encontraron productos', 'mi-integracion-api')
+                    )
+                )
+            );
+            
+            $this->logger->info('Enqueued sync-single-product.js with jQuery UI Autocomplete');
         }
 
         // Scripts que se aplican a todas las páginas de administración del plugin

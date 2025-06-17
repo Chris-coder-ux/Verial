@@ -34,8 +34,7 @@ class SyncSingleProduct {
             require_once __DIR__ . '/Sync_Single_Product.php';
         }
         
-        // Crear una instancia y llamar al método de sincronización
-        $sync_product = new Sync_Single_Product();
-        return $sync_product->sync($api_connector, $sku, $nombre, $categoria, $fabricante);
+        // Llamar al método estático sync
+        return Sync_Single_Product::sync($api_connector, $sku, $nombre, $categoria, $fabricante);
     }
 }
