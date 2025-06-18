@@ -341,6 +341,20 @@ jQuery(document).ready(function($) {
     const batchSize = parseInt($batchSizeSelector.val()) || 20; // Valor por defecto: 20
     console.log('Click en sincronizar productos en lote. Tamaño de lote:', batchSize);
     
+    // Verificar si hay mensaje de confirmación y mostrar un diálogo
+    if (miIntegracionApiDashboard && miIntegracionApiDashboard.confirmSync) {
+      if (!confirm(miIntegracionApiDashboard.confirmSync)) {
+        console.log('Sincronización cancelada por el usuario');
+        return;
+      }
+    } else {
+      // Si no hay mensaje específico, usar uno genérico
+      if (!confirm('¿Estás seguro de que deseas iniciar una sincronización manual ahora?')) {
+        console.log('Sincronización cancelada por el usuario');
+        return;
+      }
+    }
+    
     $syncBtn.prop('disabled', true);
     $batchSizeSelector.prop('disabled', true); // También deshabilitamos el selector
     $feedback.addClass('in-progress').text('Sincronización iniciada...');
@@ -480,7 +494,13 @@ jQuery(document).ready(function($) {
 
   $cancelBtn.on('click', function(e) {
     e.preventDefault();
-    if (!confirm('¿Seguro que deseas cancelar la sincronización?')) return;
+    
+    // Usar el mensaje localizado si está disponible
+    const confirmMessage = miIntegracionApiDashboard && miIntegracionApiDashboard.confirmCancel 
+        ? miIntegracionApiDashboard.confirmCancel 
+        : '¿Seguro que deseas cancelar la sincronización?';
+    
+    if (!confirm(confirmMessage)) return;
     
     const timeStamp = new Date().toISOString();
     console.log(`[${timeStamp}] Click en cancelar sincronización`);

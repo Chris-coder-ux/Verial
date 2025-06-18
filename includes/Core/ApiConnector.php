@@ -19,6 +19,7 @@ use MiIntegracionApi\Core\Config_Manager;
 use MiIntegracionApi\Core\RetryManager;
 use MiIntegracionApi\Cache\HTTP_Cache_Manager;
 use MiIntegracionApi\Core\DataValidator;
+use MiIntegracionApi\WooCommerce\VerialProductMapper;
 
 // Incluir fallbacks para WordPress cuando no están disponibles
 require_once __DIR__ . '/WP_Error.php';
@@ -968,11 +969,33 @@ class ApiConnector {
     private function makeRequestWithCurl(string $url, array $args): mixed {
         $ch = curl_init();
         
+        // Almacena la URL final para registros
+        $this->last_request_url = $url;
+        
+        // Registrar información detallada sobre la solicitud
+        $this->logger->debug('Iniciando solicitud CURL', [
+            'url' => $url,
+            'method' => $args['method'],
+            'headers' => $args['headers'] ?? [],
+            'timeout' => $this->timeout
+        ]);
+        
+        if (!empty($args['body'])) {
+            $this->logger->debug('Body de la solicitud', [
+                'body_sample' => substr($args['body'], 0, 500) . (strlen($args['body']) > 500 ? '...' : '')
+            ]);
+        }
+        
         // Configurar opciones de cURL
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $args['sslverify']);
+        curl_setopt($ch, CURLOPT_VERBOSE, true); // Para depuración
+        
+        // Capturar información de depuración
+        $verbose = fopen('php://temp', 'w+');
+        curl_setopt($ch, CURLOPT_STDERR, $verbose);
         
         if (!empty($args['sslcertificates'])) {
             curl_setopt($ch, CURLOPT_CAINFO, $args['sslcertificates']);
@@ -998,26 +1021,54 @@ class ApiConnector {
         // Realizar la solicitud
         $response = curl_exec($ch);
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $info = curl_getinfo($ch);
         
-        // Verificar si hay error
+        // Obtener información de depuración
+        rewind($verbose);
+        $verboseLog = stream_get_contents($verbose);
+        fclose($verbose);
+        
+        // Verificar si hay error de CURL
         if ($response === false) {
             $error = curl_error($ch);
+            $this->logger->error('Error de CURL', [
+                'error' => $error,
+                'url' => $url,
+                'curl_info' => $info,
+                'verbose_log' => $verboseLog
+            ]);
             curl_close($ch);
             return new \WP_Error('curl_error', $error);
         }
         
+        // Registrar información sobre la respuesta
+        $this->logger->debug('Respuesta recibida', [
+            'http_code' => $http_code,
+            'content_length' => $info['download_content_length'],
+            'time' => $info['total_time'],
+            'response_sample' => substr($response, 0, 500) . (strlen($response) > 500 ? '...' : '')
+        ]);
+        
         curl_close($ch);
         
-        // Si es exitoso (2xx), devolver respuesta decodificada
+        // Si es exitoso (2xx), intentar decodificar la respuesta JSON
         if ($http_code >= 200 && $http_code < 300) {
             $decoded_data = json_decode($response, true);
             if (json_last_error() === JSON_ERROR_NONE) {
+                // Verificar si la API devolvió success:false a pesar del código 200 
+                if (is_array($decoded_data) && isset($decoded_data['success']) && $decoded_data['success'] === false) {
+                    $this->logger->warning('API devolvió success:false con HTTP 200', [
+                        'message' => $decoded_data['message'] ?? 'Sin mensaje de error',
+                        'data' => isset($decoded_data['data']) ? print_r($decoded_data['data'], true) : 'Sin datos'
+                    ]);
+                }
                 return $decoded_data;
             } else {
                 // Registrar error de decodificación JSON para diagnóstico
                 $json_error = json_last_error_msg();
                 $this->logger->error('Error al decodificar JSON de respuesta', [
                     'error' => $json_error,
+                    'http_code' => $http_code,
                     'response_sample' => substr($response, 0, 500) . (strlen($response) > 500 ? '...' : '')
                 ]);
                 
@@ -1029,10 +1080,30 @@ class ApiConnector {
             }
         }
         
+        // Intentar decodificar la respuesta de error para obtener más información
+        $error_data = json_decode($response, true);
+        $error_message = "HTTP Error {$http_code}";
+        
+        if (json_last_error() === JSON_ERROR_NONE && is_array($error_data)) {
+            if (isset($error_data['message'])) {
+                $error_message = $error_data['message'];
+            }
+            $this->logger->error('Error de API', [
+                'http_code' => $http_code,
+                'message' => $error_message,
+                'response_data' => $error_data
+            ]);
+        } else {
+            $this->logger->error('Error HTTP', [
+                'http_code' => $http_code,
+                'response_body' => $response
+            ]);
+        }
+        
         // Si es un error, devolver WP_Error
         return new \WP_Error(
             'http_error',
-            "HTTP Error {$http_code}",
+            $error_message,
             [
                 'status' => $http_code,
                 'body' => $response
@@ -1055,41 +1126,91 @@ class ApiConnector {
             $this->logger->log('ATENCIÓN: get_articulos recibió parámetros no válidos. Tipo: ' . gettype($params), 'warning');
         }
         
-        // Manejar diferentes formas de buscar por SKU
-        if (isset($params['sku']) && !isset($params['referencia']) && !isset($params['referenciabarras'])) {
-            // Si nos pasan 'sku', lo mapeamos a los parámetros que Verial entiende
-            $params['referenciabarras'] = $params['sku'];
-            // También intentamos buscar en Referencia por compatibilidad
-            $params['referencia'] = $params['sku'];
-            unset($params['sku']); // Ya no necesitamos este parámetro
-            $this->logger->log("Convertido parámetro 'sku' a 'referenciabarras' y 'referencia' para compatibilidad con API Verial", 'debug');
+        // Registrar la URL directa a la que accede el usuario para comparar
+        $url_directa = $this->api_url . $this->service_path . $endpoint . '?x=' . $this->sesionwcf;
+        $this->logger->info('URL directa de acceso equivalente: ' . $url_directa);
+        
+        // NOTA IMPORTANTE: Según el usuario, la URL directa funciona con parámetros en la URL y no POST
+        // Verificamos si debemos usar GET en lugar de POST según el comentario del usuario
+        $usar_get = true; // Cambiamos a GET según el comentario del usuario: "Si yo accedo a http://x.verial.org:8000/WcfServiceLibraryVerial/GetArticulosWS?x=18"
+        
+        if ($usar_get) {
+            $this->logger->info('Usando método GET para GetArticulosWS según comentario del usuario');
+            
+            // Opciones para solicitud GET
+            $options = [
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'User-Agent' => 'MiIntegracionAPI/1.0',
+                ],
+                'timeout' => 45, // Timeout extendido para catálogos grandes
+            ];
+            
+            // El único parámetro requerido parece ser 'x' (sesionwcf)
+            // No añadimos los otros parámetros de filtrado porque parece que la API devuelve todos los artículos
+            $query_params = ['x' => $this->sesionwcf]; 
+            
+            // CORRECCIÓN: Usar GET en lugar de POST según el ejemplo del usuario
+            $response = $this->get($endpoint, $query_params, $options);
+            
+            // Registrar la URL completa para depuración
+            $full_url = $this->api_url . $this->service_path . $endpoint . '?' . http_build_query($query_params);
+            $this->logger->debug('URL completa de solicitud GET: ' . $full_url);
+        } else {
+            // Manejar diferentes formas de buscar por SKU
+            if (isset($params['sku']) && !isset($params['referencia']) && !isset($params['referenciabarras'])) {
+                // Si nos pasan 'sku', lo mapeamos a los parámetros que Verial entiende
+                $params['referenciabarras'] = $params['sku'];
+                // También intentamos buscar en Referencia por compatibilidad
+                $params['referencia'] = $params['sku'];
+                unset($params['sku']); // Ya no necesitamos este parámetro
+                $this->logger->log("Convertido parámetro 'sku' a 'referenciabarras' y 'referencia' para compatibilidad con API Verial", 'debug');
+            }
+            
+            // Opciones avanzadas con encabezados HTTP esenciales
+            $options = [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                    'User-Agent' => 'MiIntegracionAPI/1.0',
+                ],
+                'timeout' => 45, // Timeout extendido para catálogos grandes
+            ];
+            
+            // CORRECCIÓN: El endpoint requiere POST con body JSON
+            $response = $this->post($endpoint, $params, [], $options);
         }
         
-        // Registrar llamada a la API
-        if (isset($this->logger)) {
-            $this->logger->log("Llamando a get_articulos con endpoint={$endpoint} y parámetros: " . print_r($params, true), 'debug');
-        }
-        
-        // Opciones avanzadas con encabezados HTTP esenciales
-        $options = [
-            'headers' => [
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'User-Agent' => 'MiIntegracionAPI/1.0',
-            ],
-            'timeout' => 45, // Timeout extendido para catálogos grandes
-        ];
-        
-        // CORRECCIÓN: El endpoint requiere POST con body JSON, no GET con parámetros en URL
-        $response = $this->post($endpoint, $params, [], $options);
-        
-        // Registrar respuesta para depuración
+        // Mejorar el análisis de la respuesta
         if (isset($this->logger)) {
             if (is_wp_error($response)) {
                 $this->logger->log("Error en get_articulos: " . $response->get_error_message(), 'error');
             } else {
-                $count = is_array($response) ? count($response) : 0;
-                $this->logger->log("Respuesta de get_articulos recibida. Tipo: " . gettype($response) . ", Elementos: {$count}", 'debug');
+                // Registrar el tipo de respuesta y una muestra para diagnóstico
+                $tipo_respuesta = gettype($response);
+                $muestra = is_array($response) ? json_encode(array_slice($response, 0, 1)) : substr((string)$response, 0, 500);
+                
+                $this->logger->log("Respuesta recibida de get_articulos: Tipo={$tipo_respuesta}, Muestra={$muestra}", 'debug');
+                
+                // Verificar si la respuesta tiene la estructura esperada
+                if (is_array($response) && isset($response['success'])) {
+                    if ($response['success'] === false) {
+                        $this->logger->log("API retornó error: " . ($response['message'] ?? 'Sin mensaje de error'), 'error');
+                    } else {
+                        // La API devolvió éxito, ahora verificar si hay datos
+                        if (isset($response['data'])) {
+                            $count = is_array($response['data']) ? count($response['data']) : 0;
+                            $this->logger->log("Datos recibidos correctamente. Elementos: {$count}", 'info');
+                            // Extraer los datos reales de la respuesta
+                            $response = $response['data'];
+                        } else {
+                            $this->logger->log("API retornó éxito pero sin datos", 'warning');
+                        }
+                    }
+                } else {
+                    $count = is_array($response) ? count($response) : 0;
+                    $this->logger->log("Respuesta de get_articulos recibida. Tipo: " . gettype($response) . ", Elementos: {$count}", 'debug');
+                }
             }
         }
         
@@ -1132,28 +1253,81 @@ class ApiConnector {
             @set_time_limit(120); // 2 minutos
         }
         
-        // Opciones optimizadas para rangos problemáticos
-        $options = [
-            'timeout' => 90,                 // Timeout extendido para rangos problemáticos (90 segundos)
-            'diagnostics' => true,           // Habilitar diagnósticos detallados
-            'trace_request' => true,         // Rastreo completo de la solicitud
-            'blocking' => true,              // Asegurarse que la solicitud sea bloqueante
-            'sslverify' => apply_filters('mi_integracion_api_sslverify', true), // Permitir deshabilitar SSL en entornos problemáticos
-            'retry_transient_errors' => true, // Reintentar errores transitorios
-            'headers' => [                   // Encabezados HTTP esenciales
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-                'User-Agent' => 'MiIntegracionAPI/1.0',
-            ],
-            'wp_args' => [
-                'timeout' => 60,             // Mismo timeout en argumentos de WordPress
-                'httpversion' => '1.1',      // HTTP 1.1 para mejor compatibilidad
-                'blocking' => true           // Esperar a que se complete la solicitud
-            ]
-        ];
+        $endpoint = 'GetArticulosWS';
         
-        // Usar método POST en lugar de GET para GetArticulosWS
-        return $this->post('GetArticulosWS', $params, [], $options);
+        // Registrar la URL directa a la que accede el usuario para comparar
+        $url_directa = $this->api_url . $this->service_path . $endpoint . '?x=' . $this->sesionwcf;
+        $this->logger->info('URL directa de acceso equivalente: ' . $url_directa);
+        
+        // IMPORTANTE: Según el análisis previo, usamos GET en lugar de POST para mayor compatibilidad
+        $usar_get = true;
+        
+        if ($usar_get) {
+            $this->logger->info('Usando método GET para GetArticulosWS en sincronización por lotes');
+            
+            // Opciones para solicitud GET
+            $options = [
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'User-Agent' => 'MiIntegracionAPI/1.0',
+                ],
+                'timeout' => 90, // Timeout extendido para rangos problemáticos (90 segundos)
+                'blocking' => true,
+                'sslverify' => apply_filters('mi_integracion_api_sslverify', true),
+                'trace_request' => true,
+            ];
+            
+            // Para GET, añadimos los parámetros a la URL
+            $query_params = [
+                'x' => $this->sesionwcf, // Parámetro de sesión
+            ];
+            
+            // Añadir parámetros de rango si se han definido
+            if (isset($params['inicio'])) {
+                $query_params['inicio'] = (int)$params['inicio'];
+            }
+            if (isset($params['fin'])) {
+                $query_params['fin'] = (int)$params['fin'];
+            }
+            
+            // Añadir otros parámetros si existen
+            if (isset($params['fecha'])) {
+                $query_params['fecha'] = $params['fecha'];
+            }
+            if (isset($params['hora'])) {
+                $query_params['hora'] = $params['hora'];
+            }
+            
+            $response = $this->get($endpoint, $query_params, $options);
+            
+            // Registrar la URL completa para depuración
+            $full_url = $this->api_url . $this->service_path . $endpoint . '?' . http_build_query($query_params);
+            $this->logger->debug('URL completa de solicitud GET en lotes: ' . $full_url);
+            
+            return $response;
+        } else {
+            // Configuración original para POST si se necesita como alternativa
+            $options = [
+                'timeout' => 90,
+                'diagnostics' => true,
+                'trace_request' => true,
+                'blocking' => true,
+                'sslverify' => apply_filters('mi_integracion_api_sslverify', true),
+                'retry_transient_errors' => true,
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Accept' => 'application/json',
+                    'User-Agent' => 'MiIntegracionAPI/1.0',
+                ],
+                'wp_args' => [
+                    'timeout' => 60,
+                    'httpversion' => '1.1',
+                    'blocking' => true
+                ]
+            ];
+            
+            return $this->post($endpoint, $params, [], $options);
+        }
     }
 
     /**

@@ -70,8 +70,11 @@ class Sync_Single_Product {
 			
 			// Si tenemos un SKU, intentamos pasarlo como filtro a la API (puede ser específico de la implementación de Verial)
 			if (!empty($sku)) {
-				$params['referencia'] = $sku; // Intentar con 'referencia'
-				$params['referenciabarras'] = $sku; // Intentar con 'referenciabarras'
+				// CORRECCIÓN: Utilizar el formato correcto según la API
+				$params['sku'] = $sku;  // Parámetro principal
+				// Mantener compatibilidad con formatos anteriores
+				$params['referencia'] = $sku;
+				$params['referenciabarras'] = $sku;
 				$logger->info('Añadiendo filtro de SKU a la petición API', ['sku' => $sku]);
 			}
 			
@@ -80,6 +83,25 @@ class Sync_Single_Product {
 				$params['nombre'] = $nombre;
 				$logger->info('Añadiendo filtro de nombre a la petición API', ['nombre' => $nombre]);
 			}
+			
+			// Añadir filtros de categoría y fabricante si se proporcionan
+			if (!empty($categoria)) {
+				$params['categoria'] = $categoria;
+				$logger->info('Añadiendo filtro de categoría a la petición API', ['categoria' => $categoria]);
+			}
+			
+			if (!empty($fabricante)) {
+				$params['fabricante'] = $fabricante;
+				$logger->info('Añadiendo filtro de fabricante a la petición API', ['fabricante' => $fabricante]);
+			}
+			
+			// CORRECCIÓN: Agregar campo adicional 'field' con valor 'cod' como se ve en la captura de pantalla
+			$params['field'] = 'cod';
+			
+			$logger->info('Solicitando productos con parámetros completos', [
+			    'params' => $params,
+			    'endpoint' => 'GetArticulosWS'
+			]);
 			
 			$productos = $api_connector->get_articulos($params);
 			
@@ -108,35 +130,67 @@ class Sync_Single_Product {
 					'message' => __( 'No se obtuvieron productos de Verial.', 'mi-integracion-api' ),
 				);
 			}
+			
+			// Depuración detallada del JSON recibido para entender mejor su estructura
+			$logger->info('Estructura JSON recibida de Verial', [
+			    'tipo' => gettype($productos),
+			    'muestra_json' => json_encode(array_slice((array)$productos, 0, 2, true)),
+			    'propiedades' => array_keys((array)$productos)
+			]);
+			
 			/** @var array<string, mixed>|null $producto */
 			$producto = null;
 			
 			// Normalizar la estructura de productos para el procesamiento
 			$articulos_normalizados = [];
 			
+			// Registrar la estructura completa de la respuesta para diagnóstico
+			$logger->debug('Estructura de respuesta API completa', [
+			    'tipo' => gettype($productos),
+			    'keys_nivel_superior' => is_array($productos) ? array_keys($productos) : 'No es un array',
+			    'muestra_json' => json_encode(array_slice((array)$productos, 0, 3))
+			]);
+			
 			// Determinar el formato de la respuesta y normalizar
 			if (isset($productos['Articulos']) && is_array($productos['Articulos'])) {
 				$logger->info('Formato detectado: Array con clave Articulos');
 				$articulos_normalizados = $productos['Articulos'];
+			} elseif (isset($productos['data']) && is_array($productos['data'])) {
+				// Formato común de API: {success: true, data: [...]}
+				$logger->info('Formato detectado: Estructura con data');
+				$articulos_normalizados = $productos['data'];
 			} elseif (isset($productos[0])) {
 				$logger->info('Formato detectado: Array simple de productos');
 				$articulos_normalizados = $productos;
 			} else {
 				// Si es un único objeto de producto (no en array)
 				if (isset($productos['Id']) || isset($productos['ReferenciaBarras']) || isset($productos['Nombre'])) {
-					$logger->info('Formato detectado: Producto único');
+					$logger->info('Formato detectado: Producto único', [
+					    'id' => $productos['Id'] ?? 'No disponible',
+					    'nombre' => $productos['Nombre'] ?? 'No disponible'
+					]);
 					$articulos_normalizados = [$productos];
 				} else {
 					// Si recibimos algún formato desconocido, intentamos procesarlo lo mejor posible
-					$logger->warning('Formato desconocido de respuesta', ['keys' => array_keys($productos)]);
+					$logger->warning('Formato desconocido de respuesta', ['keys' => is_array($productos) ? array_keys($productos) : 'No es un array']);
 					
 					// Si hay alguna otra clave que pueda contener productos
-					foreach ($productos as $key => $value) {
-						if (is_array($value) && !empty($value)) {
-							if (isset($value[0]) && (isset($value[0]['Id']) || isset($value[0]['ReferenciaBarras']))) {
-								$logger->info("Productos encontrados en clave: {$key}");
-								$articulos_normalizados = $value;
-								break;
+					if (is_array($productos)) {
+						foreach ($productos as $key => $value) {
+							if (is_array($value) && !empty($value)) {
+								if (isset($value[0]) && (
+									isset($value[0]['Id']) || 
+									isset($value[0]['ReferenciaBarras']) || 
+									isset($value[0]['Nombre'])
+								)) {
+									$logger->info("Productos encontrados en clave: {$key}");
+									$articulos_normalizados = $value;
+									break;
+								} elseif (isset($value['Id']) || isset($value['ReferenciaBarras']) || isset($value['Nombre'])) {
+									$logger->info("Producto único encontrado en clave: {$key}");
+									$articulos_normalizados = [$value];
+									break;
+								}
 							}
 						}
 					}
@@ -159,17 +213,26 @@ class Sync_Single_Product {
 			
 			/** @var array<string, mixed> $p */
 			foreach ( $articulos_normalizados as $p ) {
-				// Buscar por SKU en campo Referencia
-				if ( $sku && isset( $p['Referencia'] ) && is_string( $p['Referencia'] ) && $p['Referencia'] === $sku ) {
-					$producto = $p;
-					$logger->info('Producto encontrado por campo Referencia', ['sku' => $sku, 'nombre' => $p['Nombre'] ?? 'No especificado']);
-					break;
-				}
+			    // Depurar la estructura del producto actual para diagnóstico
+			    $logger->debug('Analizando producto de API', [
+			        'id' => $p['Id'] ?? 'No disponible',
+			        'nombre' => $p['Nombre'] ?? 'No disponible',
+			        'referencia_barras' => $p['ReferenciaBarras'] ?? 'No disponible',
+			        'referencia' => $p['Referencia'] ?? 'No disponible',
+			        'keys_disponibles' => array_keys($p)
+			    ]);
 				
-				// Buscar por SKU en campo ReferenciaBarras (corrección principal)
+				// Buscar por SKU en campo ReferenciaBarras (método principal según estructura JSON)
 				if ( $sku && isset( $p['ReferenciaBarras'] ) && is_string( $p['ReferenciaBarras'] ) && $p['ReferenciaBarras'] === $sku ) {
 					$producto = $p;
 					$logger->info('Producto encontrado por campo ReferenciaBarras', ['sku' => $sku, 'referenciaBarras' => $p['ReferenciaBarras'], 'nombre' => $p['Nombre'] ?? 'No especificado']);
+					break;
+				}
+				
+				// Alternativa: Buscar por SKU en campo Referencia (compatibilidad)
+				if ( $sku && isset( $p['Referencia'] ) && is_string( $p['Referencia'] ) && $p['Referencia'] === $sku ) {
+					$producto = $p;
+					$logger->info('Producto encontrado por campo Referencia', ['sku' => $sku, 'nombre' => $p['Nombre'] ?? 'No especificado']);
 					break;
 				}
 				
@@ -190,6 +253,40 @@ class Sync_Single_Product {
 					'message' => $error_message,
 				);
 			}
+			
+			// Mapeo de campos para WooCommerce (según estructura JSON de ejemplo)
+			$mapped_product = [
+			    'id' => $producto['Id'] ?? 0,
+			    'sku' => $producto['ReferenciaBarras'] ?? '',  // Campo principal para SKU
+			    'nombre' => $producto['Nombre'] ?? '',
+			    'descripcion' => $producto['Descripcion'] ?? '',
+			    'categoria_id' => $producto['ID_Categoria'] ?? 0,
+			    'fabricante_id' => $producto['ID_Fabricante'] ?? 0,
+			    'iva' => $producto['PorcentajeIVA'] ?? 0,
+			    'peso' => $producto['Peso'] ?? 0,
+			    'dimensiones' => [
+			        'alto' => $producto['Alto'] ?? 0,
+			        'ancho' => $producto['Ancho'] ?? 0,
+			        'grueso' => $producto['Grueso'] ?? 0
+			    ],
+			    'datos_adicionales' => [
+			        'autores' => $producto['Autores'] ?? '',
+			        'edicion' => $producto['Edicion'] ?? '',
+			        'paginas' => $producto['Paginas'] ?? 0,
+			        'subtitulo' => $producto['Subtitulo'] ?? '',
+			        'tipo' => $producto['Tipo'] ?? 0
+			    ]
+			];
+			
+			$logger->info('Datos del producto mapeados correctamente', [
+			    'id' => $mapped_product['id'],
+			    'sku' => $mapped_product['sku'],
+			    'nombre' => $mapped_product['nombre']
+			]);
+			
+			// Asignar el producto mapeado para el procesamiento posterior
+			$producto['mapped_wc_data'] = $mapped_product;
+			
 			$logger->info('Procesando datos del producto', ['producto_data' => $producto]);
 			
 			// Obtener las condiciones de tarifa para este producto

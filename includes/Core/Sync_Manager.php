@@ -24,6 +24,7 @@ use MiIntegracionApi\Core\DataSanitizer; // Cambiado de Helpers a Core
 use MiIntegracionApi\Core\Validation\ProductValidator;
 use MiIntegracionApi\Core\Validation\OrderValidator;
 use MiIntegracionApi\Core\Validation\CustomerValidator;
+use MiIntegracionApi\WooCommerce\SyncHelper;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Salir si se accede directamente
@@ -459,12 +460,14 @@ class Sync_Manager {
 				$this->metrics->recordItemProcessed($operationId, true);
 				$this->sync_status['current_sync']['items_synced'] += $result['processed'];
 				
-				// Registrar métricas del lote exitoso
+				// Registrar métricas del lote exitoso utilizando los valores del resultado
 				$this->metrics->recordBatchMetrics(
 					$current_batch,
 					$result['processed'],
-					microtime(true) - $this->sync_status['current_sync']['start_time'],
-					0
+					isset($result['duration']) ? $result['duration'] : microtime(true) - $this->sync_status['current_sync']['start_time'],
+					$result['errors'] ?? 0,
+					$result['retry_processed'] ?? 0,
+					$result['retry_errors'] ?? 0
 				);
 			} else {
 				$this->metrics->recordItemProcessed($operationId, false, $result['error']);
@@ -882,9 +885,11 @@ class Sync_Manager {
 	 */
 	private function sync_products_from_verial( $offset, $limit, $filters ) {
 		// IMPORTANTE: Verificar y ajustar límite para prevenir timeouts
-		$max_safe_batch_size = 40; // Reducido a 40 para evitar timeouts incluso en servidores con recursos limitados
+		$max_safe_batch_size = 40; // Valor máximo de seguridad
 		$original_limit = $limit;
 		
+		// Respetamos el tamaño de lote configurado si es menor que el máximo de seguridad
+		// Solo aplicamos el límite de seguridad si el valor configurado es mayor
 		if ($limit > $max_safe_batch_size) {
 			// Ajustar el límite para esta ejecución
 			$limit = $max_safe_batch_size;
@@ -2632,7 +2637,7 @@ class Sync_Manager {
 	 * @param int $min_batch_size Tamaño mínimo permitido para el lote
 	 * @return int|WP_Error Devuelve el batch_size ajustado o WP_Error si no es posible continuar
 	 */
-	private function ensure_sufficient_memory(int $batch_size, int $min_batch_size = 10) {
+	private function ensure_sufficient_memory(int $batch_size, int $min_batch_size = 1) {
 		$memory_limit = ini_get('memory_limit');
 		if ($memory_limit === false || $memory_limit === '-1') {
 			// Sin límite de memoria, continuar
@@ -3087,14 +3092,251 @@ class Sync_Manager {
 				return $response;
 			}
 			
-			// Procesar los productos obtenidos
-			// [Aquí va el código para procesar los productos]
-			// Por simplicidad, devolvemos que fueron procesados correctamente
+			// Crear logger para este procesamiento
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-process');
+			
+			// Normalizar la estructura de productos para el procesamiento
+			$articulos_normalizados = [];
+			
+			// Registrar la estructura completa de la respuesta para diagnóstico
+			$logger->debug('Estructura de respuesta API para lote', [
+			    'tipo' => gettype($response),
+			    'keys_nivel_superior' => is_array($response) ? array_keys($response) : 'No es un array',
+			    'muestra_json' => json_encode(array_slice((array)$response, 0, 3))
+			]);
+			
+			// Determinar el formato de la respuesta y normalizar
+			if (isset($response['Articulos']) && is_array($response['Articulos'])) {
+				$logger->info('Formato detectado: Array con clave Articulos');
+				$articulos_normalizados = $response['Articulos'];
+			} elseif (isset($response['data']) && is_array($response['data'])) {
+				// Formato común de API: {success: true, data: [...]}
+				$logger->info('Formato detectado: Estructura con data');
+				$articulos_normalizados = $response['data'];
+			} elseif (isset($response[0])) {
+				$logger->info('Formato detectado: Array simple de productos');
+				$articulos_normalizados = $response;
+			} else {
+				// Si recibimos algún formato desconocido, intentamos procesarlo lo mejor posible
+				$logger->warning('Formato desconocido de respuesta', ['keys' => is_array($response) ? array_keys($response) : 'No es un array']);
+			}
+			
+			// Contar productos normalizados
+			$total_productos = count($articulos_normalizados);
+			$logger->info("Se obtuvieron {$total_productos} productos para el rango [{$inicio}-{$fin}]");
+			
+			// Si no hay productos, devolver mensaje informativo
+			if ($total_productos === 0) {
+				$logger->warning("No se encontraron productos en el rango [{$inicio}-{$fin}]");
+				return [
+					'success' => true,
+					'processed' => 0,
+					'errors' => 0,
+					'range' => [$inicio, $fin],
+					'message' => "No se encontraron productos en el rango especificado"
+				];
+			}
+			
+			// Mostrar un ejemplo del primer producto para verificar la estructura
+			if ($total_productos > 0) {
+				$primer_producto = $articulos_normalizados[0];
+				$logger->debug('Estructura del primer producto', [
+					'id' => $primer_producto['Id'] ?? 'No disponible',
+					'nombre' => $primer_producto['Nombre'] ?? 'No disponible',
+					'referencia_barras' => $primer_producto['ReferenciaBarras'] ?? 'No disponible',
+					'keys' => array_keys($primer_producto)
+				]);
+			}
+			
+			// Registrar tiempo de inicio para calcular duración
+			$start_time = microtime(true);
+			
+			// Procesar cada artículo aplicando el mapeo correcto utilizando VerialProductMapper
+			$procesados = 0;
+			$errores = 0;
+			$created = 0;
+			$updated = 0;
+			$skipped = 0;
+			
+			foreach ($articulos_normalizados as $articulo) {
+				try {
+					// Normalizar el producto usando el nuevo VerialProductMapper (con namespace completo)
+					$producto_normalizado = \MiIntegracionApi\WooCommerce\VerialProductMapper::normalize_verial_product($articulo);
+					
+					// Convertir el producto Verial a formato WooCommerce (con namespace completo)
+					$wc_product_data = \MiIntegracionApi\WooCommerce\VerialProductMapper::to_woocommerce($producto_normalizado);
+					
+					// Verificar ReferenciaBarras (que se convierte en SKU)
+					$sku = $wc_product_data['sku'] ?? '';
+					if (empty($sku)) {
+						$logger->warning("Producto sin ReferenciaBarras/SKU, omitiendo", [
+							'id' => $articulo['Id'] ?? 'No disponible',
+							'nombre' => $wc_product_data['name'] ?? 'No disponible',
+							'datos_verial' => $articulo
+						]);
+						$skipped++;
+						continue;
+					}
+					
+					// Buscar producto existente por SKU
+					$existing_product_id = wc_get_product_id_by_sku($sku);
+					
+					if ($existing_product_id) {
+						// Actualizar producto existente
+						$product = wc_get_product($existing_product_id);
+						if ($product) {
+							// Actualizar propiedades del producto
+							if (isset($wc_product_data['name'])) {
+								$product->set_name($wc_product_data['name']);
+							}
+							if (isset($wc_product_data['description'])) {
+								$product->set_description($wc_product_data['description']);
+							}
+							if (isset($wc_product_data['regular_price'])) {
+								$product->set_regular_price($wc_product_data['regular_price']);
+							}
+							if (isset($wc_product_data['stock_quantity'])) {
+								$product->set_stock_quantity($wc_product_data['stock_quantity']);
+							}
+							if (isset($wc_product_data['manage_stock'])) {
+								$product->set_manage_stock($wc_product_data['manage_stock']);
+							}
+							if (isset($wc_product_data['weight'])) {
+								$product->set_weight($wc_product_data['weight']);
+							}
+							if (isset($wc_product_data['dimensions'])) {
+								if (isset($wc_product_data['dimensions']['length'])) {
+									$product->set_length($wc_product_data['dimensions']['length']);
+								}
+								if (isset($wc_product_data['dimensions']['width'])) {
+									$product->set_width($wc_product_data['dimensions']['width']);
+								}
+								if (isset($wc_product_data['dimensions']['height'])) {
+									$product->set_height($wc_product_data['dimensions']['height']);
+								}
+							}
+							
+							// Actualizar metadatos
+							if (isset($wc_product_data['meta_data']) && is_array($wc_product_data['meta_data'])) {
+								foreach ($wc_product_data['meta_data'] as $meta) {
+									$product->update_meta_data($meta['key'], $meta['value']);
+								}
+							}
+							
+							// Guardar cambios
+							$product->save();
+							$updated++;
+						}
+					} else {
+						// Crear nuevo producto simple
+						$product = new \WC_Product_Simple();
+						
+						// Establecer propiedades básicas
+						$product->set_name($wc_product_data['name']);
+						$product->set_sku($sku);
+						if (isset($wc_product_data['description'])) {
+							$product->set_description($wc_product_data['description']);
+						}
+						if (isset($wc_product_data['regular_price'])) {
+							$product->set_regular_price($wc_product_data['regular_price']);
+						}
+						if (isset($wc_product_data['stock_quantity'])) {
+							$product->set_stock_quantity($wc_product_data['stock_quantity']);
+						}
+						if (isset($wc_product_data['manage_stock'])) {
+							$product->set_manage_stock($wc_product_data['manage_stock']);
+						}
+						if (isset($wc_product_data['weight'])) {
+							$product->set_weight($wc_product_data['weight']);
+						}
+						if (isset($wc_product_data['dimensions'])) {
+							if (isset($wc_product_data['dimensions']['length'])) {
+								$product->set_length($wc_product_data['dimensions']['length']);
+							}
+							if (isset($wc_product_data['dimensions']['width'])) {
+								$product->set_width($wc_product_data['dimensions']['width']);
+							}
+							if (isset($wc_product_data['dimensions']['height'])) {
+								$product->set_height($wc_product_data['dimensions']['height']);
+							}
+						}
+						
+						// Establecer metadatos
+						if (isset($wc_product_data['meta_data']) && is_array($wc_product_data['meta_data'])) {
+							foreach ($wc_product_data['meta_data'] as $meta) {
+								$product->update_meta_data($meta['key'], $meta['value']);
+							}
+						}
+						
+						// Guardar el nuevo producto
+						$product->save();
+						$created++;
+					}
+					
+					$procesados++;
+				} catch (\Exception $e) {
+					$logger->error("Error al procesar producto", [
+						'id' => $articulo['Id'] ?? 'No disponible',
+						'nombre' => $articulo['Nombre'] ?? 'No disponible',
+						'error' => $e->getMessage()
+					]);
+					$errores++;
+				}
+			}
+			
+			// Calcular duración del procesamiento
+			$duration = microtime(true) - $start_time;
+			
+			// Registrar resultado del procesamiento
+			$logger->info("Procesamiento completado para rango [{$inicio}-{$fin}]", [
+				'productos_procesados' => $procesados,
+				'errores' => $errores,
+				'creados' => $created,
+				'actualizados' => $updated,
+				'omitidos' => $skipped,
+				'total_productos' => $total_productos,
+				'duracion' => $duration
+			]);
+			
+			// Usar SyncHelper para registrar las métricas del lote
+			$lote_stats = [
+				'processed' => $procesados,
+				'errors' => $errores,
+				'created' => $created,
+				'updated' => $updated,
+				'skipped' => $skipped,
+				'duration' => $duration,
+				'retry_processed' => 0,
+				'retry_errors' => 0
+			];
+			
+			// Generar un operation_id único si no existe
+			$operation_id = get_transient('mia_current_sync_operation_id');
+			if (!$operation_id) {
+				$operation_id = 'sync_' . time() . '_' . mt_rand(1000, 9999);
+				set_transient('mia_current_sync_operation_id', $operation_id, HOUR_IN_SECONDS * 6);
+			}
+			
+			// Calcular el tamaño del lote actual
+			$batch_size = max(1, $fin - $inicio + 1); // Aseguramos que no sea cero
+			
+			// Registrar métricas del lote usando SyncHelper (con namespace completo)
+			\MiIntegracionApi\WooCommerce\SyncHelper::record_batch_metrics($operation_id, $lote_actual = ($inicio / $batch_size) + 1, $lote_stats);
+			
+			// Devolver resultado del procesamiento con las claves que espera SyncMetrics
 			return [
 				'success' => true,
-				'processed' => $fin - $inicio + 1,
-				'errors' => 0,
-				'range' => [$inicio, $fin]
+				'processed' => $procesados,     // Para SyncMetrics.recordBatchMetrics
+				'errors' => $errores,           // Para SyncMetrics.recordBatchMetrics
+				'created' => $created,          // Productos nuevos creados
+				'updated' => $updated,          // Productos actualizados
+				'skipped' => $skipped,          // Productos omitidos
+				'range' => [$inicio, $fin],
+				'total' => $total_productos,    // Para compatibilidad con SyncMetrics
+				'retry_processed' => 0,         // Para compatibilidad con SyncMetrics
+				'retry_errors' => 0,            // Para compatibilidad con SyncMetrics
+				'duration' => $duration,        // Duración real calculada para SyncMetrics
+				'total_productos' => $total_productos // Mantenemos para uso interno
 			];
 		} else {
 			// Para lotes grandes, subdividir para procesamiento más seguro
@@ -3149,7 +3391,12 @@ class Sync_Manager {
 					'success' => true,
 					'processed' => ($first_half_result['processed'] ?? 0) + ($second_half_result['processed'] ?? 0),
 					'errors' => ($first_half_result['errors'] ?? 0) + ($second_half_result['errors'] ?? 0),
-					'range' => [$inicio, $fin]
+					'range' => [$inicio, $fin],
+					'total' => max($first_half_result['total'] ?? 0, $second_half_result['total'] ?? 0),
+					'retry_processed' => ($first_half_result['retry_processed'] ?? 0) + ($second_half_result['retry_processed'] ?? 0),
+					'retry_errors' => ($first_half_result['retry_errors'] ?? 0) + ($second_half_result['retry_errors'] ?? 0),
+					'duration' => ($first_half_result['duration'] ?? 0) + ($second_half_result['duration'] ?? 0),
+					'total_productos' => max($first_half_result['total_productos'] ?? 0, $second_half_result['total_productos'] ?? 0)
 				];
 			}
 		}

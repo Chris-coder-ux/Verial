@@ -131,6 +131,34 @@ class DashboardPageView {
 				</div>
 			</div>
 		</div>
+		
+		<?php
+		// Registrar script de dashboard con mensajes de confirmación localizados
+		wp_enqueue_script(
+			'mi-integracion-api-dashboard',
+			MiIntegracionApi_PLUGIN_URL . 'assets/js/dashboard.js',
+			array('jquery'),
+			MiIntegracionApi_VERSION,
+			true
+		);
+		
+		// Localizar el script de dashboard con los mensajes de confirmación
+		wp_localize_script(
+			'mi-integracion-api-dashboard',
+			'miIntegracionApiDashboard',
+			array(
+				'nonce' => wp_create_nonce( MiIntegracionApi_NONCE_PREFIX . 'dashboard' ),
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'restUrl' => rest_url( MiIntegracionApi_TEXT_DOMAIN . '/v1/' ),
+				'version' => MiIntegracionApi_VERSION,
+				'confirmSync' => __('¿Estás seguro de que deseas iniciar una sincronización manual ahora?', MiIntegracionApi_TEXT_DOMAIN),
+				'syncStarted' => __('Sincronización iniciada. Por favor espere...', MiIntegracionApi_TEXT_DOMAIN),
+				'syncFinished' => __('Sincronización completada.', MiIntegracionApi_TEXT_DOMAIN),
+				'syncError' => __('Error durante la sincronización: ', MiIntegracionApi_TEXT_DOMAIN),
+				'confirmCancel' => __('¿Seguro que deseas cancelar la sincronización?', MiIntegracionApi_TEXT_DOMAIN)
+			)
+		);
+		?>
 		<?php
 	}
 }

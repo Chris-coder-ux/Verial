@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MiIntegracionApi\Core;
 
 use MiIntegracionApi\Helpers\Logger;
+use MiIntegracionApi\WooCommerce\SyncHelper;
 
 /**
  * Sistema de métricas y monitoreo para sincronizaciones
@@ -24,6 +25,7 @@ class SyncMetrics
     private LogManager $logger;
     private int $lastCleanupTime = 0;
     private int $itemsSinceLastCleanup = 0;
+    private ?string $currentOperationId = null;
 
     // Constantes para tipos de error
     private const ERROR_TYPE_VALIDATION = 'validation';
@@ -221,7 +223,52 @@ class SyncMetrics
         int $retryProcessed = 0,
         int $retryErrors = 0
     ): void {
-        $this->metrics['batches'][$batchNumber] = [
+        // Obtener el operation_id actual
+        $operationId = $this->currentOperationId ?? 'default_operation';
+        
+        // Inicializar las métricas si no existen
+        if (!isset($this->currentMetrics[$operationId])) {
+            $this->currentMetrics[$operationId] = [
+                'entity' => 'unknown',
+                'direction' => 'unknown',
+                'start_time' => date('Y-m-d H:i:s'),
+                'status' => 'in_progress',
+                'items_processed' => 0,
+                'items_succeeded' => 0,
+                'items_failed' => 0,
+                'errors' => [],
+                'memory_usage' => [],
+                'performance' => [],
+                'error_types' => [],
+                'total' => [
+                    'processed' => 0,
+                    'errors' => 0,
+                    'retry_processed' => 0,
+                    'retry_errors' => 0,
+                    'duration' => 0
+                ],
+                'batches' => []
+            ];
+        }
+        
+        // Inicializar las métricas totales si no existen
+        if (!isset($this->currentMetrics[$operationId]['total'])) {
+            $this->currentMetrics[$operationId]['total'] = [
+                'processed' => 0,
+                'errors' => 0,
+                'retry_processed' => 0,
+                'retry_errors' => 0,
+                'duration' => 0
+            ];
+        }
+        
+        // Inicializar el array de lotes si no existe
+        if (!isset($this->currentMetrics[$operationId]['batches'])) {
+            $this->currentMetrics[$operationId]['batches'] = [];
+        }
+        
+        // Registrar métricas del lote
+        $this->currentMetrics[$operationId]['batches'][$batchNumber] = [
             'processed' => $processedItems,
             'duration' => $duration,
             'errors' => $errors,
@@ -229,14 +276,16 @@ class SyncMetrics
             'retry_errors' => $retryErrors,
             'timestamp' => time()
         ];
-
-        $this->metrics['total']['processed'] += $processedItems;
-        $this->metrics['total']['errors'] += $errors;
-        $this->metrics['total']['retry_processed'] += $retryProcessed;
-        $this->metrics['total']['retry_errors'] += $retryErrors;
-        $this->metrics['total']['duration'] += $duration;
-
-        $this->saveMetrics();
+        
+        // Actualizar métricas totales
+        $this->currentMetrics[$operationId]['total']['processed'] += $processedItems;
+        $this->currentMetrics[$operationId]['total']['errors'] += $errors;
+        $this->currentMetrics[$operationId]['total']['retry_processed'] += $retryProcessed;
+        $this->currentMetrics[$operationId]['total']['retry_errors'] += $retryErrors;
+        $this->currentMetrics[$operationId]['total']['duration'] += $duration;
+        
+        // Guardar las métricas
+        $this->saveMetrics($operationId);
     }
 
     /**
@@ -280,6 +329,9 @@ class SyncMetrics
      */
     public function startOperation(string $operationId, string $entity, string $direction): void
     {
+        // Establecer el ID de operación actual
+        $this->currentOperationId = $operationId;
+        
         $this->startTimes[$operationId] = microtime(true);
         $this->memorySnapshots[$operationId] = [
             'start' => memory_get_usage(true),
@@ -297,7 +349,15 @@ class SyncMetrics
             'errors' => [],
             'memory_usage' => [],
             'performance' => [],
-            'error_types' => []
+            'error_types' => [],
+            'total' => [
+                'processed' => 0,
+                'errors' => 0,
+                'retry_processed' => 0,
+                'retry_errors' => 0,
+                'duration' => 0
+            ],
+            'batches' => []
         ];
 
         $this->logger->info("Iniciando operación", [
@@ -620,16 +680,32 @@ class SyncMetrics
      */
     private function saveMetrics(string $operationId): void
     {
+        // Verificar que operationId existe en currentMetrics
+        if (!isset($this->currentMetrics[$operationId])) {
+            $this->logger->warning("Intento de guardar métricas para una operación no iniciada", [
+                'operation_id' => $operationId
+            ]);
+            return;
+        }
+        
         $allMetrics = get_option(self::METRICS_OPTION, []);
         $allMetrics[$operationId] = $this->currentMetrics[$operationId];
         
         // Limpiar métricas antiguas
         $cutoffDate = strtotime("-" . self::MAX_HISTORY_DAYS . " days");
         $allMetrics = array_filter($allMetrics, function($metrics) use ($cutoffDate) {
-            return strtotime($metrics['start_time']) >= $cutoffDate;
+            return isset($metrics['start_time']) && strtotime($metrics['start_time']) >= $cutoffDate;
         });
 
         update_option(self::METRICS_OPTION, $allMetrics, true);
+        
+        // Registrar en el log
+        $this->logger->debug("Métricas guardadas para operación", [
+            'operation_id' => $operationId,
+            'total_processed' => $this->currentMetrics[$operationId]['total']['processed'] ?? 0,
+            'total_errors' => $this->currentMetrics[$operationId]['total']['errors'] ?? 0,
+            'batch_count' => count($this->currentMetrics[$operationId]['batches'] ?? [])
+        ]);
     }
 
     /**
