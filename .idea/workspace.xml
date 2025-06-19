@@ -4,7 +4,18 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="91f6d9b3-5ae2-4b1b-bf55-3f7f535a08da" name="Changes" comment="" />
+    <list default="true" id="91f6d9b3-5ae2-4b1b-bf55-3f7f535a08da" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/includes/Admin/AjaxSync.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Admin/AjaxSync.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Admin/DashboardPageView.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Admin/DashboardPageView.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Core/ApiConnector.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Core/ApiConnector.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Core/ConfigManager.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Core/ConfigManager.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Core/SyncMetrics.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Core/SyncMetrics.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Core/Sync_Manager.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Core/Sync_Manager.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Sync/BatchProcessor.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Sync/BatchProcessor.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Sync/SyncManager.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Sync/SyncManager.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/includes/Sync/SyncProductos.php" beforeDir="false" afterPath="$PROJECT_DIR$/includes/Sync/SyncProductos.php" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/mi-integracion-api.zip" beforeDir="false" afterPath="$PROJECT_DIR$/mi-integracion-api.zip" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -94,23 +105,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "/home/christian/Documentos/Poyectos/mi-integracion-api",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "reference.webide.settings.project.settings.php",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/christian/Documentos/Poyectos/mi-integracion-api&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;reference.webide.settings.project.settings.php&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="QodanaReportsService">
     <option name="descriptions">
       <ReportDescription localRun="true" path="/tmp/qodana_output/qodana.sarif.json" reportGuid="621098d2-eb9a-4695-9756-3f290a1a6326" reportId="mi-integracion-api/qodana/2025-06-17" />
@@ -137,6 +148,7 @@
       <workItem from="1750089483757" duration="84000" />
       <workItem from="1750132748587" duration="65000" />
       <workItem from="1750134454914" duration="1106000" />
+      <workItem from="1750244286322" duration="608000" />
     </task>
     <servers />
   </component>

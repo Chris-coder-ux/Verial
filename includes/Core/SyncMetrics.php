@@ -207,7 +207,7 @@ class SyncMetrics
     /**
      * Registra métricas de un lote
      * 
-     * @param int $batchNumber Número del lote
+     * @param int|float $batchNumber Número del lote
      * @param int $processedItems Elementos procesados
      * @param float $duration Duración del procesamiento
      * @param int $errors Errores encontrados
@@ -216,7 +216,7 @@ class SyncMetrics
      * @return void
      */
     public function recordBatchMetrics(
-        int $batchNumber,
+        $batchNumber,
         int $processedItems,
         float $duration,
         int $errors,
@@ -267,8 +267,9 @@ class SyncMetrics
             $this->currentMetrics[$operationId]['batches'] = [];
         }
         
-        // Registrar métricas del lote
-        $this->currentMetrics[$operationId]['batches'][$batchNumber] = [
+        // Registrar métricas del lote y asegurar que el índice sea un entero
+        $batchKey = (int)$batchNumber;
+        $this->currentMetrics[$operationId]['batches'][$batchKey] = [
             'processed' => $processedItems,
             'duration' => $duration,
             'errors' => $errors,

@@ -20,6 +20,7 @@ use MiIntegracionApi\Core\RetryManager;
 use MiIntegracionApi\Cache\HTTP_Cache_Manager;
 use MiIntegracionApi\Core\DataValidator;
 use MiIntegracionApi\WooCommerce\VerialProductMapper;
+use MiIntegracionApi\Helpers\BatchSizeHelper;
 
 // Incluir fallbacks para WordPress cuando no están disponibles
 require_once __DIR__ . '/WP_Error.php';
@@ -1230,6 +1231,28 @@ class ApiConnector {
             return new \WP_Error('invalid_parameters', 'Los parámetros inicio y fin son obligatorios.');
         }
         
+        // Validar y ajustar los valores de inicio y fin según los límites configurados
+        $batch_size = BatchSizeHelper::calculateEffectiveBatchSize((int)$params['inicio'], (int)$params['fin']);
+        $max_allowed = BatchSizeHelper::BATCH_SIZE_LIMITS['productos']['max'];
+        
+        // Si el tamaño de lote excede lo permitido, ajustarlo y registrar una advertencia
+        if ($batch_size > $max_allowed) {
+            if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+                $logger = new \MiIntegracionApi\Helpers\Logger('api-connector');
+                $logger->warning(
+                    sprintf('Tamaño de lote (%d) excede el máximo permitido (%d) - ajustando', $batch_size, $max_allowed),
+                    [
+                        'original_inicio' => $params['inicio'],
+                        'original_fin' => $params['fin'],
+                        'original_batch_size' => $batch_size
+                    ]
+                );
+            }
+            
+            // Ajustar el fin para cumplir con el máximo permitido
+            $params['fin'] = $params['inicio'] + $max_allowed - 1;
+        }
+        
         // Verificar y reiniciar la conexión si es necesario
         $this->check_and_restart_connection();
         
@@ -1238,10 +1261,15 @@ class ApiConnector {
         
         // Registrar solicitud por rango
         if (method_exists($this, 'logger') && is_callable([$this->logger, 'info'])) {
+            // Usar BatchSizeHelper para calcular el tamaño efectivo del lote
+            $effective_batch_size = BatchSizeHelper::calculateEffectiveBatchSize((int)$params['inicio'], (int)$params['fin']);
+            $configured_batch_size = BatchSizeHelper::getBatchSize('productos');
+            
             $this->logger->info('Solicitando rango de artículos', [
                 'inicio' => $params['inicio'],
                 'fin' => $params['fin'],
-                'batch_size' => $params['fin'] - $params['inicio'] + 1,
+                'batch_size_efectivo' => $effective_batch_size,
+                'batch_size_configurado' => $configured_batch_size,
                 'has_filters' => !empty($params['fecha']),
                 'memory_usage' => round(memory_get_usage() / 1048576, 2) . ' MB',
                 'peak_memory' => round(memory_get_peak_usage() / 1048576, 2) . ' MB'
@@ -1271,7 +1299,9 @@ class ApiConnector {
                     'Accept' => 'application/json',
                     'User-Agent' => 'MiIntegracionAPI/1.0',
                 ],
-                'timeout' => 90, // Timeout extendido para rangos problemáticos (90 segundos)
+                // Calcular timeout proporcional al tamaño del lote (mínimo 60 segundos y máximo 120)
+                'timeout' => min(120, max(60, 30 + 
+                    ceil(BatchSizeHelper::calculateEffectiveBatchSize((int)$params['inicio'], (int)$params['fin']) / 2))),
                 'blocking' => true,
                 'sslverify' => apply_filters('mi_integracion_api_sslverify', true),
                 'trace_request' => true,
@@ -1308,7 +1338,9 @@ class ApiConnector {
         } else {
             // Configuración original para POST si se necesita como alternativa
             $options = [
-                'timeout' => 90,
+                // Calcular timeout proporcional al tamaño del lote (mínimo 60 segundos y máximo 120)
+                'timeout' => min(120, max(60, 30 + 
+                    ceil(BatchSizeHelper::calculateEffectiveBatchSize((int)$params['inicio'], (int)$params['fin']) / 2))),
                 'diagnostics' => true,
                 'trace_request' => true,
                 'blocking' => true,
@@ -1803,7 +1835,7 @@ class ApiConnector {
                 return $resultado;
             }
             
-            if ($status_code >= 400) {
+            if ($status_code >=  400) {
                 $resultado['mensaje'] = "Error HTTP $status_code al conectar con la API";
                 $resultado['sugerencias'][] = 'Verifique que la URL y sesión sean correctas';
                 $resultado['detalles']['response'] = substr($body, 0, 500); // Primeros 500 caracteres
@@ -1898,12 +1930,124 @@ class ApiConnector {
      * @return bool
      */
     public function sync_product($product_data) {
-        if (!DataValidator::validate_product_data($product_data)) {
-            Logger::error('Datos de producto inválidos');
+        $logger = new \MiIntegracionApi\Helpers\Logger('api-connector');
+
+        // Validación básica (asegurarnos de tener al menos un SKU)
+        if (!is_array($product_data) || empty($product_data['sku'])) {
+            $logger->error('Datos de producto inválidos: falta SKU o formato incorrecto', [
+                'product_data' => $product_data
+            ]);
             return false;
         }
 
-        // ... existing code ...
+        // Si tenemos un ID de artículo, obtener condiciones de tarifa para aplicar precios
+        if (isset($product_data['external_id']) && !empty($product_data['external_id'])) {
+            try {
+                $id_articulo = (int)$product_data['external_id'];
+                $logger->info('Obteniendo condiciones de tarifa para producto', [
+                    'id_articulo' => $id_articulo,
+                    'sku' => $product_data['sku'] ?? 'N/A'
+                ]);
+
+                // Obtener condiciones de tarifa usando el método existente
+                $condiciones_tarifa = $this->get_condiciones_tarifa($id_articulo);
+                
+                // Verificar si hay condiciones disponibles y aplicarlas
+                if (!is_wp_error($condiciones_tarifa) && is_array($condiciones_tarifa)) {
+                    // Procesar la respuesta según el formato recibido de Verial
+                    $condiciones_lista = [];
+                    
+                    // Verificar si las condiciones vienen en formato CondicionesTarifa (formato oficial API Verial)
+                    if (isset($condiciones_tarifa['CondicionesTarifa']) && is_array($condiciones_tarifa['CondicionesTarifa'])) {
+                        $logger->info('Detectada estructura CondicionesTarifa en la respuesta');
+                        $condiciones_lista = $condiciones_tarifa['CondicionesTarifa'];
+                    } elseif (isset($condiciones_tarifa[0])) {
+                        // Array de condiciones directo
+                        $condiciones_lista = $condiciones_tarifa;
+                    } elseif (isset($condiciones_tarifa['Precio'])) {
+                        // Condición única
+                        $condiciones_lista = [$condiciones_tarifa];
+                    }
+                    
+                    // Aplicar la primera condición de tarifa encontrada
+                    if (!empty($condiciones_lista)) {
+                        $condicion = $condiciones_lista[0];
+                        
+                        // Verificar si el precio existe en las condiciones
+                        if (isset($condicion['Precio']) && is_numeric($condicion['Precio']) && $condicion['Precio'] > 0) {
+                            $logger->info('Actualizando precio del producto con condiciones de tarifa', ['precio' => $condicion['Precio']]);
+                            $product_data['regular_price'] = (float)$condicion['Precio'];
+                            $product_data['price'] = (float)$condicion['Precio'];
+                            
+                            // Si hay descuento, calcular el precio final
+                            if (isset($condicion['Dto']) && is_numeric($condicion['Dto']) && $condicion['Dto'] > 0) {
+                                $descuento = ($condicion['Precio'] * $condicion['Dto']) / 100;
+                                $precio_final = $condicion['Precio'] - $descuento;
+                                $logger->info('Aplicando descuento al precio', [
+                                    'descuento_porcentaje' => $condicion['Dto'],
+                                    'descuento_valor' => $descuento,
+                                    'precio_final' => $precio_final
+                                ]);
+                                $product_data['sale_price'] = $precio_final;
+                            }
+                            
+                            // Si hay descuento en euros por unidad
+                            if (isset($condicion['DtoEurosXUd']) && is_numeric($condicion['DtoEurosXUd']) && $condicion['DtoEurosXUd'] > 0) {
+                                $precio_final = $condicion['Precio'] - $condicion['DtoEurosXUd'];
+                                $logger->info('Aplicando descuento en euros por unidad', [
+                                    'descuento_euros' => $condicion['DtoEurosXUd'],
+                                    'precio_final' => $precio_final
+                                ]);
+                                $product_data['sale_price'] = $precio_final;
+                            }
+                        }
+                    }
+                } else {
+                    if (is_wp_error($condiciones_tarifa)) {
+                        $logger->warning('Error al obtener condiciones de tarifa', [
+                            'id_articulo' => $id_articulo,
+                            'error' => $condiciones_tarifa->get_error_message()
+                        ]);
+                    } else {
+                        $logger->warning('No se encontraron condiciones de tarifa', [
+                            'id_articulo' => $id_articulo
+                        ]);
+                    }
+                }
+            } catch (\Exception $e) {
+                $logger->error('Excepción al procesar condiciones de tarifa', [
+                    'id_articulo' => $product_data['external_id'],
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Continuamos con el proceso aunque haya error en condiciones de tarifa
+            }
+        }
+
+        // Crear o actualizar el producto en WooCommerce
+        try {
+            $product_id = $this->create_or_update_product($product_data);
+            
+            if (!$product_id) {
+                $logger->error('No se pudo crear/actualizar el producto en WooCommerce', [
+                    'product_data' => $product_data
+                ]);
+                return false;
+            }
+            
+            $logger->info('Producto sincronizado correctamente', [
+                'product_id' => $product_id,
+                'sku' => $product_data['sku'] ?? 'N/A'
+            ]);
+            
+            return $product_id;
+        } catch (\Exception $e) {
+            $logger->error('Error al guardar producto en WooCommerce', [
+                'error' => $e->getMessage(),
+                'product_data' => $product_data
+            ]);
+            return false;
+        }
     }
 
     /**
@@ -2025,5 +2169,177 @@ class ApiConnector {
         }
         
         return true;
+    }
+
+    /**
+     * Crea o actualiza un producto en WooCommerce
+     *
+     * @param array $product_data Datos del producto
+     * @return int|false ID del producto o false si falla
+     */
+    protected function create_or_update_product($product_data) {
+        if (!function_exists('wc_get_product_id_by_sku') || !class_exists('WC_Product')) {
+            return false;
+        }
+
+        $logger = new \MiIntegracionApi\Helpers\Logger('api-connector');
+        
+        // Comprobar si el producto ya existe por SKU
+        $sku = $product_data['sku'] ?? '';
+        if (empty($sku)) {
+            $logger->error('No se puede crear/actualizar un producto sin SKU');
+            return false;
+        }
+        
+        $product_id = wc_get_product_id_by_sku($sku);
+        
+        // Preparar datos comunes para productos nuevos y existentes
+        $product_args = [
+            'name'               => $product_data['name'] ?? '',
+            'description'        => $product_data['description'] ?? '',
+            'short_description'  => $product_data['short_description'] ?? '',
+            'status'             => $product_data['status'] ?? 'publish',
+        ];
+        
+        if ($product_id) {
+            // Actualizar producto existente
+            $product = wc_get_product($product_id);
+            if (!$product) {
+                $logger->error('No se pudo obtener el producto con ID: ' . $product_id);
+                return false;
+            }
+            
+            // Actualizar propiedades básicas
+            if (isset($product_data['name'])) {
+                $product->set_name($product_data['name']);
+            }
+            
+            if (isset($product_data['description'])) {
+                $product->set_description($product_data['description']);
+            }
+            
+            if (isset($product_data['short_description'])) {
+                $product->set_short_description($product_data['short_description']);
+            }
+            
+            // Actualizar precios
+            if (isset($product_data['regular_price']) && is_numeric($product_data['regular_price'])) {
+                $product->set_regular_price($product_data['regular_price']);
+                
+                // Si no hay precio de oferta, establecer regular_price también como price
+                if (!isset($product_data['sale_price']) || !is_numeric($product_data['sale_price'])) {
+                    $product->set_price($product_data['regular_price']);
+                }
+            }
+            
+            if (isset($product_data['sale_price']) && is_numeric($product_data['sale_price'])) {
+                $product->set_sale_price($product_data['sale_price']);
+                $product->set_price($product_data['sale_price']);
+            }
+            
+            // Actualizar stock
+            if (isset($product_data['stock_quantity']) && is_numeric($product_data['stock_quantity'])) {
+                $product->set_stock_quantity($product_data['stock_quantity']);
+                $product->set_stock_status($product_data['stock_quantity'] > 0 ? 'instock' : 'outofstock');
+                $product->set_manage_stock(true);
+            }
+            
+            if (isset($product_data['stock_status'])) {
+                $product->set_stock_status($product_data['stock_status']);
+            }
+            
+            // Categorías
+            if (isset($product_data['categories']) && is_array($product_data['categories'])) {
+                $product->set_category_ids($product_data['categories']);
+            }
+            
+            // Meta datos para identificación en Verial
+            if (isset($product_data['external_id'])) {
+                $product->update_meta_data('_verial_id', $product_data['external_id']);
+            }
+            
+            if (isset($product_data['sync_status'])) {
+                $product->update_meta_data('_verial_sync_status', $product_data['sync_status']);
+            }
+            
+            if (isset($product_data['last_sync'])) {
+                $product->update_meta_data('_verial_last_sync', $product_data['last_sync']);
+            }
+            
+            // Guardar el producto
+            $product_id = $product->save();
+            $logger->info('Producto actualizado correctamente', ['product_id' => $product_id, 'sku' => $sku]);
+            
+        } else {
+            // Crear nuevo producto
+            $product = new \WC_Product();
+            $product->set_sku($sku);
+            
+            // Establecer propiedades básicas
+            if (isset($product_data['name'])) {
+                $product->set_name($product_data['name']);
+            }
+            
+            if (isset($product_data['description'])) {
+                $product->set_description($product_data['description']);
+            }
+            
+            if (isset($product_data['short_description'])) {
+                $product->set_short_description($product_data['short_description']);
+            }
+            
+            // Establecer precios
+            if (isset($product_data['regular_price']) && is_numeric($product_data['regular_price'])) {
+                $product->set_regular_price($product_data['regular_price']);
+                
+                // Si no hay precio de oferta, establecer regular_price también como price
+                if (!isset($product_data['sale_price']) || !is_numeric($product_data['sale_price'])) {
+                    $product->set_price($product_data['regular_price']);
+                }
+            }
+            
+            if (isset($product_data['sale_price']) && is_numeric($product_data['sale_price'])) {
+                $product->set_sale_price($product_data['sale_price']);
+                $product->set_price($product_data['sale_price']);
+            }
+            
+            // Establecer stock
+            if (isset($product_data['stock_quantity']) && is_numeric($product_data['stock_quantity'])) {
+                $product->set_stock_quantity($product_data['stock_quantity']);
+                $product->set_stock_status($product_data['stock_quantity'] > 0 ? 'instock' : 'outofstock');
+                $product->set_manage_stock(true);
+            }
+            
+            if (isset($product_data['stock_status'])) {
+                $product->set_stock_status($product_data['stock_status']);
+            }
+            
+            // Categorías
+            if (isset($product_data['categories']) && is_array($product_data['categories'])) {
+                $product->set_category_ids($product_data['categories']);
+            }
+            
+            // Establecer estado (borrador, publicado, etc.)
+            $product->set_status($product_data['status'] ?? 'publish');
+            
+            // Meta datos para identificación en Verial
+            if (isset($product_data['external_id'])) {
+                $product->update_meta_data('_verial_id', $product_data['external_id']);
+            }
+            
+            if (isset($product_data['sync_status'])) {
+                $product->update_meta_data('_verial_sync_status', $product_data['sync_status']);
+            }
+            
+            if (isset($product_data['last_sync'])) {
+                $product->update_meta_data('_verial_last_sync', $product_data['last_sync']);
+            }
+            
+            // Guardar el producto
+            $product_id = $product->save();
+            $logger->info('Producto creado correctamente', ['product_id' => $product_id, 'sku' => $sku]);
+        }
+        
+        return $product_id;
     }
 }

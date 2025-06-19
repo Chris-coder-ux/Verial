@@ -1891,8 +1891,10 @@ class SyncManager {
                         'data' => []
                     ];
                 }
-                $batch_size = get_option('mi_integracion_api_batch_size_productos', 100);
-                $this->logger->log("Reanudando sincronización de productos (batch_size: $batch_size, force_restart: $force_restart)", 'info');
+                
+                // Usar BatchSizeHelper para obtener el batch_size centralizado
+                $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+                $this->logger->log("Reanudando sincronización de productos usando BatchSizeHelper (batch_size: $batch_size, force_restart: $force_restart)", 'info');
                 return SyncProductos::sync($this->api_connector, null, $batch_size, ['force_restart' => $force_restart]);
             case 'clientes':
                 if (!class_exists('MiIntegracionApi\\Sync\\SyncClientes')) {
@@ -1903,8 +1905,8 @@ class SyncManager {
                         'data' => []
                     ];
                 }
-                $batch_size = get_option('mi_integracion_api_batch_size_clientes', 50);
-                $this->logger->log("Reanudando sincronización de clientes (batch_size: $batch_size, force_restart: $force_restart)", 'info');
+                $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('clientes');
+                $this->logger->log("Reanudando sincronización de clientes usando BatchSizeHelper (batch_size: $batch_size, force_restart: $force_restart)", 'info');
                 // Unificamos la firma para clientes también
                 return SyncClientes::sync($this->api_connector, $batch_size, 0, ['force_restart' => $force_restart]);
             case 'pedidos':
@@ -1916,8 +1918,8 @@ class SyncManager {
                         'data' => []
                     ];
                 }
-                $batch_size = get_option('mi_integracion_api_batch_size_pedidos', 25);
-                $this->logger->log("Reanudando sincronización de pedidos (batch_size: $batch_size, force_restart: $force_restart)", 'info');
+                $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('pedidos');
+                $this->logger->log("Reanudando sincronización de pedidos usando BatchSizeHelper (batch_size: $batch_size, force_restart: $force_restart)", 'info');
                 return SyncPedidos::sync($this->api_connector, null, $batch_size, [
                     'use_batch_processor' => true,
                     'force_restart' => $force_restart

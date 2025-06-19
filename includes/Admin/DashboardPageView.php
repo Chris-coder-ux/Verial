@@ -98,11 +98,25 @@ class DashboardPageView {
 				<div class="mi-batch-sync-controls">
 					<div class="mi-batch-size-selector">
 						<label for="mi-batch-size"><?php esc_html_e('Productos por lote:', 'mi-integracion-api'); ?></label>
+						<?php 
+							// Obtener el valor configurado usando BatchSizeHelper
+							$current_batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+							
+							// Obtener los límites desde BatchSizeHelper
+							$min_size = \MiIntegracionApi\Helpers\BatchSizeHelper::BATCH_SIZE_LIMITS['productos']['min'];
+							$max_size = \MiIntegracionApi\Helpers\BatchSizeHelper::BATCH_SIZE_LIMITS['productos']['max'];
+							
+							// Opciones predefinidas para el selector
+							$options = [1, 5, 10, 20, 50, 100, 200];
+						?>
 						<select id="mi-batch-size" name="mi-batch-size" <?php echo $in_progress ? 'disabled' : ''; ?>>
-							<option value="1">1</option>
-							<option value="5">5</option>
-							<option value="10" selected>10</option>
-							<option value="20">20</option>
+							<?php foreach ($options as $option): ?>
+								<?php if ($option >= $min_size && $option <= $max_size): ?>
+									<option value="<?php echo esc_attr($option); ?>" <?php selected($current_batch_size, $option); ?>>
+										<?php echo esc_html($option); ?>
+									</option>
+								<?php endif; ?>
+							<?php endforeach; ?>
 						</select>
 					</div>
 					<button id="mi-batch-sync-products" class="button button-primary" <?php echo $in_progress ? 'disabled' : ''; ?>>

@@ -60,11 +60,24 @@ class DataValidator {
             return false;
         }
 
-        $required_fields = ['name', 'price', 'sku'];
-        foreach ($required_fields as $field) {
-            if (!isset($data[$field]) || empty($data[$field])) {
-                return false;
-            }
+        // El SKU es el único campo realmente obligatorio para la identificación del producto
+        // Los precios pueden venir después de las condiciones de tarifa
+        if (!isset($data['sku']) || empty($data['sku'])) {
+            return false;
+        }
+
+        // Ideal tener nombre también pero no bloqueante
+        $logger = new \MiIntegracionApi\Helpers\Logger('data-validator');
+        if (!isset($data['name']) || empty($data['name'])) {
+            $logger->warning('Producto sin nombre detectado', ['sku' => $data['sku']]);
+        }
+
+        // Validación de precio descartada - se obtendrá de las condiciones de tarifa
+        if (!isset($data['price']) || empty($data['price'])) {
+            $logger->info('Producto sin precio inicial detectado - se obtendrá de condiciones de tarifa', [
+                'sku' => $data['sku'],
+                'name' => $data['name'] ?? 'No disponible'
+            ]);
         }
 
         return true;

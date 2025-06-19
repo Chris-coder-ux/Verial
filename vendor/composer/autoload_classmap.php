@@ -222,6 +222,7 @@ return array(
     'MiIntegracionApi\\Helpers\\ApiHelpers' => $baseDir . '/includes/Helpers/ApiHelpers.php',
     'MiIntegracionApi\\Helpers\\ApiLoggerIntegration' => $baseDir . '/includes/Helpers/ApiLoggerIntegration.php',
     'MiIntegracionApi\\Helpers\\AuthHelper' => $baseDir . '/includes/Helpers/AuthHelper.php',
+    'MiIntegracionApi\\Helpers\\BatchSizeHelper' => $baseDir . '/includes/Helpers/BatchSizeHelper.php',
     'MiIntegracionApi\\Helpers\\Crypto' => $baseDir . '/includes/Helpers/Crypto.php',
     'MiIntegracionApi\\Helpers\\DbLogs' => $baseDir . '/includes/Helpers/DbLogs.php',
     'MiIntegracionApi\\Helpers\\EndpointArgs' => $baseDir . '/includes/Helpers/EndpointArgs.php',

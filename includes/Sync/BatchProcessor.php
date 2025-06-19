@@ -172,14 +172,34 @@ class BatchProcessor
      * @param bool $force_restart Fuerza reiniciar desde el principio incluso si hay punto de recuperación
      * @return array Resultados del procesamiento
      */
-    public function process(array $productos, int $batch_size = 100, callable $callback = null, bool $force_restart = false): array
+    public function process(array $productos, ?int $batch_size = null, callable $callback = null, bool $force_restart = false): array
     {
+        // Si no se proporciona un tamaño de lote, usar el valor de BatchSizeHelper
+        if ($batch_size === null) {
+            $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+        }
+        
+        // Asegurar que el tamaño de lote es válido usando el helper
+        $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::validateBatchSize('productos', $batch_size);
+        
+        // Log para verificar el tamaño de lote que se utilizará
+        if (class_exists('MiIntegracionApi\\Helpers\\Logger')) {
+            $logger = new \MiIntegracionApi\Helpers\Logger('batch-processor');
+            $logger->info('BatchProcessor::process - Tamaño de lote efectivo: ' . $batch_size, [
+                'batch_size' => $batch_size,
+                'total_productos' => count($productos),
+                'batch_size_helper' => \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos'),
+                'force_restart' => $force_restart
+            ]);
+        }
+        
         $total = count($productos);
         $processed = 0;
         $errors = 0;
         $log = [];
         $failed_products = [];
-        $batches = array_chunk($productos, $batch_size);
+        // Usar el método centralizado para dividir elementos en lotes
+        $batches = \MiIntegracionApi\Helpers\BatchSizeHelper::chunkItems($productos, $batch_size);
         $start_time = microtime(true);
         $batch_num = 0;
         $memory_exceeded = false;

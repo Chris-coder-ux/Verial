@@ -129,11 +129,11 @@ class SyncProductos extends BatchProcessor {
 	 *
 	 * @param object      $api_connector Instancia del conector API.
 	 * @param string|null $fecha_desde Fecha desde la que sincronizar (YYYY-MM-DD) o null para todos.
-	 * @param int         $batch_size Tamaño del lote para procesar productos (0 = sin procesar por lotes)
+	 * @param int|null    $batch_size Tamaño del lote para procesar productos (null = usar valor de BatchSizeHelper, 0 = sin procesar por lotes)
 	 * @param array       $filtros_adicionales Filtros adicionales para la API
 	 * @return array Resultado de la sincronización.
 	 */
-	public static function sync( $api_connector, $fecha_desde = null, $batch_size = 0, $filtros_adicionales = array() ) {
+	public static function sync( $api_connector, $fecha_desde = null, $batch_size = null, $filtros_adicionales = array() ) {
 		if (!class_exists('WooCommerce')) {
 			throw new \MiIntegracionApi\Core\SyncError(
 				'WooCommerce no está activo.',
@@ -158,6 +158,17 @@ class SyncProductos extends BatchProcessor {
 			);
 		}
 
+		// Si $batch_size es null, obtener el valor de BatchSizeHelper
+		if ($batch_size === null) {
+			$batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+			
+			// Log para depuración
+			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+				$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+				$logger->info('SyncProductos::sync - Obteniendo batch_size desde helper: ' . $batch_size);
+			}
+		}
+		
 		// Determinar si usar procesamiento por lotes
 		$use_batch_processing = $batch_size > 0;
 
@@ -375,9 +386,28 @@ class SyncProductos extends BatchProcessor {
 	 * @param array       $filtros_adicionales Filtros adicionales para la API
 	 * @return array Resultado de la sincronización.
 	 */
-	private static function sync_batch( $api_connector, $fecha_desde = null, $batch_size = 100, $filtros_adicionales = array() ) {
+	private static function sync_batch( $api_connector, $fecha_desde = null, $batch_size = null, $filtros_adicionales = array() ) {
+		// Si no se proporciona un tamaño de lote, usar el valor de BatchSizeHelper
+		if ($batch_size === null) {
+			$batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+		}
 		if ( ! class_exists( 'MiIntegracionApi\\Sync\\BatchProcessor' ) ) {
 			require_once __DIR__ . '/BatchProcessor.php';
+		}
+		
+		// Log para depuración del tamaño de lote
+		if ( class_exists( 'MiIntegracionApi\\Helpers\\Logger' ) ) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+			$logger->info('SyncProductos::sync_batch - Tamaño de lote recibido: ' . $batch_size, [
+				'batch_size' => $batch_size,
+				'fecha_desde' => $fecha_desde,
+				'filtros' => $filtros_adicionales,
+				'batch_size_helper' => \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos'),
+				'config_manager' => \MiIntegracionApi\Core\ConfigManager::getInstance()->getBatchSize('productos'),
+				'config_manager_value' => class_exists('\\MiIntegracionApi\\Core\\ConfigManager') ? 
+					\MiIntegracionApi\Core\ConfigManager::getInstance()->getBatchSize('productos') : 'ConfigManager no disponible',
+				'filtros_restart' => isset($filtros_adicionales['force_restart']) ? 'Sí' : 'No'
+			]);
 		}
 		
 		$start_time = microtime(true);
@@ -750,7 +780,30 @@ class SyncProductos extends BatchProcessor {
 				$num_articulos = (int)$count_response['NumArticulos'];
 				
 				if ($num_articulos > 0) {
-					$max_per_page = apply_filters('mi_integracion_api_max_articulos_por_page', 100);
+					// Determinar el tamaño de lote a utilizar
+					$max_per_page = 0;
+					
+					// Si se proporcionó un batch_size explícito, usarlo
+					if (isset($batch_size) && $batch_size > 0) {
+						$max_per_page = $batch_size;
+					} else {
+						// De lo contrario, obtener el valor desde el helper centralizado
+						$max_per_page = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+					}
+					
+					// Permitir filtrar el valor final para compatibilidad hacia atrás
+					$max_per_page = apply_filters('mi_integracion_api_max_articulos_por_page', $max_per_page);
+					
+					if (class_exists('MiIntegracionApi\\Helpers\\Logger')) {
+						$logger = new \MiIntegracionApi\Helpers\Logger('sync-productos');
+						$logger->info('SyncProductos - Paginación API con tamaño: ' . $max_per_page, [
+							'max_per_page' => $max_per_page,
+							'batch_size_recibido' => $batch_size,
+							'batch_size_helper' => \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos'),
+							'num_articulos' => $num_articulos
+						]);
+					}
+					
 					$all_productos = [];
 					
 					// Usar paginación para obtener todos los productos en lotes

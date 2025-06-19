@@ -320,6 +320,7 @@ class ComposerStaticInit22c3210d8c13068b46d7069fea69ee2d
         'MiIntegracionApi\\Helpers\\ApiHelpers' => __DIR__ . '/../..' . '/includes/Helpers/ApiHelpers.php',
         'MiIntegracionApi\\Helpers\\ApiLoggerIntegration' => __DIR__ . '/../..' . '/includes/Helpers/ApiLoggerIntegration.php',
         'MiIntegracionApi\\Helpers\\AuthHelper' => __DIR__ . '/../..' . '/includes/Helpers/AuthHelper.php',
+        'MiIntegracionApi\\Helpers\\BatchSizeHelper' => __DIR__ . '/../..' . '/includes/Helpers/BatchSizeHelper.php',
         'MiIntegracionApi\\Helpers\\Crypto' => __DIR__ . '/../..' . '/includes/Helpers/Crypto.php',
         'MiIntegracionApi\\Helpers\\DbLogs' => __DIR__ . '/../..' . '/includes/Helpers/DbLogs.php',
         'MiIntegracionApi\\Helpers\\EndpointArgs' => __DIR__ . '/../..' . '/includes/Helpers/EndpointArgs.php',

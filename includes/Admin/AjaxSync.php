@@ -1439,16 +1439,49 @@ class AjaxSync {
     			
     			// Extraer el tamaño del lote si está especificado
     			$batch_size = isset($_REQUEST['batch_size']) ? (int)$_REQUEST['batch_size'] : null;
-    			if ($batch_size) {
-    			    $logger->info('Tamaño de lote solicitado: ' . $batch_size);
-    			    // Asegurarse de que el tamaño del lote es razonable
-    			    if ($batch_size < 1 || $batch_size > 100) {
-    			        $logger->warning('Tamaño de lote fuera de rango, se usará el valor por defecto');
-    			        $batch_size = null;
+    			
+    			// Usaremos específicamente el valor enviado por el usuario, o en caso de no existir,
+    			// usaremos el valor por defecto definido en BatchSizeHelper
+    			if ($batch_size !== null) {
+    			    $logger->info('Tamaño de lote solicitado por el usuario: ' . $batch_size);
+    			    
+    			    // Usar el helper centralizado para validar y guardar el tamaño del lote
+    			    $original_batch_size = $batch_size;
+    			    
+    			    // BatchSizeHelper se encarga de validar los límites y guardar el valor
+    			    $result = \MiIntegracionApi\Helpers\BatchSizeHelper::setBatchSize('productos', $batch_size);
+    			    
+    			    // Obtener el valor efectivamente establecido (puede haber sido ajustado por los límites)
+    			    $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+    			    
+    			    if ($original_batch_size != $batch_size) {
+    			        $logger->warning('Tamaño de lote ajustado automáticamente', [
+    			            'valor_original' => $original_batch_size,
+    			            'valor_ajustado' => $batch_size,
+    			            'motivo' => 'Fuera de los límites permitidos'
+    			        ]);
     			    }
+    			    
+    			    $logger->info('Tamaño de lote especificado por el usuario guardado: ' . $batch_size, [
+    			        'helper_class' => 'BatchSizeHelper',
+    			        'entity' => 'productos',
+    			        'value' => $batch_size
+    			    ]);
+    			} else {
+    			    // Si no se especificó un tamaño, usamos el valor actual desde BatchSizeHelper
+    			    $batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+    			    $logger->info('No se especificó tamaño de lote, usando valor existente: ' . $batch_size);
     			}
     			
     			try {
+    			    // Verificar el tamaño de lote que se está usando realmente
+    			    $actual_batch_size = \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize('productos');
+    			    $logger->info('Tamaño de lote efectivo para la sincronización: ' . $actual_batch_size, [
+    			        'batch_size_helper_value' => $actual_batch_size,
+    			        'request_value' => isset($_REQUEST['batch_size']) ? (int)$_REQUEST['batch_size'] : 'no proporcionado',
+    			        'default_from_config' => \MiIntegracionApi\Core\ConfigManager::getInstance()->getBatchSize('products')
+    			    ]);
+    			    
     			    $result = $sync_manager->start_sync('products', 'verial_to_wc', $filters);
     			    $logger->debug('Resultado de start_sync', ['result' => $result]);
     			} catch (\Exception $e) {

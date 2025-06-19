@@ -7,8 +7,16 @@
     <option name="transferred" value="true" />
   </component>
   <component name="PHPCodeSnifferOptionsConfiguration">
+    <option name="codingStandard" value="WordPress" />
     <option name="highlightLevel" value="WARNING" />
+    <option name="installedPaths" value="$PROJECT_DIR$/vendor/wp-coding-standards/wpcs" />
+    <option name="useInstalledPaths" value="true" />
     <option name="transferred" value="true" />
+  </component>
+  <component name="PhpCodeSniffer">
+    <phpcs_settings>
+      <PhpCSConfiguration tool_path="$PROJECT_DIR$/vendor/bin/phpcs" />
+    </phpcs_settings>
   </component>
   <component name="PhpIncludePathManager">
     <include_path>
@@ -76,6 +84,11 @@
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.1">
     <option name="suggestChangeDefaultLanguageLevel" value="false" />
+  </component>
+  <component name="PhpStan">
+    <PhpStan_settings>
+      <PhpStanConfiguration tool_path="$PROJECT_DIR$/vendor/bin/phpstan" />
+    </PhpStan_settings>
   </component>
   <component name="PhpStanOptionsConfiguration">
     <option name="transferred" value="true" />

@@ -10,16 +10,12 @@ namespace MiIntegracionApi\Core;
 class ConfigManager
 {
     private const DEFAULTS = [
-        'batch_size_productos' => 100,
-        'batch_size_clientes'  => 50,
-        'batch_size_pedidos'   => 50,
+        // Los valores de tamaño de lote ahora son gestionados por BatchSizeHelper
         // Otros parámetros por defecto...
     ];
 
     private const VALIDATORS = [
-        'batch_size_productos' => ['type' => 'int', 'min' => 1, 'max' => 1000],
-        'batch_size_clientes'  => ['type' => 'int', 'min' => 1, 'max' => 1000],
-        'batch_size_pedidos'   => ['type' => 'int', 'min' => 1, 'max' => 1000],
+        // Los validadores de tamaño de lote ahora son gestionados por BatchSizeHelper
         // Otros validadores...
     ];
 
@@ -51,13 +47,46 @@ class ConfigManager
     /**
      * Obtiene el batch size para una entidad
      *
+     * Delega la responsabilidad a BatchSizeHelper, que es la fuente única de verdad
+     * para el tamaño de lote.
+     *
      * @param string $entity
      * @return int
      */
     public function getBatchSize(string $entity): int
     {
-        $key = 'batch_size_' . strtolower($entity);
-        return (int) $this->get($key, self::DEFAULTS[$key] ?? 50);
+        // Agregar log para depuración
+        if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+            $logger = new \MiIntegracionApi\Helpers\Logger('config-manager');
+            $logger->debug("ConfigManager::getBatchSize delegando a BatchSizeHelper para entidad '{$entity}'");
+        }
+        
+        // Delegar a BatchSizeHelper
+        return \MiIntegracionApi\Helpers\BatchSizeHelper::getBatchSize($entity);
+    }
+
+    /**
+     * Establece el batch size para una entidad
+     *
+     * Delega la responsabilidad a BatchSizeHelper, que es la fuente única de verdad
+     * para el tamaño de lote.
+     *
+     * @param string $entity
+     * @param int $batch_size
+     * @return bool
+     */
+    public function setBatchSize(string $entity, int $batch_size): bool
+    {
+        // Agregar log para depuración
+        if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+            $logger = new \MiIntegracionApi\Helpers\Logger('config-manager');
+            $logger->debug("ConfigManager::setBatchSize delegando a BatchSizeHelper para entidad '{$entity}'", [
+                'batch_size' => $batch_size
+            ]);
+        }
+        
+        // Delegar a BatchSizeHelper
+        return \MiIntegracionApi\Helpers\BatchSizeHelper::setBatchSize($entity, $batch_size);
     }
 
     /**
@@ -98,4 +127,4 @@ class ConfigManager
         $value = $this->validate($key, $value);
         return update_option('mi_integracion_api_' . $key, $value, true);
     }
-} 
+}

@@ -21,6 +21,7 @@ use MiIntegracionApi\Helpers\MapProduct;
 use MiIntegracionApi\Helpers\MapOrder;
 use MiIntegracionApi\Helpers\MapCustomer;
 use MiIntegracionApi\Core\DataSanitizer; // Cambiado de Helpers a Core
+use MiIntegracionApi\Helpers\BatchSizeHelper;
 use MiIntegracionApi\Core\Validation\ProductValidator;
 use MiIntegracionApi\Core\Validation\OrderValidator;
 use MiIntegracionApi\Core\Validation\CustomerValidator;
@@ -147,7 +148,7 @@ class Sync_Manager {
 						'in_progress'   => false,
 						'entity'        => '',
 						'direction'     => '',
-						'batch_size'    => ConfigManager::getInstance()->getBatchSize('productos'),
+						'batch_size'    => BatchSizeHelper::getBatchSize('productos'),
 						'current_batch' => 0,
 						'total_batches' => 0,
 						'items_synced'  => 0,
@@ -277,7 +278,7 @@ class Sync_Manager {
 				'in_progress' => true,
 				'entity' => $entity,
 				'direction' => $direction,
-				'batch_size' => ConfigManager::getInstance()->getBatchSize($entity),
+				'batch_size' => BatchSizeHelper::getBatchSize($entity),
 				'current_batch' => 0,
 				'total_batches' => 0,
 				'items_synced' => 0,
@@ -884,28 +885,40 @@ class Sync_Manager {
 	 * @return array|WP_Error Resultado de la operación
 	 */
 	private function sync_products_from_verial( $offset, $limit, $filters ) {
-		// IMPORTANTE: Verificar y ajustar límite para prevenir timeouts
-		$max_safe_batch_size = 40; // Valor máximo de seguridad
+		// Respetamos completamente el tamaño del lote configurado por el usuario
+		// No aplicamos límites de seguridad adicionales, confiamos en la configuración explícita
+		
+		// Para fines de registro, guardamos el valor original
 		$original_limit = $limit;
 		
-		// Respetamos el tamaño de lote configurado si es menor que el máximo de seguridad
-		// Solo aplicamos el límite de seguridad si el valor configurado es mayor
-		if ($limit > $max_safe_batch_size) {
-			// Ajustar el límite para esta ejecución
-			$limit = $max_safe_batch_size;
+		// Registrar información sobre el tamaño del lote que se está usando
+		if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
+			$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
+			$logger->info(
+				sprintf('LOTE EFECTIVO EN EJECUCIÓN: %d productos', $limit),
+				[
+					'offset' => $offset,
+					'limit' => $limit,
+					'configured_value' => $limit,
+					'batch_size_helper_value' => BatchSizeHelper::getBatchSize('productos'),
+					'sync_status_batch_size' => $this->sync_status['current_sync']['batch_size'] ?? 'no disponible',
+					'request_batch_size' => isset($_REQUEST['batch_size']) ? (int)$_REQUEST['batch_size'] : 'no especificado en request',
+					'inicio_fin_rango' => sprintf('Rango API: %d-%d', $offset + 1, $offset + $limit),
+					'productos_esperados_en_rango' => $limit
+				]
+			);
 			
-			// Registrar ajuste automático
-			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
-				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
-				$logger->warning(
-					sprintf('Limitando tamaño de lote de %d a %d para prevenir timeouts',
-						$original_limit, $limit),
-					[
-						'offset' => $offset,
-						'original_limit' => $original_limit,
-						'adjusted_limit' => $limit
-					]
-				);
+			// Añadir alerta si parece que el valor no coincide con lo configurado
+			if ($limit != BatchSizeHelper::getBatchSize('productos') && 
+			    $limit != $this->sync_status['current_sync']['batch_size']) {
+			    $logger->warning(
+			        sprintf('¡POSIBLE INCONSISTENCIA! El tamaño de lote real (%d) no coincide con la configuración', $limit),
+			        [
+			            'limit_real' => $limit,
+			            'batch_size_helper_value' => BatchSizeHelper::getBatchSize('productos'),
+			            'sync_status' => $this->sync_status['current_sync']['batch_size'] ?? 'no disponible'
+			        ]
+			    );
 			}
 		}
 		
@@ -914,12 +927,13 @@ class Sync_Manager {
 		
 		// Calcular parámetros de paginación
 		$inicio = $offset + 1; // API Verial comienza en 1
-		$fin = $offset + $limit;
+		$fin = $offset + $limit; // Corrección real: offset + limit para que fin - inicio + 1 = limit exactamente
 		
 		// Crear parámetros para la consulta con soporte completo para filtros
-		// Verificar si el tamaño del lote es muy grande y posiblemente problemático
-		$batch_size = $fin - $inicio + 1;
-		if ($batch_size > 75) {
+		// Calcular el tamaño real del lote para logeo y verificaciones
+		$batch_size = BatchSizeHelper::calculateEffectiveBatchSize($inicio, $fin);
+		$max_recommended = BatchSizeHelper::BATCH_SIZE_LIMITS['productos']['max'] * 0.75; // 75% del máximo como límite de advertencia
+		if ($batch_size > $max_recommended) {
 			// Registrar advertencia sobre tamaño de lote
 			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
 				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
@@ -928,7 +942,8 @@ class Sync_Manager {
 					[
 						'inicio' => $inicio,
 						'fin' => $fin,
-						'batch_size' => $batch_size
+						'batch_size' => $batch_size,
+						'max_recomendado' => $max_recommended
 					]
 				);
 			}
@@ -973,7 +988,8 @@ class Sync_Manager {
 		$is_known_problematic_range = $this->is_problematic_range($inicio, $fin);
 		
 		// Si sabemos que este rango causa problemas o es grande, usar la función de subdivisión
-		if ($is_known_problematic_range || $batch_size > 20) {
+		$subdivision_threshold = BatchSizeHelper::DEFAULT_BATCH_SIZES['productos'];
+		if ($is_known_problematic_range || $batch_size > $subdivision_threshold) {
 			if (class_exists('\MiIntegracionApi\Helpers\Logger')) {
 				$logger = new \MiIntegracionApi\Helpers\Logger('sync-verial-batch');
 				$logger->info(

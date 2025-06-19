@@ -1,0 +1,324 @@
+=== TEST DE SINCRONIZACIÓN DE PRECIOS POR LOTES ===
+2025-06-19 04:33:51
+
+[2025-06-19 04:33:51] Iniciando prueba de sincronización de precios por lotes
+[2025-06-19 04:33:51] Tamaño de lote: 5
+[2025-06-19 04:33:51] Lotes máximos a procesar: 3
+[2025-06-19 04:33:51] Total máximo de productos: 15
+[2025-06-19 04:33:51] Obteniendo instancia de Sync_Manager
+[2025-06-19 04:33:51] Comprobando estado de la API...
+[2025-06-19 04:33:51] Configuración de API:
+Array
+(
+    [url] => http://x.verial.org:8000/WcfServiceLibraryVerial
+    [session_id] => 18
+)
+
+[2025-06-19 04:33:51] Probando conexión a la API de Verial...
+[2025-06-19 04:33:51] Conexión a la API establecida correctamente
+[2025-06-19 04:33:51] === COMENZANDO SIMULACIÓN DE SINCRONIZACIÓN DE PRECIOS POR LOTES ===
+[2025-06-19 04:33:51] Obteniendo lista inicial de productos (máximo 15)...
+[2025-06-19 04:33:51] Se obtuvieron 15 productos para sincronizar
+[2025-06-19 04:33:51] 
+=== PROCESANDO LOTE #1 (productos 0 - 4) ===
+[2025-06-19 04:33:51] Procesando producto: Producto de prueba 1 (ID: 1, REF: REF-1)
+[2025-06-19 04:33:51] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:51] ✅ Precio encontrado para producto 'Producto de prueba 1':
+Array
+(
+    [precio_base] => 66.27
+    [precio_oferta] => 57.6549
+)
+
+[2025-06-19 04:33:51] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-1
+    [name] => Producto de prueba 1
+    [regular_price] => 66.27
+    [sale_price] => 57.6549
+)
+
+[2025-06-19 04:33:51] Procesando producto: Producto de prueba 2 (ID: 2, REF: REF-2)
+[2025-06-19 04:33:51] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:51] ✅ Precio encontrado para producto 'Producto de prueba 2':
+Array
+(
+    [precio_base] => 61.32
+    [precio_oferta] => 53.9616
+)
+
+[2025-06-19 04:33:51] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-2
+    [name] => Producto de prueba 2
+    [regular_price] => 61.32
+    [sale_price] => 53.9616
+)
+
+[2025-06-19 04:33:51] Procesando producto: Producto de prueba 3 (ID: 3, REF: REF-3)
+[2025-06-19 04:33:51] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:51] ✅ Precio encontrado para producto 'Producto de prueba 3':
+Array
+(
+    [precio_base] => 23.44
+    [precio_oferta] => 22.268
+)
+
+[2025-06-19 04:33:51] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-3
+    [name] => Producto de prueba 3
+    [regular_price] => 23.44
+    [sale_price] => 22.268
+)
+
+[2025-06-19 04:33:51] Procesando producto: Producto de prueba 4 (ID: 4, REF: REF-4)
+[2025-06-19 04:33:51] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:51] ✅ Precio encontrado para producto 'Producto de prueba 4':
+Array
+(
+    [precio_base] => 73.47
+    [precio_oferta] => 60.2454
+)
+
+[2025-06-19 04:33:51] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-4
+    [name] => Producto de prueba 4
+    [regular_price] => 73.47
+    [sale_price] => 60.2454
+)
+
+[2025-06-19 04:33:52] Procesando producto: Producto de prueba 5 (ID: 5, REF: REF-5)
+[2025-06-19 04:33:52] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:52] ✅ Precio encontrado para producto 'Producto de prueba 5':
+Array
+(
+    [precio_base] => 53.55
+    [precio_oferta] => 52.479
+)
+
+[2025-06-19 04:33:52] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-5
+    [name] => Producto de prueba 5
+    [regular_price] => 53.55
+    [sale_price] => 52.479
+)
+
+[2025-06-19 04:33:52] 
+--- Estadísticas del lote #1 ---
+[2025-06-19 04:33:52] Productos procesados: 5
+[2025-06-19 04:33:52] Productos con precio: 5
+[2025-06-19 04:33:52] Productos sin precio: 0
+[2025-06-19 04:33:52] Errores encontrados: 0
+[2025-06-19 04:33:52] Tiempo de procesamiento: 0.5 segundos
+[2025-06-19 04:33:52] Uso de memoria después del lote: 2 MB
+[2025-06-19 04:33:53] 
+=== PROCESANDO LOTE #2 (productos 5 - 9) ===
+[2025-06-19 04:33:53] Procesando producto: Producto de prueba 6 (ID: 6, REF: REF-6)
+[2025-06-19 04:33:53] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:53] ✅ Precio encontrado para producto 'Producto de prueba 6':
+Array
+(
+    [precio_base] => 83.93
+    [precio_oferta] => 80.5728
+)
+
+[2025-06-19 04:33:53] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-6
+    [name] => Producto de prueba 6
+    [regular_price] => 83.93
+    [sale_price] => 80.5728
+)
+
+[2025-06-19 04:33:53] Procesando producto: Producto de prueba 7 (ID: 7, REF: REF-7)
+[2025-06-19 04:33:53] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:53] ✅ Precio encontrado para producto 'Producto de prueba 7':
+Array
+(
+    [precio_base] => 93.99
+    [precio_oferta] => 93.0501
+)
+
+[2025-06-19 04:33:53] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-7
+    [name] => Producto de prueba 7
+    [regular_price] => 93.99
+    [sale_price] => 93.0501
+)
+
+[2025-06-19 04:33:53] Procesando producto: Producto de prueba 8 (ID: 8, REF: REF-8)
+[2025-06-19 04:33:53] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:53] ✅ Precio encontrado para producto 'Producto de prueba 8':
+Array
+(
+    [precio_base] => 81.01
+    [precio_oferta] => 77.7696
+)
+
+[2025-06-19 04:33:53] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-8
+    [name] => Producto de prueba 8
+    [regular_price] => 81.01
+    [sale_price] => 77.7696
+)
+
+[2025-06-19 04:33:53] Procesando producto: Producto de prueba 9 (ID: 9, REF: REF-9)
+[2025-06-19 04:33:53] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:53] ✅ Precio encontrado para producto 'Producto de prueba 9':
+Array
+(
+    [precio_base] => 88.13
+    [precio_oferta] => 81.9609
+)
+
+[2025-06-19 04:33:53] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-9
+    [name] => Producto de prueba 9
+    [regular_price] => 88.13
+    [sale_price] => 81.9609
+)
+
+[2025-06-19 04:33:53] Procesando producto: Producto de prueba 10 (ID: 10, REF: REF-10)
+[2025-06-19 04:33:53] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:53] ❌ No se encontró precio para el producto 'Producto de prueba 10'
+[2025-06-19 04:33:53] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-10
+    [name] => Producto de prueba 10
+    [regular_price] => 
+    [sale_price] => 
+)
+
+[2025-06-19 04:33:53] 
+--- Estadísticas del lote #2 ---
+[2025-06-19 04:33:53] Productos procesados: 5
+[2025-06-19 04:33:53] Productos con precio: 4
+[2025-06-19 04:33:53] Productos sin precio: 1
+[2025-06-19 04:33:53] Errores encontrados: 0
+[2025-06-19 04:33:53] Tiempo de procesamiento: 0.5 segundos
+[2025-06-19 04:33:53] Uso de memoria después del lote: 2 MB
+[2025-06-19 04:33:54] 
+=== PROCESANDO LOTE #3 (productos 10 - 14) ===
+[2025-06-19 04:33:54] Procesando producto: Producto de prueba 11 (ID: 11, REF: REF-11)
+[2025-06-19 04:33:54] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:54] ✅ Precio encontrado para producto 'Producto de prueba 11':
+Array
+(
+    [precio_base] => 58.02
+    [precio_oferta] => 46.9962
+)
+
+[2025-06-19 04:33:54] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-11
+    [name] => Producto de prueba 11
+    [regular_price] => 58.02
+    [sale_price] => 46.9962
+)
+
+[2025-06-19 04:33:54] Procesando producto: Producto de prueba 12 (ID: 12, REF: REF-12)
+[2025-06-19 04:33:54] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:54] ✅ Precio encontrado para producto 'Producto de prueba 12':
+Array
+(
+    [precio_base] => 50.63
+    [precio_oferta] => 49.6174
+)
+
+[2025-06-19 04:33:54] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-12
+    [name] => Producto de prueba 12
+    [regular_price] => 50.63
+    [sale_price] => 49.6174
+)
+
+[2025-06-19 04:33:54] Procesando producto: Producto de prueba 13 (ID: 13, REF: REF-13)
+[2025-06-19 04:33:54] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:54] ❌ No se encontró precio para el producto 'Producto de prueba 13'
+[2025-06-19 04:33:54] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-13
+    [name] => Producto de prueba 13
+    [regular_price] => 
+    [sale_price] => 
+)
+
+[2025-06-19 04:33:54] Procesando producto: Producto de prueba 14 (ID: 14, REF: REF-14)
+[2025-06-19 04:33:54] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:54] ✅ Precio encontrado para producto 'Producto de prueba 14':
+Array
+(
+    [precio_base] => 53.28
+    [precio_oferta] => 51.1488
+)
+
+[2025-06-19 04:33:54] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-14
+    [name] => Producto de prueba 14
+    [regular_price] => 53.28
+    [sale_price] => 51.1488
+)
+
+[2025-06-19 04:33:55] Procesando producto: Producto de prueba 15 (ID: 15, REF: REF-15)
+[2025-06-19 04:33:55] Detectada estructura CondicionesTarifa
+[2025-06-19 04:33:55] ✅ Precio encontrado para producto 'Producto de prueba 15':
+Array
+(
+    [precio_base] => 70.39
+    [precio_oferta] => 61.2393
+)
+
+[2025-06-19 04:33:55] Datos para WooCommerce:
+Array
+(
+    [sku] => REF-15
+    [name] => Producto de prueba 15
+    [regular_price] => 70.39
+    [sale_price] => 61.2393
+)
+
+[2025-06-19 04:33:55] 
+--- Estadísticas del lote #3 ---
+[2025-06-19 04:33:55] Productos procesados: 5
+[2025-06-19 04:33:55] Productos con precio: 4
+[2025-06-19 04:33:55] Productos sin precio: 1
+[2025-06-19 04:33:55] Errores encontrados: 0
+[2025-06-19 04:33:55] Tiempo de procesamiento: 0.5 segundos
+[2025-06-19 04:33:55] Uso de memoria después del lote: 2 MB
+[2025-06-19 04:33:56] 
+=== ESTADÍSTICAS FINALES DE SINCRONIZACIÓN ===
+[2025-06-19 04:33:56] Lotes procesados: 3
+[2025-06-19 04:33:56] Productos procesados: 15
+[2025-06-19 04:33:56] Productos con precio: 13 (86.67%)
+[2025-06-19 04:33:56] Productos sin precio: 2 (13.33%)
+[2025-06-19 04:33:56] Errores encontrados: 0
+[2025-06-19 04:33:56] 
+=== ANÁLISIS Y RECOMENDACIONES ===
+[2025-06-19 04:33:56] ⚠️ Se detectaron 2 productos sin precio. Revisar la estructura de respuesta de la API para estos productos.
+[2025-06-19 04:33:56] ⚠️ Menos del 90% de los productos tienen precios. Puede haber un problema con la API o con la configuración de precios.
+[2025-06-19 04:33:56] Uso máximo de memoria durante la ejecución: 2 MB
+[2025-06-19 04:33:56] ✅ El uso de memoria se mantuvo en niveles aceptables.
+[2025-06-19 04:33:56] 
+Test completado. Archivo de log guardado en: /home/christian/Documentos/Poyectos/mi-integracion-api/scripts/sync-prices-test-20250619-043351.log
